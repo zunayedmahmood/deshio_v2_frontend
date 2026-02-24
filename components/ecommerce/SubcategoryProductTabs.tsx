@@ -48,14 +48,23 @@ const SubcategoryProductTabs: React.FC<{ tabsCount?: number; productsPerTab?: nu
       setLoadingCategories(true);
       try {
         const tree = await catalogService.getCategories();
-        const leaves = flattenLeafCategories(tree)
-          .filter((c) => Boolean(c?.name))
-          .sort((a, b) => {
-            const countDiff = Number(b.product_count || 0) - Number(a.product_count || 0);
-            if (countDiff !== 0) return countDiff;
-            return Number(a.id || 0) - Number(b.id || 0);
-          })
-          .slice(0, tabsCount);
+        // Include all named categories (don't exclude those with product_count=0 as it may be stale)
+        const allCats = flattenLeafCategories(tree).filter((c) => Boolean(c?.name));
+        // Sort by product_count descending, then by id ascending as tiebreaker
+        allCats.sort((a, b) => {
+          const countDiff = Number(b.product_count || 0) - Number(a.product_count || 0);
+          if (countDiff !== 0) return countDiff;
+          return Number(a.id || 0) - Number(b.id || 0);
+        });
+        // If we have fewer leaf categories than requested, also include parent categories
+        let leaves = allCats.slice(0, tabsCount);
+        if (leaves.length < 2) {
+          // Fallback: include all categories (not just leaves)
+          const allFlat: CatalogCategory[] = [];
+          const walkAll = (list: CatalogCategory[]) => list.forEach(c => { allFlat.push(c); if (c.children) walkAll(c.children); });
+          walkAll(tree);
+          leaves = allFlat.filter(c => Boolean(c?.name)).sort((a,b) => Number(b.product_count||0)-Number(a.product_count||0)).slice(0,tabsCount);
+        }
         if (!mounted) return;
         setCategories(leaves);
         if (leaves.length > 0) setActiveCategoryId((prev) => prev ?? leaves[0].id);
@@ -91,9 +100,11 @@ const SubcategoryProductTabs: React.FC<{ tabsCount?: number; productsPerTab?: nu
       }));
 
       const attempts = [
-        { category_id: selected.id, sort_by: 'newest' as const, sort: 'created_at', order: 'desc', sort_order: 'desc' as const },
-        { category_id: selected.id, category: selected.name, sort_by: 'newest' as const, sort: 'created_at', order: 'desc', sort_order: 'desc' as const },
-        { category_id: selected.id, category: selected.slug, category_slug: selected.slug, sort_by: 'newest' as const, sort: 'created_at', order: 'desc', sort_order: 'desc' as const },
+        { category_id: selected.id, sort_by: 'newest' as const, sort_order: 'desc' as const },
+        { category_id: selected.id, category: selected.name, sort_by: 'newest' as const, sort_order: 'desc' as const },
+        { category: selected.name, category_slug: selected.slug, sort_by: 'newest' as const, sort_order: 'desc' as const },
+        // Last resort: fetch newest products with no category filter
+        { sort_by: 'newest' as const, sort_order: 'desc' as const },
       ];
 
       let finalProducts: SimpleProduct[] = [];

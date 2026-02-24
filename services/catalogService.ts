@@ -306,9 +306,18 @@ const normalizeImage = (image: any, index = 0): ProductImage | null => {
 
 const normalizeImages = (images: any): ProductImage[] => {
   if (!Array.isArray(images)) return [];
-  return images
+  const normalized = images
     .map((img, idx) => normalizeImage(img, idx))
     .filter((img): img is ProductImage => Boolean(img));
+
+  // Sort: primary image first, then by display_order/id
+  normalized.sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return 0;
+  });
+
+  return normalized;
 };
 
 const normalizeCategory = (category: any): ProductCategory | null => {
