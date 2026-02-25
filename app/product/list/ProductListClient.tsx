@@ -121,17 +121,35 @@ const goToPage = useCallback(
     fetchData();
   }, []);
 
+  const fetchAllProductsSafely = async (): Promise<Product[]> => {
+    const chunkSize = 1000;
+    const first = await productService.getAll({ page: 1, per_page: chunkSize });
+
+    let all: Product[] = Array.isArray(first.data) ? [...first.data] : [];
+    const lastPage = Math.max(1, Number(first.last_page || 1));
+
+    if (lastPage > 1) {
+      for (let page = 2; page <= lastPage; page++) {
+        const next = await productService.getAll({ page, per_page: chunkSize });
+        if (!Array.isArray(next.data) || next.data.length === 0) break;
+        all = all.concat(next.data);
+      }
+    }
+
+    return all;
+  };
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [productsData, categoriesData, vendorsData] = await Promise.all([
-        productService.getAll({ per_page: 5000 }),
+      const [allProducts, categoriesData, vendorsData] = await Promise.all([
+        fetchAllProductsSafely(),
         // Only count/show active categories in product list stats & filters
         categoryService.getTree(true),
         vendorService.getAll(),
       ]);
 
-      setProducts(Array.isArray(productsData.data) ? productsData.data : []);
+      setProducts(Array.isArray(allProducts) ? allProducts : []);
       setCategories(Array.isArray(categoriesData) ? categoriesData : []);
       const vendorsArr: Vendor[] = Array.isArray(vendorsData) ? vendorsData : [];
       const vmap: Record<number, string> = {};
