@@ -655,17 +655,28 @@ export default function VendorPaymentPage() {
     }
   };
 
-  // Load products
+  // Load products (safe chunked fetch to avoid 10k/100k payloads that can crash backend)
   const loadProducts = async () => {
     try {
-      const response = await productService.getAll({
-        per_page: 100000,
-      });
-      setProducts(Array.isArray((response as any).data) ? (response as any).data : []);
+      const chunkSize = 20000;
+      const first = await productService.getAll({ page: 1, per_page: chunkSize, is_archived: false });
+      let all: Product[] = Array.isArray((first as any)?.data) ? ((first as any).data as Product[]) : [];
+      const lastPage = Math.max(1, Number((first as any)?.last_page || 1));
+
+      if (lastPage > 1) {
+        for (let page = 2; page <= lastPage; page++) {
+          const next = await productService.getAll({ page, per_page: chunkSize, is_archived: false });
+          const list: Product[] = Array.isArray((next as any)?.data) ? ((next as any).data as Product[]) : [];
+          if (!list.length) break;
+          all = all.concat(list);
+        }
+      }
+
+      setProducts(all);
     } catch (error: any) {
       console.error('Failed to load products:', error);
       setProducts([]);
-      showAlert('error', error.message || 'Failed to load products');
+      showAlert('error', error?.message || 'Failed to load products');
     }
   };
 
