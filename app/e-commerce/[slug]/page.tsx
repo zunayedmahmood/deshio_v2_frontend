@@ -101,7 +101,7 @@ const productMatchesAllowedCategory = (
 
 // We fetch more raw rows than the UI shows because products are grouped by variation.
 // ~100 raw rows typically becomes ~20 grouped cards for busy categories.
-const UI_CARDS_PER_PAGE = 100;
+const UI_CARDS_PER_PAGE = 200;
 
 const getProductsSilent = (params: GetProductsParams) =>
   catalogService.getProducts({ ...(params as any), _suppressErrorLog: true } as GetProductsParams);
