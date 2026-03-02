@@ -155,7 +155,7 @@ const handleAddToCart = async (product: SimpleProduct) => {
               <button
                 type="button"
                 onClick={() => setIsFiltersOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-white"
+                className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.12)] text-white"
               >
                 <Filter className="h-4 w-4" />
                 Filters
@@ -284,6 +284,7 @@ const handleAddToCart = async (product: SimpleProduct) => {
           </div>
 
           {isLoading ? (
+ ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-neutral-900" />
               <p className="mt-4 text-white/70">Loading products...</p>

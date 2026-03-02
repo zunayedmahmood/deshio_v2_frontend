@@ -213,6 +213,7 @@ export default function CategoryPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const [selectedPriceRange, setSelectedPriceRange] = useState<string>('all');
   const [selectedStock, setSelectedStock] = useState<string>('all');
@@ -524,7 +525,8 @@ export default function CategoryPage() {
           </div>
 
           <div className="flex flex-col lg:flex-row gap-8">
-            <aside className="w-full lg:w-64 flex-shrink-0">
+            {/* Desktop sidebar */}
+            <aside className="hidden lg:block w-64 flex-shrink-0">
               <CategorySidebar
                 categories={categories}
                 activeCategory={categorySlug}
@@ -537,6 +539,27 @@ export default function CategoryPage() {
             </aside>
 
             <main className="flex-1">
+              {/* Mobile: Filters button (drawer) */}
+              <div className="lg:hidden flex items-center justify-between gap-3 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setIsFiltersOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.12)] text-white"
+                >
+                  Filters
+                </button>
+
+                <select
+                  value={selectedSort}
+                  onChange={(e) => setSelectedSort(e.target.value)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-[rgba(255,255,255,0.06)] text-white focus:outline-none focus:ring-2 focus:ring-white/15"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="name">Name A-Z</option>
+                </select>
+              </div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div className="text-sm text-gray-600">Showing {products.length} of {totalResults} products</div>
                 <select
@@ -678,7 +701,55 @@ export default function CategoryPage() {
             </main>
           </div>
         </div>
-      </div><CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      </div>
+
+      <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
+      {/* Mobile filter drawer */}
+      {isFiltersOpen && (
+        <div className="fixed inset-0 z-[70] lg:hidden">
+          <button
+            type="button"
+            aria-label="Close filters"
+            onClick={() => setIsFiltersOpen(false)}
+            className="absolute inset-0 bg-black/60"
+          />
+          {/* Drawer panel (solid dark bg to match ec-root pages) */}
+          <div className="absolute right-0 top-0 h-full w-[86%] max-w-sm border-l border-white/10 p-5 overflow-y-auto bg-[#0b1220]">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-white font-semibold">Filters</div>
+              <button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="px-3 py-2 rounded-lg border border-white/10 bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.10)] text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <CategorySidebar
+              categories={categories}
+              activeCategory={categorySlug}
+              onCategoryChange={(v) => {
+                setIsFiltersOpen(false);
+                handleCategoryChange(v);
+              }}
+              selectedPriceRange={selectedPriceRange}
+              onPriceRangeChange={setSelectedPriceRange}
+              selectedStock={selectedStock}
+              onStockChange={setSelectedStock}
+            />
+
+            <button
+              type="button"
+              onClick={() => setIsFiltersOpen(false)}
+              className="mt-5 w-full px-4 py-3 rounded-xl border border-white/10 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.12)] text-white font-semibold"
+            >
+              Show Products
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
