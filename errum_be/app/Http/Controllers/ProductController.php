@@ -72,6 +72,23 @@ class ProductController extends Controller
             });
         }
 
+        // Stock status filter
+        if ($request->has('stock_status') && $request->stock_status !== 'all') {
+            if ($request->stock_status === 'in_stock') {
+                $query->whereHas('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            } elseif ($request->stock_status === 'not_in_stock') {
+                $query->whereDoesntHave('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            }
+        }
+
         // Search by custom field value
         if ($request->has('field_search')) {
             $fieldId = $request->input('field_id');

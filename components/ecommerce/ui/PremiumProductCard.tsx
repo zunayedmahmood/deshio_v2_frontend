@@ -97,11 +97,14 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
         <div className="absolute inset-x-0 bottom-0 translate-y-full transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-0 hidden sm:block">
           <div className="flex items-center gap-1.5 p-2.5">
             <button
-              onClick={e => onAddToCart(product, e)}
+              onClick={e => {
+                e.stopPropagation();
+                onOpen(product);
+              }}
               className="flex-1 rounded-xl py-3 text-[11px] font-bold text-white transition-all shadow-xl active:scale-[0.97]"
               style={{ background: 'var(--gold)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Jost', sans-serif" }}
             >
-              {product.has_variants ? 'Choose Options' : 'Add to Bag'}
+              Choose Options
             </button>
           </div>
         </div>

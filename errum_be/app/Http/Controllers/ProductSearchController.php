@@ -261,6 +261,7 @@ class ProductSearchController extends Controller
             'search_fields' => 'nullable|array',
             'search_fields.*' => 'in:name,sku,description,category,custom_fields',
             'per_page' => 'nullable|integer|min:1|max:100',
+            'stock_status' => 'nullable|string|in:all,in_stock,not_in_stock',
         ]);
 
         $query = $validated['query'];
@@ -526,6 +527,23 @@ class ProductSearchController extends Controller
         if (isset($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);
         }
+
+        // Stock status filter
+        if (isset($filters['stock_status']) && $filters['stock_status'] !== 'all') {
+            if ($filters['stock_status'] === 'in_stock') {
+                $query->whereHas('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            } elseif ($filters['stock_status'] === 'not_in_stock') {
+                $query->whereDoesntHave('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            }
+        }
         
         // Performance: Limit the number of products we run fuzzy matching on
         // If there are thousands of products, this is too slow.
@@ -626,6 +644,23 @@ class ProductSearchController extends Controller
         if (isset($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);
         }
+
+        // Stock status filter
+        if (isset($filters['stock_status']) && $filters['stock_status'] !== 'all') {
+            if ($filters['stock_status'] === 'in_stock') {
+                $query->whereHas('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            } elseif ($filters['stock_status'] === 'not_in_stock') {
+                $query->whereDoesntHave('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            }
+        }
         
         $query->where(function($q) use ($searchTerms, $searchFields) {
             foreach ($searchTerms as $term) {
@@ -663,6 +698,23 @@ class ProductSearchController extends Controller
         if (isset($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);
         }
+
+        // Stock status filter
+        if (isset($filters['stock_status']) && $filters['stock_status'] !== 'all') {
+            if ($filters['stock_status'] === 'in_stock') {
+                $query->whereHas('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            } elseif ($filters['stock_status'] === 'not_in_stock') {
+                $query->whereDoesntHave('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            }
+        }
         
         $query->where(function($q) use ($searchTerms, $searchFields) {
             foreach ($searchTerms as $term) {
@@ -699,6 +751,23 @@ class ProductSearchController extends Controller
         
         if (isset($filters['vendor_id'])) {
             $query->where('vendor_id', $filters['vendor_id']);
+        }
+
+        // Stock status filter
+        if (isset($filters['stock_status']) && $filters['stock_status'] !== 'all') {
+            if ($filters['stock_status'] === 'in_stock') {
+                $query->whereHas('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            } elseif ($filters['stock_status'] === 'not_in_stock') {
+                $query->whereDoesntHave('batches', function($q) {
+                    $q->where('is_active', true)
+                      ->where('availability', true)
+                      ->where('stock_qty', '>', 0);
+                });
+            }
         }
         
         $query->where(function($q) use ($searchTerms, $searchFields) {

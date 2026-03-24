@@ -71,3 +71,8 @@ Refer to the `Documentation/` directory for specific implementation details on:
 - Product list optimization and search logic.
 - Mobile viewport polishing.
 - SQL performance fixes for catalog and search.
+
+# Deployment Context
+- Backend API: https://backend2.errumbd.com/
+- Frontend: https://errum-v2.vercel.app/
+- Rules: Always use `web_fetch` to check live status.

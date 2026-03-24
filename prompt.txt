@@ -71,11 +71,45 @@ check the backend controllers and models that are called by these frontend code.
 The page is currently working absolutely fine with proper logic. so ONLY edit if stricly necessary. DO NOT change anything unnecessarily. 
 
 
-okay there has been 2 issues.... One is from social commerce page... when i am placing an order... address is not getting stored... and also when i am editing the address... kinda like whole api response of the customer is getting stored in the address bar... the pages are app/social-commerce and app/orders/
-I gave this problem to an AI model and found these issues and solve:
 
+check the pages in @app/ that are relevant to product, product_batches, product_variants, product_field and product_images.
+Also view all the code in components, services and lib folders to understand anything relevant.
+/compress
 
-Update the code accordingly.
-DO NOT change anything else.
-generate an md file titled: "24_Mar_26 Order Address issues fix.md" in Documentation folder. It should discuss and explain in detail how the new pages behave, examples and edge cases and th files affected.
+### retur-refund:
+Analyze the @errum_be/app/Http/Controllers, @errum_be/app/Models, @errum_be/app/Traits/ProductImageFallback.php
+and the migrations in @errum_be/database/migrations.
 
+understand the product and order return, refund, exchange logic.
+
+Check the code for integrity issues, potential bugs, risks and edge cases along with partial payment additional, parital payment refund etc cases.
+
+generate a detailed md file titled "25_Mar_26 product return, refund, exchange integrity check.md" with discussion and explanation in detail how the code behaves, examples and edge cases and mention the files in context.
+
+### images:
+Analyze the @errum_be/app/Http/Controllers, @errum_be/app/Models, @errum_be/app/Traits/ProductImageFallback.php
+and the migrations in @errum_be/database/migrations.
+
+understand the logic behind image store, show, get, update, delete etc...
+currently, we have this issue:
+some of the product images are available in the backend storage with symlink. we can see some images like this from frontend. But,
+other images are not shown. inspecting the Networks tab shows those image requests returned a 404 not found.
+(see GEMINI.md to get the backend API and test a few calls yourself. You would have to call the product to get it's images to actually call the image)
+Here are some image urls that work (test them to see if you understand something):
+Working:
+https://backend2.errumbd.com/storage/products/4441/1772440412_OYlGLPqMUS.jpeg
+https://backend2.errumbd.com/storage/products/4453/1772441132_XxQa5cJRyo.jpeg
+
+Not Working:
+https://backend2.errumbd.com/storage/products/5075/1773420180_G3RBY2VtuK.jpeg
+https://backend2.errumbd.com/storage/products/5013/1773394108_0MFhrmFoCb.jpeg
+
+we've manually checked to confirm these files exists under this exact name in those places.
+
+Something you need to know:
+->errum_be is only the code for the backend for the sake of prompting. so you won't find the symlink or the images there.
+
+try and test different products to get product_images url and test if you want.
+understand the issue and problem and propose a fix for it.
+
+Write the proposal in a detailed md file titled: "25_Mar_26 404 image issue identification and solve proposal.md" and save it as an md file in @Documentation/

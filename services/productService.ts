@@ -172,6 +172,8 @@ export const productService = {
     /** Proposal 2: server-side price filter (BDT) */
     min_price?: number;
     max_price?: number;
+    /** NEW: stock status filter */
+    stock_status?: 'all' | 'in_stock' | 'not_in_stock';
   }): Promise<{ data: Product[]; total: number; current_page: number; last_page: number }> {
     try {
       // Prefer employee-scoped endpoints when available; fallback keeps backward compatibility.
@@ -244,6 +246,7 @@ export const productService = {
     per_page?: number;
     page?: number;
     enable_fuzzy?: boolean;
+    stock_status?: 'all' | 'in_stock' | 'not_in_stock';
   }): Promise<{ data: Product[]; total: number; current_page: number; last_page: number }> {
     try {
       const response = await axiosInstance.post('/products/advanced-search', params);
@@ -584,7 +587,7 @@ export const productService = {
     try {
       const response = await axiosInstance.get('/products/search-by-field', { params });
       const result = response.data;
-      
+
       if (result.success) {
         const products = (result.data.data || result.data || []).map(transformProduct);
         return {

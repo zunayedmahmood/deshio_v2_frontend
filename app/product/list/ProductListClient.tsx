@@ -60,6 +60,7 @@ export default function ProductPage() {
   const [debouncedMinPrice, setDebouncedMinPrice] = useState<string>('');
   const [debouncedMaxPrice, setDebouncedMaxPrice] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('newest');
+  const [stockStatus, setStockStatus] = useState<'all' | 'in_stock' | 'not_in_stock'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const SERVER_PAGE_SIZE = 60;
@@ -123,7 +124,8 @@ export default function ProductPage() {
     const pageRaw = Number(searchParams.get('page') ?? '1');
 
     const sort = searchParams.get('sortBy') ?? 'newest';
-    
+    const stock = (searchParams.get('stockStatus') as 'all' | 'in_stock' | 'not_in_stock') ?? 'all';
+
     setSearchQuery(q);
     setDebouncedSearchQuery(q);
     setSelectedCategory(category);
@@ -131,6 +133,7 @@ export default function ProductPage() {
     setMinPrice(minP);
     setMaxPrice(maxP);
     setSortBy(sort);
+    setStockStatus(stock);
     setCurrentPage(Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1);
 
     setSelectMode(searchParams.get('selectMode') === 'true');
@@ -233,6 +236,7 @@ export default function ProductPage() {
             per_page: SERVER_PAGE_SIZE,
             page: pageToLoad,
             enable_fuzzy: true,
+            stock_status: stockStatus !== 'all' ? stockStatus : undefined,
           });
         } catch {
           // Advanced search unavailable — fall back to standard endpoint
@@ -245,6 +249,7 @@ export default function ProductPage() {
             group_by_sku: true,
             min_price: minPrice ? Number(minPrice) : undefined,
             max_price: maxPrice ? Number(maxPrice) : undefined,
+            stock_status: stockStatus !== 'all' ? stockStatus : undefined,
             sort_by: apiSortBy,
             sort_direction: apiSortDir,
           });
@@ -260,6 +265,7 @@ export default function ProductPage() {
           group_by_sku: true,
           min_price: minPrice ? Number(minPrice) : undefined,
           max_price: maxPrice ? Number(maxPrice) : undefined,
+          stock_status: stockStatus !== 'all' ? stockStatus : undefined,
           sort_by: apiSortBy,
           sort_direction: apiSortDir,
         });
@@ -297,7 +303,7 @@ export default function ProductPage() {
         setIsLoading(false);
       }
     }
-  }, [currentPage, debouncedSearchQuery, selectedCategory, selectedVendor, debouncedMinPrice, debouncedMaxPrice, updateQueryParams]);
+  }, [currentPage, debouncedSearchQuery, selectedCategory, selectedVendor, debouncedMinPrice, debouncedMaxPrice, sortBy, stockStatus, updateQueryParams]);
 
   useEffect(() => {
     fetchFilterData();
@@ -751,6 +757,7 @@ export default function ProductPage() {
     setMinPrice('');
     setMaxPrice('');
     setSortBy('newest');
+    setStockStatus('all');
     setCurrentPage(1);
     updateQueryParams({
       q: null,
@@ -759,11 +766,12 @@ export default function ProductPage() {
       minPrice: null,
       maxPrice: null,
       sortBy: null,
+      stockStatus: null,
       page: '1',
     });
   };
 
-  const hasActiveFilters = Boolean(searchQuery || selectedCategory || selectedVendor || minPrice || maxPrice);
+  const hasActiveFilters = Boolean(searchQuery || selectedCategory || selectedVendor || minPrice || maxPrice || stockStatus !== 'all');
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -808,8 +816,8 @@ export default function ProductPage() {
                         <button
                           onClick={() => setViewMode('list')}
                           className={`p-2 rounded transition-colors ${viewMode === 'list'
-                              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                             }`}
                           title="List view"
                         >
@@ -818,8 +826,8 @@ export default function ProductPage() {
                         <button
                           onClick={() => setViewMode('grid')}
                           className={`p-2 rounded transition-colors ${viewMode === 'grid'
-                              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                             }`}
                           title="Grid view"
                         >
@@ -903,15 +911,15 @@ export default function ProductPage() {
                   <button
                     onClick={() => setShowFilters(!showFilters)}
                     className={`flex items-center gap-2 px-4 py-3 border rounded-lg transition-colors shadow-sm ${showFilters || hasActiveFilters
-                        ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white'
-                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                   >
                     <Filter className="w-5 h-5" />
                     <span className="font-medium">Filters</span>
                     {hasActiveFilters && (
                       <span className="px-2 py-0.5 text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-full">
-                        {(searchQuery ? 1 : 0) + (selectedCategory ? 1 : 0) + (selectedVendor ? 1 : 0) + (minPrice || maxPrice ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)}
+                        {(searchQuery ? 1 : 0) + (selectedCategory ? 1 : 0) + (selectedVendor ? 1 : 0) + (minPrice || maxPrice ? 1 : 0) + (stockStatus !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)}
                       </span>
                     )}
                   </button>
@@ -977,6 +985,27 @@ export default function ProductPage() {
                               {v.name}
                             </option>
                           ))}
+                        </select>
+                      </div>
+
+                      {/* Stock Status Filter */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Stock Status
+                        </label>
+                        <select
+                          value={stockStatus}
+                          onChange={(e) => {
+                            const val = e.target.value as 'all' | 'in_stock' | 'not_in_stock';
+                            setStockStatus(val);
+                            setCurrentPage(1);
+                            updateQueryParams({ stockStatus: val === 'all' ? null : val, page: '1' });
+                          }}
+                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="in_stock">In Stock</option>
+                          <option value="not_in_stock">Out of Stock</option>
                         </select>
                       </div>
 
@@ -1112,8 +1141,8 @@ export default function ProductPage() {
                           key={page}
                           onClick={() => goToPage(page)}
                           className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors font-medium shadow-sm ${currentPage === page
-                              ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                              : 'border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+                            ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+                            : 'border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
                             }`}
                         >
                           {page}
