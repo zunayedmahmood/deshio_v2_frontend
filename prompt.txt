@@ -90,68 +90,23 @@ DO NOT change any backend code unless stricly necessary. ANY change in backend M
 ANY change in frontend should be aware of the dark vs light theme.
 
 update the frontend_Api_controller_mapping.md for this page (if any).
-generate detailed md file titled "26_Mar_26 product list page stock_status filter fix.md" It should discuss and explain in detail how the new page behaves, examples and edge cases.
+generate and save a detailed md file /storage/Fullstack-Laravel-Next/errum_v2/Documentation/26_Mar_26 reserve stock plan.md It should discuss and explain any issue you find, make a proper workplan and describe in very detail how the new functionalities work.
+I'll use this md file to tell Gemini in antigravity.
 
 
-###pathao API fix
-check and read the entire manual in Developer API _ Merchant Panel _ Pathao.pdf and understand how to use their API.
-currently, we're having this issue:
-->the pathao order has a item_description that is currently showing default message from pathao.
-->we want it to show all the product_name (variant) against the Qty ordered. Like:
-Jordan Retro 4 -black-36 qty:5
-Jordan Retro 1 -na-35 qty:2
-Adult Red Panjabi -na-L qty:3
+### Stock deduction issue solve:
 
-this is the summary and observation given by Gemini CLI:
-The Pathao payload is primarily constructed and sent from the backend in
-  errum_be/app/Http/Controllers/ShipmentController.php within the sendToPathao method.
+read Documentation/26_Mar_26 reserve stock plan.md and understand the entire plan. I've also pasted it below:
 
-  Here are the key details:
+Read the entire backend controller, model related to order, product, product_batch and anything relevant.
 
-  1. Entry Point
-   * Controller: errum_be/app/Http/Controllers/ShipmentController.php
-   * Method: sendToPathao($shipmentOrId) (Lines 234–380)
-   * API Route: POST /api/shipments/{id}/send-to-pathao
+Implement the changes mentioned in the md file.
+DO NOT make any additional changes. ONLY change the stricly necessary part.
+then, make an absolutely detailed, very descriptive, lengthy md file titled "26_Mar_26 reserve stock.md". It should discuss and explain in detail how the new functionalities behave, examples and edge cases.
 
-  2. Payload Construction (Lines 318–331)
-  The payload ($pathaoData) is built with the following fields:
-
-    1 $pathaoData = [
-    2     'store_id' => (int) $store->pathao_store_id,
-    3     'merchant_order_id' => $order->order_number,
-    4     'recipient_name' => $shipment->recipient_name,
-    5     'recipient_phone' => $shipment->recipient_phone,
-    6     'recipient_address' => $recipientAddress,  // Combined string for auto-mapping
-    7     'delivery_type' => $shipment->delivery_type === 'express' ? 12 : 48,
-    8     'item_type' => 2,  // 1=document, 2=parcel
-    9     'special_instruction' => $shipment->special_instructions ?? '',
-   10     'item_quantity' => $order->items->sum('quantity'),
-   11     'item_weight' => $totalWeight,
-   12     'amount_to_collect' => $shipment->cod_amount ?? 0,
-   13     'item_description' => $shipment->getPackageDescription(), // <--- This is where the product names are
-      currently handled
-   14 ];
-
-  3. The "Message" (Product Names)
-  The item_description field is populated by the method getPackageDescription() located in the Shipment model
-  (errum_be/app/Models/Shipment.php).
-   * It currently collects up to 3 product names and appends a count for any remaining items:
-
-   1     public function getPackageDescription() {
-   2         $products = $this->getPackageProducts();
-   3         // ... takes 3 names and joins them: "Package containing: Item A, Item B, Item C and 2 other item(s)"
-   4     }
-
-  4. Delivery Mechanism
-  The actual HTTP request is dispatched via the PathaoService (errum_be/app/Services/PathaoService.php):
-   * Method: createOrder(array $orderData)
-   * Endpoint: /aladdin/api/v1/orders (Base URL: https://api-hermes.pathao.com)
-
-This is the official documentation for the create order part:
-
-
-However, the product name (currently set to 3) is not properly going to pathao.
-FIx the issue.
-generate detailed md file titled "26_Mar_26 pathao Item description fix.md" It should properly identify the issue, make a detailed explanation of the fix and list all the changes done to each file(s).
-DO NOT change anything else.
-ONLY change the stricly necessary code.
+What you need to know:
+->the files in errum_be is the backend code. 
+->DO NOT run "php artisan make:something name" and instead directly create the file
+->DO NOT run th migrations. 
+->Just create the additional files and write the code.
+->If the observers or anything similar need to be registered, register them (see the other observers to decide if that's necessary).
