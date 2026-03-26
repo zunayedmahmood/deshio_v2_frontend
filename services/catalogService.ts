@@ -196,6 +196,7 @@ export interface SearchProductsParams {
   sort?: string;
   per_page?: number;
   page?: number;
+  group_by_sku?: boolean;
 }
 
 export interface Category {
@@ -1092,6 +1093,7 @@ const catalogService = {
       sort_by: params.sort as any,
       per_page: params.per_page,
       page: params.page,
+      group_by_sku: params.group_by_sku,
     };
 
     try {

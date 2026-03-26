@@ -215,7 +215,7 @@ class EcommerceCatalogController extends Controller
         }
 
         // Step 2: Load Eloquent models only for the filtered and paginated results.
-        $allVariants = Product::with(['images', 'category', 'batches'])
+        $allVariants = Product::with(['images', 'category', 'batches.store'])
             ->whereIn('base_name', $baseNames)
             ->where('is_archived', false)
             ->whereNull('deleted_at')
@@ -319,7 +319,7 @@ class EcommerceCatalogController extends Controller
         $rows       = $baseQ->offset(($page - 1) * $perPage)->limit($perPage)->get();
         $productIds = $rows->pluck('id');
 
-        $products = Product::with(['images', 'category', 'batches'])
+        $products = Product::with(['images', 'category', 'batches.store'])
             ->whereIn('id', $productIds)
             ->whereNull('deleted_at')
             ->get()

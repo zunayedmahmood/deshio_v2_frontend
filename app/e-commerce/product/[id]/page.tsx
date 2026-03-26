@@ -53,6 +53,14 @@ const normalizeVariantText = (value: any): string =>
     .replace(/[‐‑‒–—−﹘﹣－]/g, '-')
     .replace(/\s+/g, ' ');
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+
 const parseMarketSizePairs = (value: string): string[] => {
   const text = normalizeVariantText(value)
     .replace(/[|,;/]+/g, ' ')
@@ -300,6 +308,13 @@ const getCategoryName = (category: Product['category'] | null | undefined): stri
 
   const value = String(category.name || '').trim();
   return value || undefined;
+};
+
+const getCategorySlug = (category: Product['category'] | null | undefined): string | undefined => {
+  if (!category) return undefined;
+  if (typeof category === 'string') return slugify(category);
+  if (category.slug) return category.slug;
+  return slugify(category.name);
 };
 
 
@@ -1143,7 +1158,14 @@ export default function ProductDetailPage() {
                 Related Essentials
               </h2>
               <button
-                onClick={() => router.push('/e-commerce/search?category=' + getCategoryId(product.category))}
+                onClick={() => {
+                  const slug = getCategorySlug(product.category);
+                  if (slug) {
+                    router.push(`/e-commerce/${slug}`);
+                  } else {
+                    router.push('/e-commerce/search?category=' + getCategoryId(product.category));
+                  }
+                }}
                 className="flex items-center gap-2 text-[11px] font-semibold transition-colors hover:text-[var(--gold)]"
                 style={{ fontFamily: "'DM Mono', monospace", color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em' }}
               >

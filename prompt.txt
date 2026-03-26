@@ -73,13 +73,27 @@ DO NOT change anything else. DO not make any chnages to backend. DO NOT change a
 
 I ran a full analysis of the relevant codebase with Gemini CLI. This was the response:
 
-### in stock filter for product list:
-check product/list page and all the backend code it calls and uses. see example-response.json
+### product search for social-commerce page:
+check the social-commerce page. check all the backend code it calls.
 
-currently, when we select stock_status, it sends a query like this: https://errum-v2.vercel.app/product/list?page=1&sortBy=newest&stockStatus=in_stock
-but, product has no stock_status. rather an in_stock = true/false.
+currently, it's searchbar retrieves products like this:
+->uses the same backend code as e-commerce pages and retrieves products grouped by their SKUs
+->shows the aggregate of all batches of all product_variants in one store as qty in that store.
 
-change the frontend to send proper query in the stock_status dropdown filter and check if backend receives and can process that information perfectly.
+I want you to do the following:
+->check all the backend controllers and models that are related to product, product_batch, product_field, product_variant to see if there's a method that sends back each individual product (variant with the base_name-color-field) and not the SKU
+->If you find a suitable method that can be used to get single products, use that. Make sure the request frontend sends is the same as backend receives. The backend code MUST be backwards compatible.
+->update the page so that, instead of showing store 1, store 2, etc, it shows the store name. see e-commerce/product/[id] page and its backend code and find out how to get the store names.
 
-generate detailed md file titled "25_Mar_26 product list page stock_status filter fix.md" It should discuss and explain in detail how the new page behave, examples and edge cases.
+DO NOT change any additional code.
+DO NOT change any backend code unless stricly necessary. ANY change in backend MUST be backwards compatible.
+ANY change in frontend should be aware of the dark vs light theme.
 
+update the frontend_Api_controller_mapping.md for this page (if any).
+generate detailed md file titled "26_Mar_26 product list page stock_status filter fix.md" It should discuss and explain in detail how the new page behaves, examples and edge cases.
+
+### product id page "view all"
+check e-commerce/product/[id] page and all of it's components.
+in the bottom of this page, there's a section for related products.
+in that section, there's a view all link that redirects to e-commerce/search?category=122.
+change that, so that it redirects to e-commerce/[slug] page with the category name instead of category id.

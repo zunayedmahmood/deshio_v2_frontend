@@ -547,49 +547,49 @@ export default function SocialCommercePage() {
         setIsLoadingData(true);
         console.log('🔍 Executing catalog search for:', searchQuery);
         
-        // Use the same search method as e-commerce (SKU grouped)
+        // Use the same search method as e-commerce but requesting individual variants (not grouped)
         const response = await catalogService.searchProducts({
           q: searchQuery,
           per_page: 50,
+          group_by_sku: false,
         });
 
-        if (response && response.grouped_products) {
-          const results: ProductSearchResult[] = response.grouped_products.map(group => {
-            const main = group.main_variant;
-            const allVariants = [main, ...(group.variants || [])];
-            
+        if (response && response.products) {
+          const results: ProductSearchResult[] = response.products.map(product => {
             const branchMap = new Map<number, { store_name: string, quantity: number }>();
             
-            for (const v of allVariants) {
-              if (Array.isArray(v.batches)) {
-                for (const b of v.batches) {
-                  const storeId = b.store_id;
-                  const storeInfo = stores.find(s => s.id === storeId);
-                  const storeName = storeInfo?.name || b.store?.name || `Store #${storeId}`;
-                  
-                  const current = branchMap.get(storeId) || { store_name: storeName, quantity: 0 };
-                  branchMap.set(storeId, {
-                    store_name: current.store_name,
-                    quantity: current.quantity + (b.quantity || 0)
-                  });
-                }
+            if (Array.isArray(product.batches)) {
+              for (const b of product.batches) {
+                const storeId = b.store_id;
+                // Try multiple sources for store name: 
+                // 1. Direct store relation from batch (newly loaded in backend)
+                // 2. Local stores state
+                // 3. Fallback to Store ID
+                const storeInfo = stores.find(s => s.id === storeId);
+                const storeName = b.store?.name || storeInfo?.name || `Store #${storeId}`;
+                
+                const current = branchMap.get(storeId) || { store_name: storeName, quantity: 0 };
+                branchMap.set(storeId, {
+                  store_name: current.store_name,
+                  quantity: current.quantity + (b.quantity || 0)
+                });
               }
             }
             
             const branchStocks = Array.from(branchMap.values()).filter(b => b.quantity > 0);
             
             return {
-              id: main.id,
-              name: group.base_name,
-              sku: main.sku,
-              mainImage: main.images?.[0]?.url || '/placeholder-image.jpg',
-              available: group.total_stock,
-              minPrice: group.min_price,
-              maxPrice: group.max_price,
+              id: product.id,
+              name: product.name, // This is base_name + variation_suffix
+              sku: product.sku,
+              mainImage: product.images?.[0]?.url || '/placeholder-image.jpg',
+              available: product.stock_quantity,
+              minPrice: product.selling_price,
+              maxPrice: product.selling_price,
               batchesCount: branchStocks.length,
               attributes: {
-                Price: group.min_price,
-                mainImage: main.images?.[0]?.url || '/placeholder-image.jpg',
+                Price: product.selling_price,
+                mainImage: product.images?.[0]?.url || '/placeholder-image.jpg',
               },
               branchStocks
             };
