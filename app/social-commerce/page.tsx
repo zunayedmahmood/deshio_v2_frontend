@@ -44,7 +44,8 @@ interface ProductSearchResult {
   name: string;
   sku: string;
   mainImage: string;
-  available: number;
+  available: number;          // total batch stock (kept for backwards-compat)
+  availableInventory: number; // from reserved_products — drives UI
   minPrice: number;
   maxPrice: number;
   batchesCount: number;
@@ -294,6 +295,7 @@ export default function SocialCommercePage() {
         sku: String(prod?.sku || ''),
         mainImage: imageUrl,
         available: totalAvailable,
+        availableInventory: totalAvailable, // legacy batch path — no reserved_products data here
         minPrice: prices.length ? Math.min(...prices) : 0,
         maxPrice: prices.length ? Math.max(...prices) : 0,
         batchesCount: productBatches.length,
@@ -578,12 +580,18 @@ export default function SocialCommercePage() {
             
             const branchStocks = Array.from(branchMap.values()).filter(b => b.quantity > 0);
             
+            const rawAvailableInventory = (product as any).available_inventory;
+            const availableInventory = rawAvailableInventory != null
+              ? Number(rawAvailableInventory)
+              : Number(product.stock_quantity ?? 0);
+
             return {
               id: product.id,
               name: product.name, // This is base_name + variation_suffix
               sku: product.sku,
               mainImage: product.images?.[0]?.url || '/placeholder-image.jpg',
-              available: product.stock_quantity,
+              available: Number(product.stock_quantity ?? 0),
+              availableInventory,
               minPrice: product.selling_price,
               maxPrice: product.selling_price,
               batchesCount: branchStocks.length,
@@ -627,6 +635,10 @@ export default function SocialCommercePage() {
   }, [selectedProduct, quantity, discountPercent, discountTk]);
 
   const handleProductSelect = (product: ProductSearchResult | any) => {
+    // If all stock is reserved, do nothing
+    const avail = Number(product?.availableInventory ?? product?.available ?? 0);
+    if (avail <= 0) return;
+
     setSelectedProduct({
       ...product,
       batch_id: null,
@@ -1124,18 +1136,25 @@ export default function SocialCommercePage() {
 
                     {searchResults.length > 0 && (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-60 md:max-h-80 overflow-y-auto mb-4 p-1">
-                        {searchResults.map((product) => (
+                        {searchResults.map((product) => {
+                          const isReserved = product.availableInventory <= 0;
+                          return (
                           <div
                             key={product.id}
                             onClick={() => handleProductSelect(product)}
-                            className="relative border border-gray-200 dark:border-gray-600 rounded p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            className={`relative border rounded p-2 transition-colors ${
+                              isReserved
+                                ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 cursor-not-allowed opacity-60'
+                                : 'border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                            title={isReserved ? 'All stock is reserved — cannot select' : undefined}
                           >
                             <img
                               src={product.mainImage}
                               alt={product.name}
                               className="w-full h-24 sm:h-32 object-cover rounded mb-2"
                             />
-                            <p className="text-xs text-gray-900 dark:text-white font-medium truncate">
+                            <p className="text-xs text-gray-900 dark:text-white font-medium break-words whitespace-normal">
                               {product.name}
                             </p>
                             {Number(product.batchesCount ?? 0) > 1 && (
@@ -1146,9 +1165,15 @@ export default function SocialCommercePage() {
                             <p className="text-xs text-gray-600 dark:text-gray-400">
                               {formatPriceRangeLabel(product)}
                             </p>
-                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                              Available: {product.available}
-                            </p>
+                            {isReserved ? (
+                              <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
+                                All stock reserved
+                              </p>
+                            ) : (
+                              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                Available: {product.availableInventory}
+                              </p>
+                            )}
                             {product.branchStocks && product.branchStocks.length > 0 && (
                               <div className="mt-1 space-y-0.5">
                                 {product.branchStocks.map((bs, idx) => (
@@ -1164,7 +1189,8 @@ export default function SocialCommercePage() {
                               </p>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 

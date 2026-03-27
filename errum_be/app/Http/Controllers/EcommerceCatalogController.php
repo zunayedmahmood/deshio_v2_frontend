@@ -369,20 +369,25 @@ class EcommerceCatalogController extends Controller
         $sellingPrice  = $cheapestBatch ? (float) $cheapestBatch->sell_price : ($groupMinPrice ?? 0);
         $stockQuantity = (int) $activeBatches->sum('quantity');
 
+        // available_inventory = total - reserved (from reserved_products table)
+        $reservedRow = \App\Models\ReservedProduct::where('product_id', $product->id)->first();
+        $availableInventory = $reservedRow ? (int) $reservedRow->available_inventory : $stockQuantity;
+
         return [
-            'id'               => $product->id,
-            'name'             => $product->name,
-            'base_name'        => $product->base_name,
-            'variation_suffix' => $product->variation_suffix,
-            'sku'              => $product->sku,
-            'description'      => $product->description,
-            'selling_price'    => $sellingPrice,   // REQUIRED by frontend normalizeProduct()
-            'price'            => $sellingPrice,   // alias
-            'stock_quantity'   => $stockQuantity,
-            'in_stock'         => $stockQuantity > 0,
-            'category'         => $product->category,
-            'images'           => $product->images,
-            'batches'          => $product->batches,
+            'id'                  => $product->id,
+            'name'                => $product->name,
+            'base_name'           => $product->base_name,
+            'variation_suffix'    => $product->variation_suffix,
+            'sku'                 => $product->sku,
+            'description'         => $product->description,
+            'selling_price'       => $sellingPrice,   // REQUIRED by frontend normalizeProduct()
+            'price'               => $sellingPrice,   // alias
+            'stock_quantity'      => $stockQuantity,
+            'available_inventory' => $availableInventory,
+            'in_stock'            => $stockQuantity > 0,
+            'category'            => $product->category,
+            'images'              => $product->images,
+            'batches'             => $product->batches,
         ];
     }
 
@@ -469,7 +474,11 @@ class EcommerceCatalogController extends Controller
                         $variantStock = $variant->batches->sum('quantity');
                         $variantAvailableBatches = $variant->batches->where('quantity', '>', 0);
                         $variantLowestBatch = $variantAvailableBatches->sortBy('sell_price')->first();
-                        
+                        $variantReserved = \App\Models\ReservedProduct::where('product_id', $variant->id)->first();
+                        $variantAvailableInventory = $variantReserved
+                            ? (int) $variantReserved->available_inventory
+                            : $variantStock;
+
                         return [
                             'id' => $variant->id,
                             'name' => $variant->name,
@@ -477,6 +486,7 @@ class EcommerceCatalogController extends Controller
                             'sku' => $variant->sku,
                             'selling_price' => $variantLowestBatch ? $variantLowestBatch->sell_price : null,
                             'stock_quantity' => $variantStock,
+                            'available_inventory' => $variantAvailableInventory,
                             'in_stock' => $variantStock > 0,
                             'images' => $variant->images->where('is_active', true)->take(1)->map(function ($image) {
                                 return [
@@ -491,6 +501,10 @@ class EcommerceCatalogController extends Controller
 
             $lowestBatch = $product->batches->sortBy('sell_price')->first();
             $totalStock = $product->batches->sum('quantity');
+            $mainReserved = \App\Models\ReservedProduct::where('product_id', $product->id)->first();
+            $availableInventory = $mainReserved
+                ? (int) $mainReserved->available_inventory
+                : $totalStock;
 
             // ✅ Merge core SKU images + variant image (primary) so details page always has images.
             $mergedImages = $this->mergedActiveImages($product, ['id','url','alt_text','is_primary','sort_order']);
@@ -509,6 +523,7 @@ class EcommerceCatalogController extends Controller
                         'selling_price' => $lowestBatch ? $lowestBatch->sell_price : 0,
                         'cost_price' => $lowestBatch ? $lowestBatch->cost_price : 0,
                         'stock_quantity' => $totalStock,
+                        'available_inventory' => $availableInventory,
                         'in_stock' => $totalStock > 0,
                         'has_variants' => $variants->count() > 0,
                         'variants_count' => $variants->count(),

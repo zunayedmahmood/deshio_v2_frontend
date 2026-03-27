@@ -43,7 +43,8 @@ interface ProductVariant {
   option_label?: string;
   selling_price: number | null; // ✅ allow null safely
   in_stock: boolean;
-  stock_quantity: number | null; // ✅ mapped to available_inventory
+  stock_quantity: number | null;
+  available_inventory: number | null; // ✅ from reserved_products — drives button & badge
   images: ProductImage[] | null; // ✅ allow null safely
 }
 
@@ -416,8 +417,11 @@ export default function ProductDetailPage() {
             in_stock:
               typeof variant?.in_stock === 'boolean'
                 ? variant.in_stock
-                : Number(variant?.available_inventory ?? (variant?.stock_quantity || 0)) > 0,
-            stock_quantity: Number(variant?.available_inventory ?? (variant?.stock_quantity || 0)),
+                : Number(variant?.stock_quantity || 0) > 0,
+            stock_quantity: Number(variant?.stock_quantity || 0),
+            available_inventory: variant?.available_inventory != null
+              ? Number(variant.available_inventory)
+              : Number(variant?.stock_quantity || 0),
             images: Array.isArray(variant?.images) ? variant.images : [],
           };
         };
@@ -515,7 +519,8 @@ export default function ProductDetailPage() {
               option_label: meta.optionLabel,
               selling_price: variant.price ?? raw.selling_price ?? null,
               in_stock: !!variant.in_stock,
-              stock_quantity: (variant as any).available_inventory ?? raw.available_inventory ?? variant.stock_quantity ?? raw.stock_quantity ?? 0,
+              stock_quantity: variant.stock_quantity ?? raw.stock_quantity ?? 0,
+              available_inventory: (variant as any).available_inventory ?? raw.available_inventory ?? variant.stock_quantity ?? raw.stock_quantity ?? 0,
               images: raw.images ?? [],
             } as ProductVariant;
           })
@@ -542,7 +547,8 @@ export default function ProductDetailPage() {
             option_label: selfMeta.optionLabel,
             selling_price: (mainProduct as any).selling_price ?? null,
             in_stock: !!(mainProduct as any).in_stock,
-            stock_quantity: (mainProduct as any).available_inventory ?? (mainProduct as any).stock_quantity ?? 0,
+            stock_quantity: (mainProduct as any).stock_quantity ?? 0,
+            available_inventory: (mainProduct as any).available_inventory ?? (mainProduct as any).stock_quantity ?? 0,
             images: (mainProduct as any).images ?? [],
           };
 
@@ -632,7 +638,8 @@ export default function ProductDetailPage() {
     if (!selectedVariant || !selectedVariant.in_stock) return;
 
     const stockQty = Number(selectedVariant.stock_quantity ?? 0);
-    if (stockQty <= 0) return;
+    const currentAvailable = Number(selectedVariant.available_inventory ?? stockQty);
+    if (currentAvailable <= 0) return;
 
     setIsAdding(true);
 
@@ -700,9 +707,9 @@ export default function ProductDetailPage() {
 
   const handleQuantityChange = (delta: number) => {
     if (!selectedVariant) return;
-    const stockQty = Number(selectedVariant.stock_quantity ?? 0);
+    const availQty = Number(selectedVariant.available_inventory ?? selectedVariant.stock_quantity ?? 0);
     const newQuantity = quantity + delta;
-    if (newQuantity >= 1 && newQuantity <= stockQty) {
+    if (newQuantity >= 1 && newQuantity <= availQty) {
       setQuantity(newQuantity);
     }
   };
@@ -786,6 +793,8 @@ export default function ProductDetailPage() {
   const sellingPrice = Number(selectedVariant.selling_price ?? 0);
   const costPrice = Number((product as any).cost_price ?? 0);
   const stockQty = Number(selectedVariant.stock_quantity ?? 0);
+  // available_inventory = total - reserved. Falls back to stockQty if backend doesn't send it.
+  const availableInventory = Number(selectedVariant.available_inventory ?? stockQty);
 
   const safeImages =
     Array.isArray(selectedVariant.images) && selectedVariant.images.length > 0
@@ -946,12 +955,19 @@ export default function ProductDetailPage() {
               {/* Stock status */}
               <div className="mt-3">
                 {selectedVariant.in_stock && stockQty > 0 ? (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                    <span className="text-[11px] font-medium text-green-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>
-                      IN STOCK · {stockQty} AVAILABLE
-                    </span>
-                  </div>
+                  availableInventory > 0 ? (
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                      <span className="text-[11px] font-medium text-green-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>
+                        AVAILABLE FOR ORDER · IN STOCK ({availableInventory})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
+                      <span className="text-[11px] font-medium text-red-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>ALL STOCK RESERVED</span>
+                    </div>
+                  )
                 ) : (
                   <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
                     <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
@@ -1041,18 +1057,18 @@ export default function ProductDetailPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={handleAddToCart}
-                    disabled={!selectedVariant.in_stock || isAdding || stockQty <= 0}
+                    disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
                     className="flex-1 ec-btn justify-center"
                     style={{
                       background: isAdding ? 'rgba(34,197,94,0.85)' : 'var(--gold)',
                       color: 'white',
-                      boxShadow: isAdding ? 'none' : '0 4px 16px rgba(176,124,58,0.3)',
-                      opacity: (!selectedVariant.in_stock || stockQty <= 0) ? 0.4 : 1,
-                      cursor: (!selectedVariant.in_stock || stockQty <= 0) ? 'not-allowed' : 'pointer',
+                      boxShadow: isAdding ? 'none' : availableInventory > 0 ? '0 4px 16px rgba(176,124,58,0.3)' : 'none',
+                      opacity: (!selectedVariant.in_stock || availableInventory <= 0) ? 0.4 : 1,
+                      cursor: (!selectedVariant.in_stock || availableInventory <= 0) ? 'not-allowed' : 'pointer',
                     }}
                   >
                     <ShoppingCart size={16} />
-                    {isAdding ? 'Added ✓' : 'Add to Cart'}
+                    {isAdding ? 'Added ✓' : availableInventory <= 0 ? 'All stock already reserved' : 'Add to Cart'}
                   </button>
                   <button onClick={handleToggleWishlist}
                     className="flex h-[46px] w-[46px] items-center justify-center rounded-xl transition-all"

@@ -90,10 +90,18 @@ I'll use this md file to tell Gemini in antigravity.
 
 
 
-
-
-
-### e-commerce/product/[id]
+### social-commerce
 
 currently:
-->this page currently shows under category, category name and Total stock (probably from sum of all batches).
+->this page has a search product part that displays images in cards in a grid with name, stock, branch wise stock.
+
+What i want you to change:
+->check the backenc code it calls and now product should also return available_inventory from reserved_products table alongside other datas.
+->then in product card we need these updates:
+->the product name is truncated. instead it should be broken 2,3 or 4 lines (or whatever many it takes. whole name should be visible)
+->instead of stock, it should show "Available: available_inventory" from available_inventory (if 0, show "All stock reserved" in red)
+->branch wise inventory should still be there unchanged 
+->if All stock is reserved, clicking on that product should do nothing, basically, that card will be non-functional.
+
+check for any edge case.
+make a detailed md file titled "28_Mar_26 social-commerce page prevent reserved selling.md"
