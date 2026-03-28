@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import { Search, Trash2, X, Layers, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -10,6 +10,8 @@ import BatchForm from '@/components/BatchForm';
 import BatchCard from '@/components/BatchCard';
 import batchService, { Batch, CreateBatchData, UpdateBatchData } from '@/services/batchService';
 import storeService, { Store } from '@/services/storeService';
+import PaginationControls from '@/components/PaginationControls';
+import useDebounce from '@/lib/hooks/useDebounce';
 
 interface Product {
   id: number;
@@ -42,6 +44,12 @@ export default function BatchPage() {
   const [selectedProductName, setSelectedProductName] = useState<string>('');
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalBatchesCount, setTotalBatchesCount] = useState(0);
+  const [perPage, setPerPage] = useState(20);
+
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
 
@@ -51,6 +59,9 @@ export default function BatchPage() {
   const [bulkMode, setBulkMode] = useState(false);
   const [queuedBatches, setQueuedBatches] = useState<QueuedBatch[]>([]);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Debounced search query for backend search
+  const debouncedSearchQuery = useDebounce(batchSearchQuery, 500);
 
   // Read URL parameters when redirected back from product selection
   useEffect(() => {
@@ -65,22 +76,11 @@ export default function BatchPage() {
   }, []);
 
   useEffect(() => {
-    loadInitialData();
+    loadInitialData(1, debouncedSearchQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [debouncedSearchQuery]);
 
-  const filteredBatches = useMemo(() => {
-    const q = batchSearchQuery.trim().toLowerCase();
-    if (!q) return batches;
-    return batches.filter((b) => {
-      const productName = String(b.product?.name || '').toLowerCase();
-      const productSku = String((b as any).product?.sku || '').toLowerCase();
-      const batchNo = String(b.batch_number || '').toLowerCase();
-      return productName.includes(q) || productSku.includes(q) || batchNo.includes(q);
-    });
-  }, [batches, batchSearchQuery]);
-
-  const loadInitialData = async () => {
+  const loadInitialData = async (page = 1, searchQuery = '') => {
     try {
       setLoading(true);
       setLoadingMessage('Loading stores & batches...');
@@ -99,9 +99,20 @@ export default function BatchPage() {
       const batchResponse = await batchService.getBatches({
         sort_by: 'created_at',
         sort_order: 'desc',
+        page: page,
+        search: searchQuery
       });
-      const batchData = batchResponse.data?.data || batchResponse.data || [];
-      setBatches(Array.isArray(batchData) ? batchData : []);
+      
+      const batchPagination = batchResponse.data;
+      if (batchPagination) {
+        setBatches(Array.isArray(batchPagination.data) ? batchPagination.data : []);
+        setCurrentPage(batchPagination.current_page || 1);
+        setTotalPages(batchPagination.last_page || 1);
+        setTotalBatchesCount(batchPagination.total || 0);
+        setPerPage(batchPagination.per_page || 20);
+      } else {
+        setBatches([]);
+      }
     } catch (err) {
       console.error('Error loading data:', err);
       showToast('Failed to load data', 'error');
@@ -109,6 +120,10 @@ export default function BatchPage() {
       setLoading(false);
       setLoadingMessage('');
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    loadInitialData(page, debouncedSearchQuery);
   };
 
   const openProductListForSelection = () => {
@@ -176,7 +191,7 @@ export default function BatchPage() {
       const response = await batchService.createBatch(batchData);
 
       // Reload batches to get the newly created batch with barcodes
-      await loadInitialData();
+      await loadInitialData(1, debouncedSearchQuery);
 
       showToast(
         `Batch created successfully! ${response.data?.barcodes_generated ?? ''} barcode(s) generated.`,
@@ -300,7 +315,7 @@ export default function BatchPage() {
         }
       }
 
-      await loadInitialData();
+      await loadInitialData(1, debouncedSearchQuery);
 
       // Keep only failed rows so user can retry quickly
       setQueuedBatches(failed);
@@ -490,7 +505,7 @@ export default function BatchPage() {
               <div className="flex items-end gap-3">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Batches</h2>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {filteredBatches.length} batch{filteredBatches.length !== 1 ? 'es' : ''}
+                  {totalBatchesCount} batch{totalBatchesCount !== 1 ? 'es' : ''}
                   {batchSearchQuery.trim() ? <span className="ml-1">(filtered)</span> : null}
                 </span>
               </div>
@@ -511,7 +526,7 @@ export default function BatchPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredBatches.length === 0 && !loading ? (
+              {batches.length === 0 && !loading ? (
                 <div className="col-span-3 text-center py-12 bg-white dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700">
                   <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -526,11 +541,25 @@ export default function BatchPage() {
                   </p>
                 </div>
               ) : (
-                filteredBatches.map((batch) => (
+                batches.map((batch) => (
                   <BatchCard key={batch.id} batch={batch} onDelete={handleDeleteBatch} onEdit={handleEditBatch} />
                 ))
               )}
             </div>
+
+            {/* ✅ Pagination Controls */}
+            {!loading && batches.length > 0 && (
+              <div className="mt-8 pb-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+                <div className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                  Showing {batches.length} of {totalBatchesCount} batches (Page {currentPage} of {totalPages})
+                </div>
+              </div>
+            )}
           </main>
         </div>
       </div>

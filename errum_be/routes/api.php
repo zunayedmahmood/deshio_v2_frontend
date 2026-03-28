@@ -148,6 +148,7 @@ Route::prefix('catalog')->group(function () {
     Route::get('/suggested-products', [\App\Http\Controllers\EcommerceCatalogController::class, 'getSuggestedProducts']);
     Route::get('/search', [\App\Http\Controllers\EcommerceCatalogController::class, 'searchProducts']);
     Route::get('/price-range', [\App\Http\Controllers\EcommerceCatalogController::class, 'getPriceRange']);
+    Route::get('/find-stock/{barcode}', [\App\Http\Controllers\EcommerceCatalogController::class, 'findStockByBarcode']);
 
     // Global inventory overview across all stores (Public)
     Route::prefix('inventory')->group(function () {

@@ -4376,7 +4376,7 @@ export default function OrdersDashboard() {
                                       />
                                     </button>
                                     <div className="min-w-0">
-                                      <p className="text-xs font-bold text-black dark:text-white truncate">{item.name}</p>
+                                      <p className="text-xs font-bold text-black dark:text-white break-words whitespace-normal">{item.name}</p>
                                       <p className="text-[10px] text-gray-500 font-mono italic">SKU: {item.sku}</p>
                                     </div>
                                   </div>
@@ -4871,7 +4871,7 @@ export default function OrdersDashboard() {
                             }}
                           />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-black dark:text-white">{item.name}</p>
+                            <p className="text-sm font-medium text-black dark:text-white break-words whitespace-normal">{item.name}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-500">SKU: {item.sku}</p>
                           </div>
 
@@ -5194,9 +5194,9 @@ export default function OrdersDashboard() {
                             }}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-black dark:text-white truncate">{product.name}</p>
+                            <p className="text-xs font-medium text-black dark:text-white break-words whitespace-normal">{product.name}</p>
                             {product.batchNumber && (
-                              <p className="text-[11px] text-blue-600 dark:text-blue-400 truncate">
+                              <p className="text-[11px] text-blue-600 dark:text-blue-400 break-words whitespace-normal">
                                 Batch: {product.batchNumber} ({product.available} left)
                               </p>
                             )}

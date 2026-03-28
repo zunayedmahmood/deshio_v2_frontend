@@ -610,6 +610,46 @@ export const productService = {
       return { data: [], total: 0 };
     }
   },
+
+  /**
+   * Public: Find stock details by barcode
+   * API: GET /api/catalog/find-stock/{barcode}
+   */
+  async findStockByBarcode(barcode: string): Promise<StockDetail> {
+    try {
+      const response = await axiosInstance.get(`/catalog/find-stock/${barcode}`);
+      const result = response.data;
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Failed to fetch stock details');
+      }
+      return result.data as StockDetail;
+    } catch (error: any) {
+      console.error('Find stock by barcode error:', error);
+      throw new Error(error.response?.data?.message || 'Barcode not found or error fetching data');
+    }
+  },
 };
+
+export interface StockDetail {
+  product_id: number;
+  name: string;
+  sku: string;
+  description?: string;
+  category?: string;
+  images: any[];
+  inventory: {
+    physical_stock: number;
+    reserved_stock: number;
+    available_stock: number;
+  };
+  branch_stock: {
+    store_id: number;
+    store_name: string;
+    store_address?: string;
+    quantity: number;
+  }[];
+  variants: any[];
+  scanned_barcode: string;
+}
 
 export default productService;

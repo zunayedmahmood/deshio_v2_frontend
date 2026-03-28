@@ -68,9 +68,16 @@ class ProductBatchController extends Controller
             $query->expiringSoon($request->expiring_days);
         }
 
-        // Search by batch number
+        // Search by batch number, product name, or product SKU
         if ($request->filled('search')) {
-            $this->whereLike($query, 'batch_number', $request->search);
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $this->whereLike($q, 'batch_number', $search);
+                $q->orWhereHas('product', function ($pq) use ($search) {
+                    $this->whereLike($pq, 'name', $search);
+                    $this->orWhereLike($pq, 'sku', $search);
+                });
+            });
         }
 
         // Sort

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\ProductBarcode;
+use App\Models\ReservedProduct;
 use App\Traits\DatabaseAgnosticSearch;
 use Illuminate\Http\Request;
 use App\Traits\ProductImageFallback;
@@ -995,6 +997,128 @@ class EcommerceCatalogController extends Controller
      * So descendants of id=5 are rows whose path equals "5" OR starts with "5/"
      * OR ends with "/5" OR contains "/5/".
      */
+    /**
+     * Public endpoint to find stock details by barcode.
+     * 
+     * GET /api/catalog/find-stock/{barcode}
+     */
+    public function findStockByBarcode(Request $request, $barcode)
+    {
+        try {
+            // 1. Find the barcode record
+            $barcodeRecord = ProductBarcode::where('barcode', $barcode)
+                ->where('is_active', true)
+                ->first();
+
+            if (!$barcodeRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Barcode {$barcode} not found or inactive.",
+                ], 404);
+            }
+
+            // 2. Load the main product with all necessary relations
+            $product = Product::with([
+                'images', 
+                'category', 
+                'batches.store' => function($q) {
+                    $q->where('is_active', true);
+                }
+            ])
+            ->where('id', $barcodeRecord->product_id)
+            ->where('is_archived', false)
+            ->first();
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Associated product not found or archived.",
+                ], 404);
+            }
+
+            // 3. Stock Calculations
+            $activeBatches = $product->batches->where('is_active', true)->where('availability', true);
+            $totalPhysicalStock = (int) $activeBatches->sum('quantity');
+            
+            // Reserved stock logic
+            $reservedRow = ReservedProduct::where('product_id', $product->id)->first();
+            $reservedInventory = $reservedRow ? (int) $reservedRow->reserved_inventory : 0;
+            $availableInventory = $totalPhysicalStock - $reservedInventory;
+
+            // 4. Load Variants (SKU group)
+            $variants = collect();
+            if ($product->sku) {
+                $variants = Product::with(['images', 'batches' => function($q) {
+                        $q->where('is_active', true)->where('availability', true);
+                    }])
+                    ->where('sku', $product->sku)
+                    ->where('is_archived', false)
+                    ->get()
+                    ->map(function ($variant) {
+                        $vStock = (int) $variant->batches->sum('quantity');
+                        $vReserved = ReservedProduct::where('product_id', $variant->id)->value('reserved_inventory') ?? 0;
+                        return [
+                            'id' => $variant->id,
+                            'name' => $variant->name,
+                            'variation_suffix' => $variant->variation_suffix,
+                            'sku' => $variant->sku,
+                            'stock_quantity' => $vStock,
+                            'available_inventory' => $vStock - $vReserved,
+                            'in_stock' => $vStock > 0,
+                            'primary_image' => $variant->images->where('is_active', true)->where('is_primary', true)->first()?->image_url 
+                                            ?? $variant->images->where('is_active', true)->first()?->image_url,
+                        ];
+                    });
+            }
+
+            // 5. Image Merging
+            $mergedImages = $this->mergedActiveImages($product);
+
+            // 6. Branch-wise breakdown
+            $branchStock = $product->batches
+                ->where('is_active', true)
+                ->where('availability', true)
+                ->filter(fn($batch) => $batch->store !== null)
+                ->groupBy('store_id')
+                ->map(function ($storeBatches) {
+                    $store = $storeBatches->first()->store;
+                    return [
+                        'store_id' => $store->id,
+                        'store_name' => $store->name,
+                        'store_address' => $store->address,
+                        'quantity' => $storeBatches->sum('quantity'),
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'description' => $product->description,
+                    'category' => $product->category ? $product->category->title : null,
+                    'images' => $mergedImages,
+                    'inventory' => [
+                        'physical_stock' => $totalPhysicalStock,
+                        'reserved_stock' => $reservedInventory,
+                        'available_stock' => max(0, $availableInventory),
+                    ],
+                    'branch_stock' => $branchStock,
+                    'variants' => $variants,
+                    'scanned_barcode' => $barcode,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Error finding stock: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function collectCategoryAndDescendantIds(Category $category): array
     {
         $id = (int) $category->id;
