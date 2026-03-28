@@ -670,7 +670,7 @@ class Shipment extends Model
             'customer_id' => $customer->id,
             'store_id' => $store->id,
             'delivery_type' => $shipmentData['delivery_type'] ?? 'home_delivery',
-            'cod_amount' => $order->payment_status === 'pending' ? $order->total_amount : null,
+            'cod_amount' => $order->outstanding_amount,
             'pickup_address' => $pickupAddress,
             'delivery_address' => $deliveryAddress,
             'package_barcodes' => $packageBarcodes,

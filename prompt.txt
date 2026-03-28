@@ -108,10 +108,22 @@ make a detailed md file titled "28_Mar_26 social-commerce page prevent reserved 
 
 
 
-### social-commerc pag issues:
+### check if POS can sell irrespective of available_inventory
 
-these issues:
-Social commerce a discount was applied, but placing order discount didn't work, full amount was shown in orders page
-In that order, partial payment was also made, but that didn't work either
-Order was placed in a branch (assign to store from social commerce) where the product had no stock at the time of placing the order
-After full order placement it was sent to Pathao. There, Collectable Amount became 0 taka 
+go through entire backend and frontend.
+currently, online sale (social-commerce and e-commerce) prevents selling if available_inventory is 0.
+but POS (counter sale) sells looking at batch stock in that store.
+
+This, when sold, should update available_inventory to negative if needed. 
+basically, we'll prioritize selling in POS (counter sale) over online sale (social-commerce and e-commerce).
+
+make a full integrity check and give me an 400 line audit report md file in Documentation/ on how the backend handles this case with details, diagrams, examples and edge cases.
+If you find issues, list them and suggest fixes that i can give to gemini in antigravity.
+
+
+
+
+### batch id and deduction from store in scanning.
+
+currently, scanning for packaging online orders matches batch_id in that store. this is throwing 422 since batch_id is now mostly null. 
+we want this change: ignore that and just ensure th barcode scanned belongs to a batch_id that's in the store assigned. then, carry out the pre-existing logic.

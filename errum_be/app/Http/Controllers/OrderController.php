@@ -417,6 +417,7 @@ class OrderController extends Controller
             // Add items
             $subtotal = 0;
             $taxTotal = 0;
+            $totalItemDiscount = 0;
             $hasPreOrderItems = false;  // Track if any items don't have batches
 
             foreach ($request->items as $itemData) {
@@ -442,6 +443,22 @@ class OrderController extends Controller
                     $reservedRecord = \App\Models\ReservedProduct::where('product_id', $product->id)->lockForUpdate()->first();
                     $globalAvailable = $reservedRecord ? $reservedRecord->available_inventory : 0;
                     
+                    if ($globalAvailable < $itemData['quantity']) {
+                        throw new \Exception("Cannot sell {$product->name} (Global available inventory: {$globalAvailable}). Stock is reserved for online orders.");
+                    }
+                } elseif ($request->order_type === 'social_commerce' && $request->store_id) {
+                    // Check store-level stock for specific store assignment without batch
+                    $storeStock = ProductBatch::where('product_id', $product->id)
+                        ->where('store_id', $request->store_id)
+                        ->sum('quantity');
+                    
+                    if ($storeStock < $itemData['quantity']) {
+                        throw new \Exception("Insufficient stock for {$product->name} at the selected branch. Available: {$storeStock}");
+                    }
+
+                    // Check global available inventory too
+                    $reservedRecord = \App\Models\ReservedProduct::where('product_id', $product->id)->lockForUpdate()->first();
+                    $globalAvailable = $reservedRecord ? $reservedRecord->available_inventory : 0;
                     if ($globalAvailable < $itemData['quantity']) {
                         throw new \Exception("Cannot sell {$product->name} (Global available inventory: {$globalAvailable}). Stock is reserved for online orders.");
                     }
@@ -529,6 +546,7 @@ class OrderController extends Controller
 
                 $subtotal += $itemSubtotal;
                 $taxTotal += $tax;
+                $totalItemDiscount += $discount;
 
                 // IMPORTANT: Stock deduction logic based on order type
                 // Counter orders: Deduct immediately (POS requirement: "jokhon ee POS a entry hobe, stock minus hobe")
@@ -559,10 +577,10 @@ class OrderController extends Controller
             
             if ($taxMode === 'inclusive') {
                 // Inclusive: tax already in subtotal
-                $totalAmount = $subtotal - $orderDiscount + $shippingAmount;
+                $totalAmount = $subtotal - $orderDiscount - $totalItemDiscount + $shippingAmount;
             } else {
                 // Exclusive: add tax to subtotal
-                $totalAmount = $subtotal + $taxTotal - $orderDiscount + $shippingAmount;
+                $totalAmount = $subtotal + $taxTotal - $orderDiscount - $totalItemDiscount + $shippingAmount;
             }
 
             $order->update([

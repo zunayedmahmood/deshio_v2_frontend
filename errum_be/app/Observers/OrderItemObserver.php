@@ -14,7 +14,7 @@ class OrderItemObserver
     public function created(OrderItem $orderItem): void
     {
         $order = $orderItem->order;
-        if ($order && $order->status === 'pending_assignment') {
+        if ($order && in_array($order->status, ['pending_assignment', 'pending'])) {
             $this->incrementReservation($orderItem->product_id, $orderItem->quantity);
         }
     }
@@ -25,7 +25,7 @@ class OrderItemObserver
     public function updated(OrderItem $orderItem): void
     {
         $order = $orderItem->order;
-        if ($order && $order->status === 'pending_assignment') {
+        if ($order && in_array($order->status, ['pending_assignment', 'pending'])) {
             if ($orderItem->isDirty('quantity')) {
                 $oldQty = $orderItem->getOriginal('quantity');
                 $newQty = $orderItem->quantity;
@@ -47,7 +47,7 @@ class OrderItemObserver
     {
         $order = $orderItem->order;
         // Check if the order still exists (it might have been deleted too)
-        if ($order && $order->status === 'pending_assignment') {
+        if ($order && in_array($order->status, ['pending_assignment', 'pending'])) {
             $this->decrementReservation($orderItem->product_id, $orderItem->quantity);
         }
     }
