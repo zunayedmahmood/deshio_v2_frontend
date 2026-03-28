@@ -1143,8 +1143,8 @@ export default function SocialCommercePage() {
                               key={product.id}
                               onClick={() => handleProductSelect(product)}
                               className={`relative border rounded p-2 transition-colors ${isReserved
-                                  ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 cursor-not-allowed opacity-60'
-                                  : 'border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
+                                ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 cursor-not-allowed opacity-60'
+                                : 'border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700'
                                 }`}
                               title={isReserved ? 'All stock is reserved — cannot select' : undefined}
                             >

@@ -459,6 +459,8 @@ class OrderController extends Controller
                     // Check global available inventory too
                     $reservedRecord = \App\Models\ReservedProduct::where('product_id', $product->id)->lockForUpdate()->first();
                     $globalAvailable = $reservedRecord ? $reservedRecord->available_inventory : 0;
+                    
+                    // Online orders (social commerce) ARE blocked by global reservations
                     if ($globalAvailable < $itemData['quantity']) {
                         throw new \Exception("Cannot sell {$product->name} (Global available inventory: {$globalAvailable}). Stock is reserved for online orders.");
                     }
@@ -1767,13 +1769,20 @@ class OrderController extends Controller
                 // Validate all barcodes
                 $barcodeModels = [];
                 foreach ($barcodes as $barcodeValue) {
-                    $barcode = \App\Models\ProductBarcode::where('barcode', $barcodeValue)
-                        ->where('product_id', $orderItem->product_id)
-                        ->where('batch_id', $orderItem->product_batch_id)
-                        ->first();
+                    // Start query for barcode
+                    $barcodeQuery = \App\Models\ProductBarcode::where('barcode', $barcodeValue)
+                        ->where('product_id', $orderItem->product_id);
+
+                    // Try to find the barcode
+                    $barcode = (clone $barcodeQuery)->where('batch_id', $orderItem->product_batch_id)->first();
+                    
+                    // If not found in specified batch, try finding it in ANY batch for this product
+                    if (!$barcode) {
+                        $barcode = $barcodeQuery->first();
+                    }
 
                     if (!$barcode) {
-                        throw new \Exception("Barcode {$barcodeValue} not found for product {$orderItem->product_name} in specified batch");
+                        throw new \Exception("Barcode {$barcodeValue} not found for product {$orderItem->product_name}");
                     }
 
                     // Check if barcode is already sold
@@ -1787,16 +1796,17 @@ class OrderController extends Controller
 
                     // Verify barcode belongs to correct store
                     if ($barcode->batch && $barcode->batch->store_id != $order->store_id) {
-                        throw new \Exception("Barcode {$barcodeValue} belongs to a different store");
+                        throw new \Exception("Barcode {$barcodeValue} belongs to Store " . ($barcode->batch->store_id ?? 'Unknown') . ". This order must be fulfilled from Store " . $order->store_id);
                     }
 
                     $barcodeModels[] = $barcode;
                 }
 
-                // For single quantity items, assign the barcode directly
+                // For single quantity items, assign the barcode and its batch directly
                 if ($orderItem->quantity == 1) {
                     $orderItem->update([
-                        'product_barcode_id' => $barcodeModels[0]->id
+                        'product_barcode_id' => $barcodeModels[0]->id,
+                        'product_batch_id' => $barcodeModels[0]->batch_id // Sync batch ID with physical unit
                     ]);
                     
                     $fulfilledItems[] = [
@@ -1813,10 +1823,11 @@ class OrderController extends Controller
                     $taxPerUnit = $orderItem->tax_amount / $originalQuantity;
                     $cogsPerUnit = ($orderItem->cogs ?? 0) / $originalQuantity;
 
-                    // Update first item with first barcode
+                    // Update first item with first barcode and its batch
                     $orderItem->update([
                         'quantity' => 1,
                         'product_barcode_id' => $barcodeModels[0]->id,
+                        'product_batch_id' => $barcodeModels[0]->batch_id, // Sync batch ID
                         'discount_amount' => round($discountPerUnit, 2),
                         'tax_amount' => round($taxPerUnit, 2),
                         'cogs' => round($cogsPerUnit, 2),
@@ -1830,7 +1841,7 @@ class OrderController extends Controller
                         OrderItem::create([
                             'order_id' => $order->id,
                             'product_id' => $orderItem->product_id,
-                            'product_batch_id' => $orderItem->product_batch_id,
+                            'product_batch_id' => $barcodeModels[$i]->batch_id, // Use actual batch ID of the barcode
                             'product_barcode_id' => $barcodeModels[$i]->id,
                             'product_name' => $orderItem->product_name,
                             'product_sku' => $orderItem->product_sku,

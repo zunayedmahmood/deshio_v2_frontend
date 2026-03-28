@@ -216,11 +216,11 @@ class StoreFulfillmentController extends Controller
                 ], 400);
             }
 
-            // Find and validate barcode
+            // 1. Find and validate barcode
             $barcode = ProductBarcode::where('barcode', $request->barcode)
                 ->where('current_store_id', $employee->store_id)
                 ->where('current_status', 'in_shop')
-                ->with('product', 'batch')
+                ->with(['product', 'batch'])
                 ->first();
 
             if (!$barcode) {
@@ -230,7 +230,7 @@ class StoreFulfillmentController extends Controller
                 ], 404);
             }
 
-            // Validate barcode belongs to the correct product
+            // 2. Validate barcode belongs to the correct product
             if ($barcode->product_id !== $orderItem->product_id) {
                 return response()->json([
                     'success' => false,
@@ -242,10 +242,14 @@ class StoreFulfillmentController extends Controller
                 ], 400);
             }
 
+            // NOTE: We do NOT enforce batch_id matching here.
+            // If the order item had a different batch assigned (or no batch), 
+            // we update it to the batch associated with the physical barcode scanned.
+
             DB::beginTransaction();
 
             try {
-                // PHYSICAL STOCK DEDUCTION (NOW PERFORMED AT SCANNING PHASE)
+                // 3. PHYSICAL STOCK DEDUCTION (NOW PERFORMED AT SCANNING PHASE)
                 if ($batch = $barcode->batch) {
                     $batch->quantity -= 1; // Barcodes are individual units
                     $batch->save();
@@ -258,23 +262,25 @@ class StoreFulfillmentController extends Controller
                     ]);
                 }
 
-                // RELEASE RESERVATION
+                // 4. RELEASE RESERVATION
+                // This releases the global reservation made when the order was placed/assigned
                 if ($reservedRecord = ReservedProduct::where('product_id', $orderItem->product_id)->first()) {
                     $reservedRecord->decrement('reserved_inventory', 1);
                     // Re-sync available_inventory
                     $reservedRecord->refresh();
-                    $reservedRecord->available_inventory = max(0, $reservedRecord->total_inventory - $reservedRecord->reserved_inventory);
+                    // Allow negative availability (remove max(0, ...))
+                    $reservedRecord->available_inventory = $reservedRecord->total_inventory - $reservedRecord->reserved_inventory;
                     $reservedRecord->save();
                 }
 
-                // Update order item with scanned barcode and its batch
+                // 5. Update order item with scanned barcode and its batch
                 $orderItem->update([
                     'product_barcode_id' => $barcode->id,
-                    'product_batch_id' => $barcode->batch_id, // Ensure it matches the scanned barcode
+                    'product_batch_id' => $barcode->batch_id, // Sync with the actual physical batch
                 ]);
 
                 // Update order status to picking if this is first scan
-                if ($order->status === 'assigned_to_store') {
+                if (in_array($order->status, ['assigned_to_store', 'confirmed'])) {
                     $order->update(['status' => 'picking']);
                 }
 

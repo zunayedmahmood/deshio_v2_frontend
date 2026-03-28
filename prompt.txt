@@ -127,3 +127,73 @@ If you find issues, list them and suggest fixes that i can give to gemini in ant
 
 currently, scanning for packaging online orders matches batch_id in that store. this is throwing 422 since batch_id is now mostly null. 
 we want this change: ignore that and just ensure th barcode scanned belongs to a batch_id that's in the store assigned. then, carry out the pre-existing logic.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####
+go through the entire codebase and read all the codes.
+write me 5 individual md files for each of the headers below in Documentation/ .
+these md files should be minimum 300 lines long each. 
+each should discuss in details how that Lifecycle works along with descriptive graphs, examples, edge cases 
+If you find any integrity issues, list them and suggest fixes that i can give to gemini in antigravity.
+
+  Product & Inventory Lifecycles
+   * Product Lifecycle: Active / Archived / Restored / Permanent Delete
+   * Inventory Reservation Lifecycle: Commitment (Reservation) → Deduction (Physical Movement)
+   * Product Batch Lifecycle: Active → Available → Low Stock → Expiring Soon → Expired
+   * Barcode Tracking Lifecycle: Scan → Current Location → Movement History → Stagnant
+   * Product Dispatch Lifecycle (Internal Transfer): Create → Approve → Scan (Source) → Dispatch → Receive
+     (Destination) → Deliver
+   * Inventory Rebalancing Lifecycle: Suggestion → Create → Approve → Reject → Complete
+   * Defective Product Lifecycle: Mark Defective → Inspect → Make Available for Sale → Sell / Dispose / Return to
+     Vendor
+   * Product Image Lifecycle: Upload → Reorder → Make Primary → Toggle Active
+
+  Order Lifecycles (Social, E-commerce, POS)
+   * Order Status Lifecycle: Pending Assignment → Pending → Confirmed → Processing → Ready for Pickup → Shipped →
+     Delivered
+   * Order Channel Lifecycle: Counter Sale (POS) / Social Commerce / E-commerce
+   * Fulfillment Lifecycle: Pending Fulfillment → Scanned → Fulfilled
+   * Scanning/Fulfillment Process: Validation & Reservation → Store Assignment → Scanning (Physical Deduction) →
+     Finalization Fail-Safe
+   * Multi-Store Fulfillment Lifecycle: Requiring Multi-Store → Item-Level Store Availability → Auto/Manual
+     Assignment → Store Fulfillment Tasks
+   * Pre-Order Lifecycle: Stock Unavailable → Trending → Mark Stock Available → Ready to Fulfill
+   * Order Tracking Lifecycle: Pending → Confirmed → Shipped → Out for Delivery → Delivered
+
+  Payment & Financial Lifecycles
+   * Payment Status Lifecycle: Pending → Partial → Paid / Unpaid / Failed / Refunded
+   * Installment Lifecycle: Setup Plan → Create Schedule → Add Installment Payment → Update Progress
+   * Advanced Payment Lifecycle: Simple Payment → Split Payment → Cash Denomination Tracking
+   * SSLCommerz Payment Flow: Initiate → Success → Failure → Cancel → IPN
+   * Transaction Lifecycle: Create → Complete → Fail → Cancel
+
+  Returns, Refunds & Support Lifecycles
+   * Product Return Lifecycle: Store → Approve → Quality Check → Process → Complete → Exchange
+   * Refund Lifecycle: Store → Process → Complete → Fail → Cancel
+   * Contact Message Lifecycle: Store → Update Status
+
+  Purchase & Vendor Lifecycles
+   * Purchase Order (PO) Lifecycle: Create → Approve → Receive → Cancel
+   * Vendor Payment Lifecycle: Create → Allocate Advance → Cancel → Refund
+   * Vendor Lifecycle: Active / Inactive → Purchase History → Payment History
+
+  Administrative & Marketing Lifecycles
+   * Employee Lifecycle: Active / Inactive → Transfer → Role Change → MFA Management
+   * Service Order Lifecycle: Store → Confirm → Start → Complete → Cancel
+   * Ad Campaign Lifecycle: Create → Target Products → Active / Inactive → Attribution Health
+   * Promotion Lifecycle: Create → Validate Code → Apply to Order → Usage History
+   * Recycle Bin Lifecycle: Soft Delete → 7-Day Recovery → Restore → Permanent Delete

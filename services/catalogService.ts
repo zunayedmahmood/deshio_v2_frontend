@@ -517,7 +517,7 @@ const normalizeProduct = (
 
   const sellingPrice = toNumber(raw?.selling_price ?? raw?.price ?? raw?.sale_price, 0);
   const costPrice = toNumber(raw?.cost_price ?? raw?.regular_price ?? sellingPrice, sellingPrice);
-  const stockQty = toNumber(raw?.stock_quantity ?? raw?.quantity ?? raw?.available_quantity, 0);
+  const stockQty = toNumber(raw?.stock_quantity ?? raw?.quantity ?? raw?.available_quantity ?? raw?.global_available ?? raw?.total_quantity, 0);
   const availableInventory = raw?.available_inventory != null ? toNumber(raw.available_inventory, 0) : stockQty;
 
   const explicitInStock = raw?.in_stock;
@@ -743,8 +743,8 @@ const normalizeGroupedProduct = (rawGroup: any): CatalogGroupedProduct => {
 const isPaginatorShape = (obj: any): boolean => {
   return !!obj &&
     typeof obj === 'object' &&
-    Array.isArray(obj.data) &&
-    (obj.current_page !== undefined || obj.per_page !== undefined || obj.total !== undefined);
+    (Array.isArray(obj.data) || Array.isArray(obj.items)) &&
+    (obj.current_page !== undefined || obj.per_page !== undefined || obj.total !== undefined || obj.pagination !== undefined);
 };
 
 const extractPaginator = (raw: any): any => {
@@ -759,17 +759,20 @@ const extractPaginator = (raw: any): any => {
 };
 
 const normalizePagination = (source: any, itemCount: number): PaginationMeta => {
-  const currentPage = toNumber(source?.current_page ?? source?.page, 1) || 1;
-  const perPage = toNumber(source?.per_page, itemCount || 20) || (itemCount || 20);
-  const total = toNumber(source?.total, itemCount);
-  const lastPage = toNumber(source?.last_page, Math.max(1, Math.ceil((total || itemCount || 1) / Math.max(perPage, 1))));
+  // Support nested pagination object if passed the parent
+  const p = source?.pagination || source;
+  
+  const currentPage = toNumber(p?.current_page ?? p?.page, 1) || 1;
+  const perPage = toNumber(p?.per_page, itemCount || 20) || (itemCount || 20);
+  const total = toNumber(p?.total, itemCount);
+  const lastPage = toNumber(p?.last_page, Math.max(1, Math.ceil((total || itemCount || 1) / Math.max(perPage, 1))));
 
   return {
     current_page: currentPage,
     per_page: perPage,
     total,
     last_page: Math.max(1, lastPage),
-    has_more_pages: Boolean(source?.has_more_pages ?? (currentPage < Math.max(1, lastPage))),
+    has_more_pages: Boolean(p?.has_more_pages ?? (currentPage < Math.max(1, lastPage))),
   };
 };
 
@@ -792,7 +795,7 @@ const parseProductsPayload = (payload: any): CatalogProductsResponse => {
   // 2) Feb 2026 grouped paginator shape
   const paginator = extractPaginator(payload);
   if (paginator) {
-    const rows = Array.isArray(paginator.data) ? paginator.data : [];
+    const rows = (Array.isArray(paginator.items) ? paginator.items : (Array.isArray(paginator.data) ? paginator.data : []));
 
     const looksGrouped = rows.some((row: any) => row && (row.main_variant || row.mainVariant || row.base_name));
 
@@ -809,7 +812,9 @@ const parseProductsPayload = (payload: any): CatalogProductsResponse => {
     }
 
     // Flat paginated rows
-    const products = rows.map((row: any) => normalizeProduct(row));
+    const products = (Array.isArray(paginator.items) ? paginator.items : (Array.isArray(paginator.data) ? paginator.data : []))
+      .map((row: any) => normalizeProduct(row));
+
     return {
       products,
       grouped_products: buildGroupedProductsFromFlat(products),
@@ -1142,8 +1147,9 @@ const catalogService = {
       const response = await api.post('/products/advanced-search', params);
       const payload = response?.data;
       
-      const products = Array.isArray(payload.data?.data) 
-        ? payload.data.data.map((p: any) => normalizeProduct(p))
+      const productsData = payload.data?.items ?? payload.data?.data ?? payload.products ?? [];
+      const products = Array.isArray(productsData) 
+        ? productsData.map((p: any) => normalizeProduct(p))
         : [];
         
       const pagination = normalizePagination(payload.data, products.length);
