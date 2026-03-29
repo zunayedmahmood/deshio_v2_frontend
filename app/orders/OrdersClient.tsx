@@ -806,8 +806,8 @@ export default function OrdersDashboard() {
     const cls =
       s === 'delivered' || s === 'completed'
         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-          : s === 'shipped' || s === 'pending_assignment'
-            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+        : s === 'shipped' || s === 'pending_assignment'
+          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
           : s === 'processing' || s === 'confirmed' || s === 'ready_for_pickup' || s === 'assigned_to_store'
             ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
             : s === 'cancelled'
@@ -966,9 +966,9 @@ export default function OrdersDashboard() {
       intendedCourier: order.intended_courier ?? order.intendedCourier ?? null,
 
       isInstallment: !!(
-        order.is_installment === true || 
-        order.is_installment === 1 || 
-        order.is_installment_payment === true || 
+        order.is_installment === true ||
+        order.is_installment === 1 ||
+        order.is_installment_payment === true ||
         order.is_installment_payment === 1 ||
         (order.installment_info && typeof order.installment_info === 'object' && Object.keys(order.installment_info).length > 0)
       ),
@@ -1253,7 +1253,7 @@ export default function OrdersDashboard() {
     } else if (startDate.trim() || endDate.trim()) {
       const start = startDate.trim() ? new Date(startDate.trim()) : null;
       const end = endDate.trim() ? new Date(endDate.trim() + "T23:59:59") : null;
-      
+
       filtered = filtered.filter((o) => {
         const oDateStr = o.orderDateRaw || o.createdAt;
         if (!oDateStr) return false;
@@ -2218,7 +2218,7 @@ export default function OrdersDashboard() {
 
       // If QZ is offline, open ONE bulk preview window (Print → Save as PDF).
       if (!status.connected) {
-        await printBulkReceipts(fullOrders, undefined, { template: 'social_invoice', title: 'Social Invoices' });
+        await printBulkReceipts(fullOrders, undefined, { template: 'pos_receipt', title: 'Invoices' });
         alert('Opened invoice preview. Use Print → Save as PDF.');
         return;
       }
@@ -2232,7 +2232,7 @@ export default function OrdersDashboard() {
         setBulkPrintProgress((prev) => ({ ...prev, current: i + 1 }));
 
         try {
-          await printReceipt(fullOrder as any, selectedPrinter, { template: 'social_invoice', title: 'Invoice' });
+          await printReceipt(fullOrder as any, selectedPrinter, { template: 'pos_receipt', title: 'Invoice' });
           successCount++;
           setBulkPrintProgress((prev) => ({ ...prev, success: successCount }));
         } catch {
@@ -2479,7 +2479,7 @@ export default function OrdersDashboard() {
 
       const fullOrder = await orderService.getById(order.id);
       await printReceipt(fullOrder as any, status.connected ? selectedPrinter : undefined, {
-        template: 'social_invoice',
+        template: 'pos_receipt',
         title: 'Invoice',
       });
 
@@ -3086,8 +3086,8 @@ export default function OrdersDashboard() {
                                 key={printer}
                                 onClick={() => handlePrinterSelect(printer)}
                                 className={`w-full px-2 py-1.5 text-left text-[10px] transition-colors ${selectedPrinter === printer
-                                    ? 'bg-black dark:bg-white text-white dark:text-black font-medium'
-                                    : 'text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-900'
+                                  ? 'bg-black dark:bg-white text-white dark:text-black font-medium'
+                                  : 'text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-900'
                                   }`}
                               >
                                 <div className="flex items-center justify-between">
@@ -3133,242 +3133,242 @@ export default function OrdersDashboard() {
               </div>
             </div>
 
-              {/* Filters */}
-              <div className="max-w-7xl mx-auto px-4 py-3">
-                {/* View mode */}
-                <div className="flex items-center gap-2 mb-4">
+            {/* Filters */}
+            <div className="max-w-7xl mx-auto px-4 py-3">
+              {/* View mode */}
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={() => {
+                    setViewMode('online');
+                    setOrderTypeFilter('All Types');
+                    setOrderStatusFilter('pending');
+                    setPaymentStatusFilter('All Payment Status');
+                    setCourierFilter('All Couriers');
+                    setSearch('');
+                    setDateFilter('');
+                    setSelectedOrders(new Set());
+                  }}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${viewMode === 'online'
+                    ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                    }`}
+                >
+                  Online Orders
+                </button>
+
+                <button
+                  onClick={() => {
+                    setViewMode('installments');
+                    setOrderTypeFilter('All Types');
+                    setOrderStatusFilter('All Order Status');
+                    setPaymentStatusFilter('All Payment Status');
+                    setCourierFilter('All Couriers');
+                    setSearch('');
+                    setDateFilter('');
+                    setSelectedOrders(new Set());
+                  }}
+                  className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${viewMode === 'installments'
+                    ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                    }`}
+                >
+                  Installments (EMI)
+                </button>
+              </div>
+
+              {/* Main Search & Primary Filters */}
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search order no / customer / phone..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-gray-50/50 dark:bg-gray-900/50 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 focus:border-black dark:focus:border-white transition-all"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={orderStatusFilter}
+                    onChange={(e) => setOrderStatusFilter(e.target.value)}
+                    className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
+                  >
+                    <option value="All Order Status">All Status</option>
+                    {quickStatusTabs.filter(t => t.value !== 'All Order Status').map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={paymentStatusFilter}
+                    onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                    className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
+                  >
+                    <option value="All Payment Status">All Payment</option>
+                    {paymentStatusOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {statusLabel(s)}
+                      </option>
+                    ))}
+                  </select>
+
                   <button
-                    onClick={() => {
-                      setViewMode('online');
-                      setOrderTypeFilter('All Types');
-                      setOrderStatusFilter('pending');
-                      setPaymentStatusFilter('All Payment Status');
-                      setCourierFilter('All Couriers');
-                      setSearch('');
-                      setDateFilter('');
-                      setSelectedOrders(new Set());
-                    }}
-                    className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${viewMode === 'online'
-                        ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                    onClick={() => setShowMoreFilters(!showMoreFilters)}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${showMoreFilters
+                      ? 'bg-black text-white border-black dark:bg-white dark:text-black'
+                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-800'
                       }`}
                   >
-                    Online Orders
+                    <Settings className="w-4 h-4" />
+                    More Filters
                   </button>
+                </div>
+              </div>
+
+              {/* Expanded Filters */}
+              {showMoreFilters && (
+                <div className="mt-3 p-4 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Date</label>
+                    <input
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => {
+                        setDateFilter(e.target.value);
+                        if (e.target.value) {
+                          setStartDate('');
+                          setEndDate('');
+                        }
+                      }}
+                      disabled={!!startDate || !!endDate}
+                      className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!startDate || !!endDate ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      disabled={!!dateFilter}
+                      className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!dateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">End Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      disabled={!!dateFilter}
+                      className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!dateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Type</label>
+                    <select
+                      value={orderTypeFilter}
+                      onChange={(e) => setOrderTypeFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                    >
+                      <option value="All Types">All Types</option>
+                      {viewMode === 'online' ? (
+                        <>
+                          <option value="social_commerce">Social Commerce</option>
+                          <option value="ecommerce">E-Commerce</option>
+                        </>
+                      ) : (
+                        <option value="counter">Counter</option>
+                      )}
+                    </select>
+                  </div>
+
+                  {viewMode === 'online' && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Order Marker</label>
+                      <select
+                        value={courierFilter}
+                        onChange={(e) => setCourierFilter(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                      >
+                        <option value="All Couriers">All Markers</option>
+                        {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
+                          <option key={c} value={c}>{courierLabel(c)}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Active Filter Pills */}
+              {(search || dateFilter || startDate || endDate || orderTypeFilter !== 'All Types' || orderStatusFilter !== (viewMode === 'online' ? 'All Order Status' : 'All Order Status') || paymentStatusFilter !== 'All Payment Status' || courierFilter !== 'All Couriers') && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase mr-1">Active:</span>
+
+                  {search && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-full text-black dark:text-white animate-in zoom-in-95 duration-200">
+                      Search: {search} <X className="w-2.5 h-2.5 cursor-pointer hover:text-red-500" onClick={() => setSearch('')} />
+                    </div>
+                  )}
+                  {dateFilter && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Date: {dateFilter} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setDateFilter('')} />
+                    </div>
+                  )}
+                  {(startDate || endDate) && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Range: {startDate || '...'} to {endDate || '...'} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => { setStartDate(''); setEndDate(''); }} />
+                    </div>
+                  )}
+
+                  {orderStatusFilter !== 'All Order Status' && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Status: {statusLabel(orderStatusFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setOrderStatusFilter('All Order Status')} />
+                    </div>
+                  )}
+
+                  {paymentStatusFilter !== 'All Payment Status' && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Payment: {statusLabel(paymentStatusFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setPaymentStatusFilter('All Payment Status')} />
+                    </div>
+                  )}
+
+                  {orderTypeFilter !== 'All Types' && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Type: {titleCase(orderTypeFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setOrderTypeFilter('All Types')} />
+                    </div>
+                  )}
+
+                  {courierFilter !== 'All Couriers' && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
+                      Marker: {courierLabel(courierFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setCourierFilter('All Couriers')} />
+                    </div>
+                  )}
 
                   <button
                     onClick={() => {
-                      setViewMode('installments');
+                      setSearch('');
+                      setDateFilter('');
+                      setStartDate('');
+                      setEndDate('');
                       setOrderTypeFilter('All Types');
                       setOrderStatusFilter('All Order Status');
                       setPaymentStatusFilter('All Payment Status');
                       setCourierFilter('All Couriers');
-                      setSearch('');
-                      setDateFilter('');
-                      setSelectedOrders(new Set());
                     }}
-                    className={`px-3 py-1.5 rounded-full border text-xs font-semibold transition-all ${viewMode === 'installments'
-                        ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
-                      }`}
+                    className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 ml-1 transition-colors"
                   >
-                    Installments (EMI)
+                    Clear All
                   </button>
                 </div>
-
-                {/* Main Search & Primary Filters */}
-                <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search order no / customer / phone..."
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-gray-50/50 dark:bg-gray-900/50 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 focus:border-black dark:focus:border-white transition-all"
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      value={orderStatusFilter}
-                      onChange={(e) => setOrderStatusFilter(e.target.value)}
-                      className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
-                    >
-                      <option value="All Order Status">All Status</option>
-                      {quickStatusTabs.filter(t => t.value !== 'All Order Status').map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={paymentStatusFilter}
-                      onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                      className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
-                    >
-                      <option value="All Payment Status">All Payment</option>
-                      {paymentStatusOptions.map((s) => (
-                        <option key={s} value={s}>
-                          {statusLabel(s)}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      onClick={() => setShowMoreFilters(!showMoreFilters)}
-                      className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-all ${showMoreFilters
-                          ? 'bg-black text-white border-black dark:bg-white dark:text-black'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-800'
-                        }`}
-                    >
-                      <Settings className="w-4 h-4" />
-                      More Filters
-                    </button>
-                  </div>
-                </div>
-
-                {/* Expanded Filters */}
-                {showMoreFilters && (
-                  <div className="mt-3 p-4 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Date</label>
-                      <input
-                        type="date"
-                        value={dateFilter}
-                        onChange={(e) => {
-                          setDateFilter(e.target.value);
-                          if (e.target.value) {
-                            setStartDate('');
-                            setEndDate('');
-                          }
-                        }}
-                        disabled={!!startDate || !!endDate}
-                        className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!startDate || !!endDate ? 'opacity-40 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        disabled={!!dateFilter}
-                        className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!dateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">End Date</label>
-                      <input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        disabled={!!dateFilter}
-                        className={`w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-opacity ${!!dateFilter ? 'opacity-40 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Type</label>
-                      <select
-                        value={orderTypeFilter}
-                        onChange={(e) => setOrderTypeFilter(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-                      >
-                        <option value="All Types">All Types</option>
-                        {viewMode === 'online' ? (
-                          <>
-                            <option value="social_commerce">Social Commerce</option>
-                            <option value="ecommerce">E-Commerce</option>
-                          </>
-                        ) : (
-                          <option value="counter">Counter</option>
-                        )}
-                      </select>
-                    </div>
-
-                    {viewMode === 'online' && (
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Order Marker</label>
-                        <select
-                          value={courierFilter}
-                          onChange={(e) => setCourierFilter(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-                        >
-                          <option value="All Couriers">All Markers</option>
-                          {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
-                            <option key={c} value={c}>{courierLabel(c)}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Active Filter Pills */}
-                {(search || dateFilter || startDate || endDate || orderTypeFilter !== 'All Types' || orderStatusFilter !== (viewMode === 'online' ? 'All Order Status' : 'All Order Status') || paymentStatusFilter !== 'All Payment Status' || courierFilter !== 'All Couriers') && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase mr-1">Active:</span>
-
-                    {search && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-full text-black dark:text-white animate-in zoom-in-95 duration-200">
-                        Search: {search} <X className="w-2.5 h-2.5 cursor-pointer hover:text-red-500" onClick={() => setSearch('')} />
-                      </div>
-                    )}
-                    {dateFilter && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Date: {dateFilter} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setDateFilter('')} />
-                      </div>
-                    )}
-                    {(startDate || endDate) && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Range: {startDate || '...'} to {endDate || '...'} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => { setStartDate(''); setEndDate(''); }} />
-                      </div>
-                    )}
-
-                    {orderStatusFilter !== 'All Order Status' && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Status: {statusLabel(orderStatusFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setOrderStatusFilter('All Order Status')} />
-                      </div>
-                    )}
-
-                    {paymentStatusFilter !== 'All Payment Status' && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Payment: {statusLabel(paymentStatusFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setPaymentStatusFilter('All Payment Status')} />
-                      </div>
-                    )}
-
-                    {orderTypeFilter !== 'All Types' && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Type: {titleCase(orderTypeFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setOrderTypeFilter('All Types')} />
-                      </div>
-                    )}
-
-                    {courierFilter !== 'All Couriers' && (
-                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-medium bg-black text-white dark:bg-white dark:text-black rounded-full animate-in zoom-in-95 duration-200">
-                        Marker: {courierLabel(courierFilter)} <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => setCourierFilter('All Couriers')} />
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        setSearch('');
-                        setDateFilter('');
-                        setStartDate('');
-                        setEndDate('');
-                        setOrderTypeFilter('All Types');
-                        setOrderStatusFilter('All Order Status');
-                        setPaymentStatusFilter('All Payment Status');
-                        setCourierFilter('All Couriers');
-                      }}
-                      className="text-[10px] font-bold text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 ml-1 transition-colors"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                )}
-              </div>
+              )}
+            </div>
 
             {/* Bulk Actions */}
             {viewMode === 'online' && (
@@ -4180,7 +4180,7 @@ export default function OrdersDashboard() {
                         <User className="w-4 h-4 text-gray-400" />
                         <h3 className="text-xs font-bold text-black dark:text-white uppercase tracking-widest">Customer Details</h3>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-[10px] font-medium text-gray-500 uppercase">Primary Info</p>
@@ -4250,7 +4250,7 @@ export default function OrdersDashboard() {
                     {/* EMI / Installments (if any) */}
                     {selectedOrder.isInstallment && (
                       <div className="p-5 border border-amber-100 dark:border-amber-900/30 rounded-xl bg-amber-50/20 dark:bg-amber-900/5">
-                         <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center gap-2 mb-3">
                           <HandCoins className="w-4 h-4 text-amber-600" />
                           <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest">Installment Plan</h3>
                         </div>
@@ -4581,8 +4581,8 @@ export default function OrdersDashboard() {
                             type="button"
                             onClick={() => setScIsInternational(false)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${!scIsInternational
-                                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                               }`}
                           >
                             Domestic
@@ -4591,8 +4591,8 @@ export default function OrdersDashboard() {
                             type="button"
                             onClick={() => setScIsInternational(true)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${scIsInternational
-                                ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                              ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white'
+                              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                               }`}
                           >
                             International
