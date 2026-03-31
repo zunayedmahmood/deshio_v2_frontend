@@ -134,14 +134,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { icon: CreditCard, label: 'Accounting', href: '/accounting' },
     { icon: CreditCard, label: 'Employee Management', href: '/employees' },
 
-    {
-      icon: ShieldCheck,
-      label: 'Access Control',
-      subMenu: [
-        { label: 'Roles', href: '/roles' },
-        { label: 'Permissions', href: '/permissions' },
-      ],
-    },
+
   ];
 
   // Filter menu items based on permissions

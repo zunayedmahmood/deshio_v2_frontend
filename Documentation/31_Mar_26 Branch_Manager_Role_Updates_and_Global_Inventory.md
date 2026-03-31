@@ -24,40 +24,35 @@ The `branch-manager` role has been significantly tightened to focus solely on br
 
 ---
 
-## 2. Global RBAC Cleanup & Security
+## 2. POS Interface Lockdown
 
-Standardized administrative access across the platform to ensure only Super Admins and Admins can modify core system settings.
+To maintain consistency with the `pos-salesman` role, the Store Selection on the POS page has been enforced for Branch Managers.
 
-### Admin-Only Lockdown
-The following modules are now restricted to `super-admin` and `admin` roles only:
-- `/campaigns`
-- `/transaction`
-- `/category`
-- `/gallery`
-- `/accounting`
-- `/employees`
-
-### System Cleanup
-- **Route Removal**: The `/roles` and `/permissions` management interfaces have been **completely removed** for all users (including admins) to simplify the UI and prevent unauthorized configuration changes.
-- **Inventory Reports**: Restricted strictly to `super-admin` and `admin`. Other roles (including `branch-manager`) retain access to stock viewing and management but cannot generate full reports.
+- **Store Selection (`app/pos/page.tsx`)**: 
+    - The store selection dropdown is now **permanently disabled** for Branch Managers and POS Salesmen.
+    - These users are locked into their assigned branch to ensure transactional integrity at the point of sale.
 
 ---
 
-## 3. Implementation Details
+## 3. Global RBAC Cleanup & Security
+
+### Admin-Only Lockdown
+The following modules are now restricted to `super-admin` and `admin` roles only:
+- `/campaigns`, `/transaction`, `/category`, `/gallery`, `/accounting`, `/employees`
+
+### System Cleanup (Sidebar Removal)
+- **Full Menu Removal**: The "Access Control" (Roles & Permissions) menu has been **completely removed** from the `Sidebar.tsx` for **EVERYBODY**. This simplifies the UI and enforces a programmatic-only management of roles for the current deployment phase.
+- **Inventory Reports**: Restricted strictly to `super-admin` and `admin`.
+
+---
+
+## 4. Implementation Summary
 
 | Component | Change Summary |
 | --- | --- |
-| `lib/accessMap.ts` | Refined `PAGE_ACCESS` to match the new role restrictions. |
-| `contexts/AuthContext.tsx` | Updated `canSelectStore` and `canAccess` helpers to support the new RBAC rules. |
-| `app/social-commerce/layout.tsx` | Updated layout guards to allow branch-manager access to child pages. |
-| `services/productReturnService.ts` | Added `skipStoreScope` support for global data fetching. |
-| `app/returns/page.tsx` | Implemented global visibility logic for branch managers. |
-| `app/purchase-history/page.tsx` | Implemented store pre-selection and fixed legacy type issues. |
-
-## 4. Verification
-
-- Verified that `branch-manager` is redirected/blocked from `/accounting`, `/vendor`, etc.
-- Verified that `branch-manager` defaults to their own store in Purchase History.
-- Verified that Returns and Inventory View show data from all stores for authorized roles.
-- Verified that `/roles` and `/permissions` are no longer in the sidebar and are inaccessible via URL.
+| `lib/accessMap.ts` | Finalized page-level backend permissions. |
+| `components/Sidebar.tsx` | Removed "Access Control" from the UI for all roles. |
+| `app/pos/page.tsx` | Enforced unchangeable store selection for Branch Managers. |
+| `app/returns/page.tsx` | Enabled global cross-outlet returns tracking. |
+| `app/purchase-history/page.tsx` | Implemented pre-selection of the manager's assigned branch. |
 

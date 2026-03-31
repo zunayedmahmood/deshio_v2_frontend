@@ -81,7 +81,7 @@ export interface ExtendedCartItem extends CartItem {
 }
 
 export default function POSPage() {
-  const { user, scopedStoreId, canSelectStore, canAccessDailyCashReport } = useAuth();
+  const { user, role, scopedStoreId, canSelectStore, canAccessDailyCashReport } = useAuth();
   // UI State
   const { darkMode, setDarkMode } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1528,7 +1528,7 @@ export default function POSPage() {
                   <select
                     value={selectedOutlet}
                     onChange={(e) => setSelectedOutlet(e.target.value)}
-                      disabled={!canSelectStore}
+                      disabled={!canSelectStore || role === 'branch-manager'}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Choose an Outlet</option>
