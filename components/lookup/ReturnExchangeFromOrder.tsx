@@ -45,5 +45,4 @@ export default function ReturnExchangeFromOrder({ order, onInitiateReturn, onIni
     </div>
   );
 }
-  );
-}
+
