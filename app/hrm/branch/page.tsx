@@ -19,10 +19,12 @@ import {
   Search,
   Filter,
   Edit3,
-  Scan,
   UserCheck,
   UserX,
-  Play
+  Play,
+  UserMinus,
+  LogOut,
+  ChevronRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -55,6 +57,8 @@ export default function BranchHRMPage() {
     employee: null,
     type: 'check_in'
   });
+
+  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
 
   useEffect(() => {
     if (selectedStoreId) {
@@ -105,6 +109,39 @@ export default function BranchHRMPage() {
       }));
       await hrmService.markAttendance(payload as any);
       toast.success('Bulk attendance updated!');
+      loadBranchData();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleQuickMark = async (emp: Employee, status: 'present' | 'leave' | 'leaving') => {
+    setActiveMenuId(null);
+    if (!selectedStoreId) return;
+
+    if (status === 'present') {
+      setAttendanceModal({ isOpen: true, employee: emp, type: 'check_in' });
+      return;
+    }
+    if (status === 'leaving') {
+      const record = getEmpAttendance(emp.id);
+      setAttendanceModal({ isOpen: true, employee: emp, type: 'check_out', record });
+      return;
+    }
+
+    try {
+      const payload = {
+        store_id: selectedStoreId,
+        attendance_date: format(new Date(), 'yyyy-MM-dd'),
+        entries: [
+          {
+            employee_id: Number(emp.id),
+            status: status, // status is 'leave'
+          }
+        ]
+      };
+      await hrmService.markAttendance(payload as any);
+      toast.success(`Marked as on ${status}`);
       loadBranchData();
     } catch (error: any) {
       toast.error(error.message);
@@ -188,15 +225,8 @@ export default function BranchHRMPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button 
-                    onClick={() => toast.error('Barcode scanner initialization (Future Feature)')}
-                    className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold border border-blue-100 dark:border-blue-800"
-                  >
-                    <Scan className="w-4 h-4" />
-                    Scan ID
-                  </button>
-                  <button 
                     onClick={() => handleBulkMark('present')}
-                    className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-600 px-4 py-2 rounded-xl text-xs font-bold border border-green-100 dark:border-green-800"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
                   >
                     <UserCheck className="w-4 h-4" />
                     Clock In All
@@ -276,47 +306,87 @@ export default function BranchHRMPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-3">
                             {!record?.clock_in ? (
                               <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
                                 <button
-                                  onClick={() => setAttendanceModal({ isOpen: true, employee: emp, type: 'check_in' })}
-                                  className="bg-black hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
+                                  onClick={() => handleQuickMark(emp, 'present')}
+                                  className="bg-black hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-black px-5 py-2 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 whitespace-nowrap"
                                 >
-                                  <Play className="w-3 h-3" />
-                                  Clock In
+                                  <Play className="w-3.5 h-3.5" />
+                                  Present
                                 </button>
                               </AccessControl>
                             ) : !record?.clock_out ? (
                               <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
                                 <button
-                                  onClick={() => setAttendanceModal({ isOpen: true, employee: emp, type: 'check_out' })}
-                                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
+                                  onClick={() => handleQuickMark(emp, 'leaving')}
+                                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-5 py-2 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2 whitespace-nowrap"
                                 >
-                                  <UserX className="w-3 h-3" />
-                                  Clock Out
+                                  <LogOut className="w-3.5 h-3.5" />
+                                  Leaving
                                 </button>
                               </AccessControl>
                             ) : (
-                              <div className="flex flex-col items-end">
+                              <div className="flex flex-col items-end px-3">
                                 <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase tracking-wider">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  Completed
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Left
                                 </div>
                               </div>
                             )}
-                            <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
-                              <button
-                                onClick={() => record && setAttendanceModal({ isOpen: true, employee: emp, type: 'edit', record })}
-                                title="Edit Attendance"
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-blue-500 transition-colors focus:ring-2 focus:ring-blue-500 outline-none"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                            </AccessControl>
-                            <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                              <MoreVertical className="w-4 h-4 text-gray-400" />
-                            </button>
+
+                            <div className="relative">
+                              <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
+                                <button
+                                  onClick={() => setActiveMenuId(activeMenuId === Number(emp.id) ? null : Number(emp.id))}
+                                  className={`p-2 rounded-lg transition-colors ${activeMenuId === Number(emp.id) ? 'bg-gray-100 text-black' : 'text-gray-400 hover:bg-gray-50'}`}
+                                >
+                                  <MoreVertical className="w-5 h-5" />
+                                </button>
+                              </AccessControl>
+
+                              {activeMenuId === Number(emp.id) && (
+                                <>
+                                  <div className="fixed inset-0 z-40" onClick={() => setActiveMenuId(null)}></div>
+                                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 py-2 z-50 animate-in fade-in zoom-in duration-200">
+                                    <button
+                                      onClick={() => handleQuickMark(emp, 'present')}
+                                      className="w-full px-4 py-2.5 text-sm font-bold text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-200"
+                                    >
+                                      <UserCheck className="w-4 h-4 text-green-500" />
+                                      Mark Present
+                                    </button>
+                                    <button
+                                      onClick={() => handleQuickMark(emp, 'leaving')}
+                                      className="w-full px-4 py-2.5 text-sm font-bold text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-200"
+                                    >
+                                      <LogOut className="w-4 h-4 text-red-500" />
+                                      Mark Leaving
+                                    </button>
+                                    <div className="h-px bg-gray-100 dark:bg-gray-700 my-1 mx-2"></div>
+                                    <button
+                                      onClick={() => handleQuickMark(emp, 'leave')}
+                                      className="w-full px-4 py-2.5 text-sm font-bold text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-orange-600"
+                                    >
+                                      <UserMinus className="w-4 h-4" />
+                                      Give Leave
+                                    </button>
+                                    <div className="h-px bg-gray-100 dark:bg-gray-700 my-1 mx-2"></div>
+                                    <button
+                                      onClick={() => {
+                                        setActiveMenuId(null);
+                                        setAttendanceModal({ isOpen: true, employee: emp, type: 'edit', record });
+                                      }}
+                                      className="w-full px-4 py-2.5 text-sm font-bold text-left hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-blue-600"
+                                    >
+                                      <Edit3 className="w-4 h-4" />
+                                      Manual Edit
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -403,7 +473,3 @@ export default function BranchHRMPage() {
     </div>
   );
 }
-
-// Missing imports
-import { ChevronRight as ChevronRightIcon } from 'lucide-react';
-const ChevronRight = ChevronRightIcon;
