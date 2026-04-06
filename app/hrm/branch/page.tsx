@@ -70,14 +70,14 @@ export default function BranchHRMPage() {
     }
   };
 
-  const filteredEmployees = employees.filter(emp =>
+  const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.phone?.includes(searchQuery)
   );
 
   const getEmpAttendance = (empId: number | string) => {
-    return todayAttendance.find(a => a.employee_id === Number(empId));
+    return (Array.isArray(todayAttendance) ? todayAttendance : []).find(a => a.employee_id === Number(empId));
   };
 
   if (!selectedStoreId) {
@@ -114,7 +114,7 @@ export default function BranchHRMPage() {
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Present Today</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {todayAttendance.filter(a => a.status === 'Present' || a.status === 'Late').length}
+                {(Array.isArray(todayAttendance) ? todayAttendance : []).filter(a => a.status === 'Present' || a.status === 'Late').length}
               </p>
             </div>
           </div>
@@ -273,7 +273,7 @@ export default function BranchHRMPage() {
             </h3>
 
             <div className="space-y-5">
-              {(performanceReport?.items || []).slice(0, 5).map((rank: any, idx: number) => (
+              {(Array.isArray(performanceReport?.items) ? performanceReport.items : []).slice(0, 5).map((rank: any, idx: number) => (
                 <div key={rank.employee.id} className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-100 text-yellow-700' :
                       idx === 1 ? 'bg-gray-100 text-gray-700' :

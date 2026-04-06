@@ -80,7 +80,7 @@ const hrmService = {
 
   async getTodayAttendance(storeId?: number): Promise<AttendanceRecord[]> {
     const response = await axiosInstance.get('/hrm/attendance/report/today', { params: { store_id: storeId } });
-    if (response.data.success && response.data.data?.rows) {
+    if (response.data.success && Array.isArray(response.data.data?.rows)) {
       // Normalize backend "rows" structure to AttendanceRecord[]
       return response.data.data.rows.map((row: any) => {
         const att = row.attendance || {};
@@ -171,17 +171,23 @@ const hrmService = {
 
   async getRewardFineReport(params: any): Promise<any> {
     const response = await axiosInstance.get('/hrm/attendance/rewards-fines/report', { params });
-    return response.data.success ? (response.data.data || { rows: [] }) : { rows: [] };
+    const data = response.data.success ? (response.data.data || { rows: [] }) : { rows: [] };
+    if (!Array.isArray(data.rows)) data.rows = [];
+    return data;
   },
 
   async getCumulatedRewardFine(params: any): Promise<any> {
     const response = await axiosInstance.get('/hrm/attendance/rewards-fines/cumulated', { params });
-    return response.data.success ? (response.data.data || { rows: [] }) : { rows: [] };
+    const data = response.data.success ? (response.data.data || { rows: [] }) : { rows: [] };
+    if (!Array.isArray(data.rows)) data.rows = [];
+    return data;
   },
   // Payroll
   async getMonthlySalarySheet(params: { store_id: number; month: string }): Promise<any> {
     const response = await axiosInstance.get('/hrm/payroll/sheet', { params });
-    return response.data.success ? (response.data.data || { sheet: [] }) : { sheet: [] };
+    const data = response.data.success ? (response.data.data || { sheet: [] }) : { sheet: [] };
+    if (!Array.isArray(data.sheet)) data.sheet = [];
+    return data;
   },
 
   async payMonthlySalary(data: { employee_id: number; store_id: number; month: string }): Promise<any> {

@@ -76,7 +76,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const resolveRoleAndPermissions = async (employee: Employee) => {
     // 1) If /me already contains role + permissions, use it.
     const apiRoleSlug = employee?.role?.slug;
-    const apiPerms = employee?.role?.permissions?.map((p) => p.slug).filter(Boolean) || [];
+    const apiPerms = Array.isArray(employee?.role?.permissions) ? employee.role.permissions.map((p: any) => p.slug).filter(Boolean) : [];
     if (apiRoleSlug) {
       setPermissions(apiPerms);
       setPermissionsResolved(true);
