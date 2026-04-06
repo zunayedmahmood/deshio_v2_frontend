@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import hrmService, { AttendanceRecord } from '@/services/hrmService';
@@ -17,7 +18,11 @@ import {
   MoreVertical,
   Search,
   Filter,
-  Edit3
+  Edit3,
+  Scan,
+  UserCheck,
+  UserX,
+  Play
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
@@ -32,6 +37,12 @@ export default function BranchHRMPage() {
   const [performanceReport, setPerformanceReport] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Modal states
   const [attendanceModal, setAttendanceModal] = useState<{
@@ -78,6 +89,26 @@ export default function BranchHRMPage() {
 
   const getEmpAttendance = (empId: number | string) => {
     return (Array.isArray(todayAttendance) ? todayAttendance : []).find(a => a.employee_id === Number(empId));
+  };
+
+  const handleBulkMark = async (type: 'present' | 'absent') => {
+    if (!selectedStoreId) return;
+    const confirm = window.confirm(`Mark all ${filteredEmployees.length} employees as ${type === 'present' ? 'Clocked In' : 'Absent'} for today?`);
+    if (!confirm) return;
+
+    try {
+      const payload = filteredEmployees.map(emp => ({
+        employee_id: Number(emp.id),
+        status: type === 'present' ? 'present' : 'absent',
+        store_id: selectedStoreId,
+        attendance_date: format(new Date(), 'yyyy-MM-dd')
+      }));
+      await hrmService.markAttendance(payload as any);
+      toast.success('Bulk attendance updated!');
+      loadBranchData();
+    } catch (error: any) {
+      toast.error(error.message);
+    }
   };
 
   if (!selectedStoreId) {
@@ -146,7 +177,35 @@ export default function BranchHRMPage() {
         <div className="xl:col-span-2 space-y-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
             <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Attendance Management</h3>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Staff Attendance</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Manage daily arrivals and departures</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="hidden md:flex flex-col items-end mr-4">
+                  <p className="text-sm font-black text-gray-900 dark:text-white leading-none">{format(currentTime, 'hh:mm:ss a')}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{format(currentTime, 'EEEE, MMM do')}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => toast.error('Barcode scanner initialization (Future Feature)')}
+                    className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-4 py-2 rounded-xl text-xs font-bold border border-blue-100 dark:border-blue-800"
+                  >
+                    <Scan className="w-4 h-4" />
+                    Scan ID
+                  </button>
+                  <button 
+                    onClick={() => handleBulkMark('present')}
+                    className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-600 px-4 py-2 rounded-xl text-xs font-bold border border-green-100 dark:border-green-800"
+                  >
+                    <UserCheck className="w-4 h-4" />
+                    Clock In All
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -155,10 +214,10 @@ export default function BranchHRMPage() {
                     placeholder="Search staff..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-2 text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-black outline-none w-full md:w-64"
+                    className="pl-9 pr-4 py-2 text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 focus:ring-2 focus:ring-black outline-none w-full md:w-64 shadow-sm"
                   />
                 </div>
-                <button className="p-2 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700">
+                <button className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-all">
                   <Filter className="w-4 h-4 text-gray-500" />
                 </button>
               </div>
@@ -222,8 +281,9 @@ export default function BranchHRMPage() {
                               <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
                                 <button
                                   onClick={() => setAttendanceModal({ isOpen: true, employee: emp, type: 'check_in' })}
-                                  className="bg-black dark:bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:scale-105 transition-transform"
+                                  className="bg-black hover:bg-gray-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
                                 >
+                                  <Play className="w-3 h-3" />
                                   Clock In
                                 </button>
                               </AccessControl>
@@ -231,14 +291,18 @@ export default function BranchHRMPage() {
                               <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
                                 <button
                                   onClick={() => setAttendanceModal({ isOpen: true, employee: emp, type: 'check_out' })}
-                                  className="bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-xl hover:scale-105 transition-transform"
+                                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
                                 >
+                                  <UserX className="w-3 h-3" />
                                   Clock Out
                                 </button>
                               </AccessControl>
                             ) : (
-                              <div className="p-2 text-green-500">
-                                <CheckCircle2 className="w-5 h-5" />
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-center gap-1.5 text-green-600 font-black text-[10px] uppercase tracking-wider">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  Completed
+                                </div>
                               </div>
                             )}
                             <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>

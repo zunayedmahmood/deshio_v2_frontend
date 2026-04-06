@@ -50,25 +50,28 @@ const hrmService = {
     return response.data;
   },
 
-  async markAttendance(data: { 
-    employee_id: number; 
-    type: 'check_in' | 'check_out'; 
-    time?: string;
-    store_id: number;
-    date: string;
-  }): Promise<any> {
-    const payload = {
-      store_id: data.store_id,
-      attendance_date: data.date,
-      entries: [
-        {
-          employee_id: data.employee_id,
-          status: 'present', // Backend will automatically adjust to 'late' if policy applies
-          in_time: data.type === 'check_in' ? data.time : undefined,
-          out_time: data.type === 'check_out' ? data.time : undefined,
-        }
-      ]
-    };
+  async markAttendance(data: any): Promise<any> {
+    let payload;
+    if (Array.isArray(data)) {
+      payload = {
+        store_id: data[0].store_id,
+        attendance_date: data[0].attendance_date,
+        entries: data
+      };
+    } else {
+      payload = {
+        store_id: data.store_id,
+        attendance_date: data.date,
+        entries: [
+          {
+            employee_id: data.employee_id,
+            status: 'present',
+            in_time: data.type === 'check_in' ? data.time : undefined,
+            out_time: data.type === 'check_out' ? data.time : undefined,
+          }
+        ]
+      };
+    }
     const response = await axiosInstance.post('/hrm/attendance/mark', payload);
     return response.data;
   },

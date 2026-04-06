@@ -13,8 +13,8 @@ function HRMLayoutContent({ children }: { children: React.ReactNode }) {
 
   const tabs = [
     { label: 'My HRM', href: '/hrm/my', icon: LayoutDashboard, roles: ['employee', 'pos-salesman', 'branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Branch Panel', href: '/hrm/branch', icon: Users, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Attendance', href: '/hrm/attendance', icon: Calendar, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Staff Attendance', href: '/hrm/branch', icon: Users, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Attendance Reports', href: '/hrm/attendance', icon: Calendar, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
     { label: 'Sales Targets', href: '/hrm/sales-targets', icon: Target, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
     { label: 'Rewards & Fines', href: '/hrm/rewards-fines', icon: Award, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
     { label: 'Payroll', href: '/hrm/payroll', icon: Calendar, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
