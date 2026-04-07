@@ -37,6 +37,7 @@ use App\Http\Controllers\ProductVariantController;
 use App\Http\Controllers\CollectionController;
 use App\Http\Controllers\PriceController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\BusinessAnalyticsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -1092,6 +1093,7 @@ Route::middleware('auth:api')->group(function () {
             Route::patch('/complete', [OrderController::class, 'complete']);  // Reduce inventory
             Route::patch('/cancel', [OrderController::class, 'cancel']);
         });
+        
     });
 
     // ============================================
@@ -1639,6 +1641,12 @@ Route::middleware('auth:api')->group(function () {
     // ============================================
     
     Route::prefix('reporting')->group(function () {
+        // Business Command Center (Next.js Reports)
+        Route::get('/command-center', [BusinessAnalyticsController::class, 'commandCenter']);
+        Route::get('/live-best-sellers', [BusinessAnalyticsController::class, 'liveBestSellers']);
+        Route::get('/branch-comparison', [BusinessAnalyticsController::class, 'branchComparison']);
+        Route::get('/export-summary', [BusinessAnalyticsController::class, 'exportSummary']);
+
         // Category Sales Report
         Route::get('/csv/category-sales', [\App\Http\Controllers\ReportingController::class, 'exportCategorySalesCsv']);
         // Sales Report
