@@ -221,7 +221,7 @@ export default function SkuPerformanceStudio({
             </div>
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.4fr_0.95fr]">
+          <div className="space-y-6">
             <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/45">
               <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -287,25 +287,25 @@ export default function SkuPerformanceStudio({
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/45">
-                <div className="mb-4 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-fuchsia-500">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/45 flex flex-col">
+                <div className="mb-4 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-fuchsia-500 shrink-0">
                   <Wifi className="h-4 w-4" />
                   Channel Power Split
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500 p-5 text-white shadow-lg shadow-fuchsia-500/20">
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/70">Online Orders</div>
                     <div className="mt-2 text-3xl font-black">{onlineOrders}</div>
-                    <div className="mt-2 text-sm font-medium text-white/80">{percent(onlineShare || 0)} of total order volume</div>
+                    <div className="mt-2 text-sm font-medium text-white/80">{percent(onlineShare || 0)} of total volume</div>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-900/60">
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">Offline / Branch</div>
                     <div className="mt-2 text-3xl font-black text-slate-950 dark:text-white">{offlineOrders}</div>
-                    <div className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">{percent(100 - (onlineShare || 0))} of known order channels</div>
+                    <div className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">{percent(100 - (onlineShare || 0))} of known channels</div>
                   </div>
                 </div>
-                <div className="mt-5 space-y-3">
+                <div className="mt-auto pt-5 space-y-3">
                   {(data.order_type_mix || []).map((item) => {
                     const total = data.order_type_mix.reduce((sum, row) => sum + row.value, 0) || 1;
                     const width = (item.value / total) * 100;
@@ -324,35 +324,37 @@ export default function SkuPerformanceStudio({
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/45">
-                <div className="mb-4 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-500">
+              <div className="rounded-[28px] border border-white/70 bg-white/85 p-5 shadow-xl shadow-indigo-950/5 backdrop-blur dark:border-white/10 dark:bg-gray-950/45 flex flex-col">
+                <div className="mb-4 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-500 shrink-0">
                   <PackageSearch className="h-4 w-4" />
                   Flow & Restock Trigger
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-500/20 dark:bg-amber-500/10 text-center sm:text-left">
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-600">Daily Sell Through</div>
                     <div className="mt-2 text-2xl font-black text-gray-950 dark:text-white">{flowRate.toFixed(2)}</div>
-                    <div className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Units per active report day</div>
+                    <div className="mt-1 text-[10px] font-bold text-gray-400 uppercase">Units/Day</div>
                   </div>
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10 text-center sm:text-left">
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-600">Days of Cover</div>
                     <div className="mt-2 text-2xl font-black text-gray-950 dark:text-white">{daysOfCover.toFixed(1)}</div>
-                    <div className="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Based on current stock and run rate</div>
+                    <div className="mt-1 text-[10px] font-bold text-gray-400 uppercase">Days Left</div>
                   </div>
                 </div>
-                <div className="mt-5 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/60">
-                  <div className="flex items-start gap-3">
-                    <Activity className="mt-0.5 h-4 w-4 text-indigo-500" />
-                    <div>
-                      <div className="text-sm font-bold text-gray-900 dark:text-white">Smart action hint</div>
-                      <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                        {daysOfCover <= 7
-                          ? 'Restock alert: current cover is tight. Trigger replenishment or inter-branch balancing immediately.'
-                          : daysOfCover <= 15
-                          ? 'Monitor closely: stock is moving at a healthy pace, but this SKU may need replenishment planning soon.'
-                          : 'Coverage looks comfortable. Push this SKU harder through campaigns or bundling if margin supports it.'}
-                      </p>
+                <div className="mt-auto pt-5">
+                  <div className="rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/30 p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20">
+                    <div className="flex items-start gap-3">
+                      <Activity className="mt-0.5 h-4 w-4 text-indigo-500 shrink-0" />
+                      <div>
+                        <div className="text-sm font-black text-gray-950 dark:text-white uppercase tracking-wider">Strategic Insight</div>
+                        <p className="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-400 font-medium italic">
+                          {daysOfCover <= 7
+                            ? '"Restock alert: current cover is tight. Trigger replenishment or inter-branch balancing immediately."'
+                            : daysOfCover <= 15
+                            ? '"Monitor closely: stock is moving at a healthy pace, but this SKU may need replenishment planning soon."'
+                            : '"Coverage looks comfortable. Push this SKU harder through campaigns or bundling if margin supports it."'}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
