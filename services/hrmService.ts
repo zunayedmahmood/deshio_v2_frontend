@@ -52,16 +52,26 @@ const hrmService = {
 
   async markAttendance(data: any): Promise<any> {
     let payload;
+
     if (Array.isArray(data)) {
+      // Legacy: array of entries passed directly
       payload = {
         store_id: data[0].store_id,
         attendance_date: data[0].attendance_date,
         entries: data
       };
-    } else {
+    } else if (data.entries && Array.isArray(data.entries)) {
+      // New format: already structured { store_id, attendance_date, entries[] }
       payload = {
         store_id: data.store_id,
-        attendance_date: data.date,
+        attendance_date: data.attendance_date || data.date,
+        entries: data.entries
+      };
+    } else {
+      // Legacy single-entry format from old modal calls
+      payload = {
+        store_id: data.store_id,
+        attendance_date: data.attendance_date || data.date,
         entries: [
           {
             employee_id: data.employee_id,
@@ -72,13 +82,15 @@ const hrmService = {
         ]
       };
     }
-    // Final check for status casing
+
+    // Normalize status casing in all entries
     if (payload.entries && Array.isArray(payload.entries)) {
       payload.entries = payload.entries.map((e: any) => ({
         ...e,
         status: e.status ? e.status.toLowerCase() : 'present'
       }));
     }
+
     const response = await axiosInstance.post('/hrm/attendance/mark', payload);
     return response.data;
   },

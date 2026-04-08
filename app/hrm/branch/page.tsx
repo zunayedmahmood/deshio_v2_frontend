@@ -192,7 +192,21 @@ export default function BranchHRMPage() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 md:col-span-1 lg:col-span-2">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-600">
+              <UserX className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Absent Today</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                {(Array.isArray(todayAttendance) ? todayAttendance : []).filter(a => a.status === 'absent').length}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 md:col-span-2 lg:col-span-2">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-emerald-600">
               <TrendingUp className="w-6 h-6" />
@@ -228,12 +242,19 @@ export default function BranchHRMPage() {
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{format(currentTime, 'EEEE, MMM do')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => handleBulkMark('present')}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-blue-500/20 active:scale-95 transition-all"
                   >
                     <UserCheck className="w-4 h-4" />
                     Clock In All
+                  </button>
+                  <button
+                    onClick={() => handleBulkMark('absent')}
+                    className="flex items-center gap-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-700 dark:text-red-400 px-5 py-2.5 rounded-xl text-xs font-black active:scale-95 transition-all"
+                  >
+                    <UserX className="w-4 h-4" />
+                    Mark All Absent
                   </button>
                 </div>
               </div>
@@ -285,21 +306,20 @@ export default function BranchHRMPage() {
                         </td>
                         <td className="px-6 py-4">
                           {record ? (
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                               record.status?.toLowerCase() === 'absent' ? 'bg-red-50 text-red-600 border border-red-100' :
-                               record.status?.toLowerCase() === 'leave' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                               record.status?.toLowerCase() === 'half_day' ? 'bg-yellow-50 text-yellow-600 border border-yellow-100' :
-                               record.status?.toLowerCase() === 'late' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                               record.status?.toLowerCase() === 'holiday_auto' || record.status?.toLowerCase() === 'off_day_auto' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
-                               'bg-green-50 text-green-600 border border-green-100'}`}>
-                              {record.status?.toLowerCase() === 'present' ? 'present' : 
-                               record.status?.toLowerCase() === 'late' ? 'late' : 
-                               record.status?.toLowerCase() === 'absent' ? 'absent' : 
-                               record.status?.toLowerCase() === 'leave' ? 'leave' :
-                               record.status?.toLowerCase() === 'half_day' ? 'half day' :
-                               record.status?.toLowerCase() === 'holiday_auto' ? 'holiday' :
-                               record.status?.toLowerCase() === 'off_day_auto' ? 'off day' :
-                               record.status}
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${record.status?.toLowerCase() === 'absent' ? 'bg-red-50 text-red-600 border border-red-100' :
+                                record.status?.toLowerCase() === 'leave' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                                  record.status?.toLowerCase() === 'half_day' ? 'bg-yellow-50 text-yellow-600 border border-yellow-100' :
+                                    record.status?.toLowerCase() === 'late' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
+                                      record.status?.toLowerCase() === 'holiday_auto' || record.status?.toLowerCase() === 'off_day_auto' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
+                                        'bg-green-50 text-green-600 border border-green-100'}`}>
+                              {record.status?.toLowerCase() === 'present' ? 'present' :
+                                record.status?.toLowerCase() === 'late' ? 'late' :
+                                  record.status?.toLowerCase() === 'absent' ? 'absent' :
+                                    record.status?.toLowerCase() === 'leave' ? 'leave' :
+                                      record.status?.toLowerCase() === 'half_day' ? 'half day' :
+                                        record.status?.toLowerCase() === 'holiday_auto' ? 'holiday' :
+                                          record.status?.toLowerCase() === 'off_day_auto' ? 'off day' :
+                                            record.status}
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-500 uppercase tracking-wider">
@@ -437,9 +457,9 @@ export default function BranchHRMPage() {
               {(Array.isArray(performanceReport?.items) ? performanceReport.items : []).slice(0, 5).map((rank: any, idx: number) => (
                 <div key={rank.employee.id} className="flex items-center gap-4">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${idx === 0 ? 'bg-yellow-100 text-yellow-700' :
-                      idx === 1 ? 'bg-gray-100 text-gray-700' :
-                        idx === 2 ? 'bg-orange-100 text-orange-700' :
-                          'bg-gray-50 text-gray-500'
+                    idx === 1 ? 'bg-gray-100 text-gray-700' :
+                      idx === 2 ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-50 text-gray-500'
                     }`}>
                     {idx + 1}
                   </div>
