@@ -192,3 +192,6 @@ there will be a store selection dropdown where we can select a store and see onl
 Since the system is in production, we can not afford to break anything. so, please be very careful.
 Since, testing confirmed that order page was working and we want newer features, avoid doing any drastic changes to the already working process.
 
+
+### inventory report page bug fix:
+the report page is displayed after the end of the sidebar. instead, it should be available beside it. ONLY pull it up.
