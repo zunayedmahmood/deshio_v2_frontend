@@ -220,6 +220,13 @@ This is a description or a documentation of how campaigns and coupon generation 
 
 
 ### ui copy
-Links:
-https://splayd.com.bd/
-https://splayd.com.bd/collections/shop-all-products/products/boutique-p-grey-t-shirt-ts-4445?variant=46111054135435
+all the existing text in app/e-commerce page is the source of truth. DO NOT, absolutely DO NOT change any of them. 
+DO NOT change any text from any of the components they call.
+by text, i mean any typed string inside <>text</> tags.
+
+see frontend_blueprint.md . use this as an ideal frontend UI, styling and functionalities.
+then, i want you update my e-commerce/ pages and the components they call to match that website
+Use it as a source of inspiration and make the UI beautiful and modern.
+absolutely DO NOT change/generate any text. all the pre-existing text MUST remain untouched.
+
+update the e-commerce pages and its relevant components, global css etc. to match the blueprint.

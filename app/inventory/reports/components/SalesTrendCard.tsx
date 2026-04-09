@@ -3,8 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import businessAnalyticsService, { TrendPoint } from '@/services/businessAnalyticsService';
 import ReportCard from './ReportCard';
-import LocalDatePicker from './LocalDatePicker';
-import { Search } from 'lucide-react';
 
 function currency(value: number) {
   return new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -68,8 +66,8 @@ export default function SalesTrendCard({
 
   return (
     <ReportCard
-      title="Sales Trend"
-      subtitle="Net sales and profit performance over time"
+      title="Date-wise Sales"
+      subtitle="Track daily, weekly, or monthly sales movement for the selected filters"
       isLoading={loading}
       onRefresh={() => fetchData()}
       headerAction={
@@ -80,8 +78,8 @@ export default function SalesTrendCard({
                 key={i}
                 onClick={() => handleIntervalChange(i)}
                 className={`px-3 py-1 text-[10px] font-bold rounded-md capitalize transition-all ${interval === i
-                    ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 uppercase'
+                  ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 uppercase'
                   }`}
               >
                 {i}
