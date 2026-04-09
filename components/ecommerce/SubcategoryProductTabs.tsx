@@ -128,13 +128,12 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
 
   const [allCats,     setAllCats]     = useState<CatalogCategory[]>([]);
   const [tabs,        setTabs]        = useState<CatalogCategory[]>([]);
-  const [activeId,    setActiveId]    = useState<number | null>(null);
-  const [tabData,     setTabData]     = useState<Record<number, TabData>>({});
+  const [activeId,    setActiveId]    = useState<number | null>(null); // null means "All Products"
+  const [tabData,     setTabData]     = useState<Record<string, TabData>>({}); // use string key to handle 'all'
   const [loadingCats, setLoadingCats] = useState(true);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
-  const [heroImgByCat, setHeroImgByCat] = useState<Record<number, string>>({});
   const [parentLabel, setParentLabel] = useState<string>('');
-  const [showAllTabs, setShowAllTabs] = useState(false);
+  const [parentNode,  setParentNode]  = useState<CatalogCategory | null>(null);
 const findParentNode = (flat: CatalogCategory[], queries: string[]): CatalogCategory | null => {
   const q = (queries || []).map(normalizeKey).filter(Boolean);
   if (!q.length) return null;
@@ -186,34 +185,27 @@ const findParentNode = (flat: CatalogCategory[], queries: string[]): CatalogCate
  * - Top 3 (by product_count) appear as image banner cards
  * - The rest appear as pill/capsule tabs
  */
-const parent = findParentNode(flat, parentQueries);
-if (alive) setParentLabel(parent?.name || '');
-let selected: CatalogCategory[] = [];
+        const parent = findParentNode(flat, parentQueries);
+        if (alive) {
+          setParentLabel(parent?.name || '');
+          setParentNode(parent);
+        }
+        let selected: CatalogCategory[] = [];
 
-if (parent) {
-  if (parent.children?.length) {
-    const descendants = flattenAll(parent.children);
-    let leaves = descendants.filter(c => c.name && !c.children?.length);
-    if (!leaves.length) leaves = descendants.filter(c => c.name);
-    selected = uniqById(leaves);
-  } else {
-    selected = [parent];
-  }
+        if (parent) {
+          if (parent.children?.length) {
+            const descendants = flattenAll(parent.children);
+            let leaves = descendants.filter(c => c.name && !c.children?.length);
+            if (!leaves.length) leaves = descendants.filter(c => c.name);
+            selected = uniqById(leaves);
+          } else {
+            selected = [parent];
+          }
 
-  selected.sort((a, b) => Number(b.product_count || 0) - Number(a.product_count || 0));
-}
+          selected.sort((a, b) => Number(b.product_count || 0) - Number(a.product_count || 0));
+        }
 
-if (!selected.length) {
-  if (hideIfNotFound) {
-    if (alive) {
-      setAllCats(flat);
-      setTabs([]);
-      setActiveId(null);
-      setLoadingCats(false);
-    }
-    return;
-  }
-          
+        if (!selected.length && !hideIfNotFound) {
           let leaves = flat.filter(c => c.name && !c.children?.length);
           leaves.sort((a, b) => Number(b.product_count || 0) - Number(a.product_count || 0));
           selected = leaves.slice(0, tabsCount);
@@ -228,7 +220,8 @@ if (!selected.length) {
         if (!alive) return;
         setAllCats(flat);
         setTabs(selected);
-        if (selected.length) setActiveId(selected[0].id);
+        // Default to "All Products" (null activeId)
+        setActiveId(null);
       } catch (e) {
         console.error('SubcategoryTabs: failed to load categories', e);
       }
@@ -277,41 +270,49 @@ if (!selected.length) {
 
   /* ── fetch products for active tab ──────────────────────────────── */
   useEffect(() => {
-    if (!activeId) return;
-    const cat = tabs.find(c => c.id === activeId);
-    if (!cat) return;
-    if (tabData[activeId]?.loaded || tabData[activeId]?.loading) return;
+    // If activeId is null, we are in "All Products" for the parentNode
+    // If we have categories but no explicit selection yet, wait for logic above.
+    if (activeId === undefined) return; 
+
+    const key = activeId === null ? 'all' : String(activeId);
+    if (tabData[key]?.loaded || tabData[key]?.loading) return;
+
+    const cat = activeId === null ? (parentNode || null) : tabs.find(c => c.id === activeId);
+    if (!cat && activeId !== null) return;
 
     let alive = true;
-    setTabData(p => ({ ...p, [activeId]: { category: cat, products: [], loading: true, loaded: false } }));
+    setTabData(p => ({ ...p, [key]: { category: cat!, products: [], loading: true, loaded: false } }));
 
     (async () => {
-      const allowed = buildAllowedSet(cat);
+      const allowed = cat ? buildAllowedSet(cat) : { ids: new Set<number>(), keys: new Set<string>() };
 
       // Find parent category (products may be tagged with parent instead of child)
-      const parent = allCats.find(c => c.id === cat.parent_id) || null;
+      const parent = cat ? (allCats.find(c => c.id === cat.parent_id) || null) : null;
 
-      /**
-       * Fetch strategy — try most specific first, broaden on each miss:
-       * 1. Direct API filter by child category id/name
-       * 2. Direct API filter by parent category id (products tagged with parent)
-       * 3. No filter — fetch all, rely purely on client-side matching
-       *
-       * In ALL cases, apply a two-pass client-side filter:
-       *   Pass 1 (strict): product.category matches child category exactly
-       *   Pass 2 (heuristic): product name contains the child category name
-       *   (handles case where products are tagged with parent but named after the child)
-       */
-      const fetchAttempts: Record<string, any>[] = [
-        { category_id: cat.id,                                    sort_by: 'newest', sort_order: 'desc' },
-        { category_id: cat.id, category: cat.name,                sort_by: 'newest', sort_order: 'desc' },
-        { category: cat.name,  category_slug: cat.slug,           sort_by: 'newest', sort_order: 'desc' },
-        ...(parent ? [
-          { category_id: parent.id,                               sort_by: 'newest', sort_order: 'desc' },
-          { category_id: parent.id, category: parent.name,        sort_by: 'newest', sort_order: 'desc' },
-        ] : []),
-        { sort_by: 'newest', sort_order: 'desc', per_page: 120 }, // last resort: no filter
-      ];
+      const fetchAttempts: Record<string, any>[] = [];
+      
+      if (activeId === null && parentNode) {
+        // "All Products" mode for parent
+        fetchAttempts.push(
+          { category_id: parentNode.id, sort_by: 'newest', sort_order: 'desc' },
+          { category_slug: parentNode.slug, sort_by: 'newest', sort_order: 'desc' },
+          { sort_by: 'newest', sort_order: 'desc', per_page: 120 }
+        );
+      } else if (cat) {
+        // Specific subcategory mode
+        fetchAttempts.push(
+          { category_id: cat.id,                                    sort_by: 'newest', sort_order: 'desc' },
+          { category_id: cat.id, category: cat.name,                sort_by: 'newest', sort_order: 'desc' },
+          { category: cat.name,  category_slug: cat.slug,           sort_by: 'newest', sort_order: 'desc' },
+          ...(parent ? [
+            { category_id: parent.id,                               sort_by: 'newest', sort_order: 'desc' },
+            { category_id: parent.id, category: parent.name,        sort_by: 'newest', sort_order: 'desc' },
+          ] : [])
+        );
+      } else {
+        // Fallback catch-all if we have no parent either
+        fetchAttempts.push({ sort_by: 'newest', sort_order: 'desc', per_page: 120 });
+      }
 
       let products: SimpleProduct[] = [];
 
@@ -325,7 +326,7 @@ if (!selected.length) {
 
           const cards = buildCardProductsFromResponse(response);
 
-          // Pass 1: strict category match (category id or name equals this child category)
+          // Pass 1: strict category match
           const strict = cards.filter(p => productMatchesCat(p, allowed));
 
           if (strict.length > 0) {
@@ -333,30 +334,32 @@ if (!selected.length) {
             break;
           }
 
-          // Pass 2: heuristic — product name contains child category name
-          // (e.g. product named "Jordan 1 High Union LA" under "Sneakers" category
-          //  should appear in the "Jordan 1 High" tab)
-          const byName = cards.filter(p => productNameContainsCat(p, cat.name));
-
-          if (byName.length > 0) {
-            products = byName.slice(0, productsPerTab);
-            break;
+          // Pass 2: heuristic
+          if (cat) {
+            const byName = cards.filter(p => productNameContainsCat(p, cat.name));
+            if (byName.length > 0) {
+              products = byName.slice(0, productsPerTab);
+              break;
+            }
+          } else {
+             // For "All Products", just take whatever we found
+             products = cards.slice(0, productsPerTab);
+             break;
           }
-
-          // This attempt yielded nothing — try next
         } catch { /* try next attempt */ }
       }
 
       if (alive) {
-        setTabData(p => ({ ...p, [activeId]: { category: cat, products, loading: false, loaded: true } }));
+        setTabData(p => ({ ...p, [key]: { category: cat!, products, loading: false, loaded: true } }));
       }
     })();
 
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, tabs.length, allCats.length]);
+  }, [activeId, tabs.length, allCats.length, parentNode?.id]);
 
-  const activeTab  = activeId ? tabData[activeId] : null;
+  const activeKey = activeId === null ? 'all' : String(activeId);
+  const activeTab = tabData[activeKey];
   const onImgError = (id: number) => setImageErrors(prev => { const s = new Set(prev); s.add(id); return s; });
 
   const onProductClick = (p: SimpleProduct) => router.push(`/e-commerce/product/${p.id}`);
@@ -374,247 +377,134 @@ if (!selected.length) {
   /* ── skeleton ── */
   if (loadingCats) {
     return (
-      <section className="ec-section">
-        <div className="ec-container">
-          <div className="ec-surface p-4 sm:p-6 lg:p-8">
-            <div className="mb-6 space-y-2">
-              <div className="h-3 w-32 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />
-              <div className="h-8 w-56 rounded-lg   animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 mb-5">
-              {[1,2,3].map(i => <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.05)' }} />)}
-            </div>
+      <section className="bg-white py-12">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-6 space-y-2">
+            <div className="h-3 w-32 bg-gray-100 rounded-full animate-pulse" />
+            <div className="h-8 w-56 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+          <div className="flex gap-4 mb-8 overflow-hidden">
+            {[1,2,3,4,5].map(i => <div key={i} className="h-10 w-24 bg-gray-50 rounded-full flex-shrink-0 animate-pulse" />)}
+          </div>
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+             {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="aspect-[4/5] rounded-2xl bg-gray-50 mb-4" />
+                  <div className="h-4 bg-gray-50 rounded-full w-3/4" />
+                </div>
+              ))}
           </div>
         </div>
       </section>
     );
   }
 
-  if (!tabs.length) return null;
-
-  if (!tabs.length) return null;
+  if (!tabs.length && hideIfNotFound && !parentNode) return null;
 
   /* ── main ── */
-  const MAX_VISIBLE_TABS = 10; // includes the 3 banner cards
-  const collapsedEnd = Math.min(tabs.length, MAX_VISIBLE_TABS);
-  const pillTabs = tabs.slice(3, showAllTabs ? tabs.length : collapsedEnd);
-  const canLoadMore = tabs.length > MAX_VISIBLE_TABS;
-
   return (
-    <section className="ec-section">
-      <div className="ec-container">
-        <div className="ec-surface overflow-hidden">
-
-          {/* Header */}
-          <div className="px-4 pt-6 pb-5 sm:px-6 lg:px-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="ec-eyebrow">{eyebrow ?? 'Browse by subcategory'}</p>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(22px,4vw,36px)', fontWeight: 500, color: 'white', letterSpacing: '-0.01em' }}>
-                {title ?? (parentLabel ? `Shop ${parentLabel}` : 'Shop')}
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>{subtitle ?? (parentLabel ? `Select a ${parentLabel} collection to explore the latest styles` : 'Select a collection to explore the latest styles')}</p>
-            </div>
-            {activeTab?.category && (
-              <button
-  onClick={() =>
-    router.push(`/e-commerce/${encodeURIComponent(catSlug(activeTab.category))}`)
-  }
-  className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition self-start sm:self-auto whitespace-nowrap"
-  style={{
-    border: '1px solid rgba(255,255,255,0.15)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.7)',
-  }}
-  onMouseEnter={(e) => {
-    e.currentTarget.style.borderColor = 'var(--gold)';
-    e.currentTarget.style.color = 'var(--gold-light)';
-  }}
-  onMouseLeave={(e) => {
-    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-    e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-  }}
->
-  View all in {activeTab.category.name} →
-</button>
-            )}
-          </div>
-
-          {/* Banner cards — top 3 tabs as tall portrait images */}
-          <div className="px-4 sm:px-6 lg:px-8 pb-5">
-            <div
-              className="grid gap-3"
-              style={{ gridTemplateColumns: `repeat(${Math.min(tabs.length, 3)}, 1fr)` }}
-            >
-              {tabs.slice(0, 3).map((cat, idx) => {
-                const active = cat.id === activeId;
-                const imgUrl = cat.image_url || (cat as any).image || heroImgByCat[cat.id] || null;
-
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveId(cat.id)}
-                    className={`group relative overflow-hidden rounded-2xl text-left transition-all duration-300 focus-visible:outline-none ${
-                      active
-                        ? 'ring-2 ring-offset-2 ring-neutral-900 shadow-2xl'
-                        : 'shadow-md hover:shadow-xl'
-                    }`}
-                  >
-                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                      {imgUrl ? (
-                        <img
-                          src={imgUrl}
-                          alt={cat.name}
-                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div className="absolute inset-0" style={{ background: GRADIENTS[idx % 3] }} />
-                      )}
-
-                      {/* Gradient overlay for text legibility */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-
-                      {/* Active checkmark */}
-                      {active && (
-                        <div className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full " style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)' }}>
-                          <svg className="h-4 w-4" style={{ color: 'var(--gold)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      )}
-
-                      {/* Text overlay */}
-                      <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                        <div className="mb-1.5 flex items-center gap-2">
-                          <div className="h-px w-6 bg-white/50" />
-                          <span className="text-[9px] uppercase tracking-[0.22em] font-medium text-white/60">Collection</span>
-                        </div>
-                        <p
-                          className="text-xl font-semibold leading-tight text-white drop-shadow sm:text-2xl lg:text-[1.65rem]"
-                          style={{ fontFamily: "'Cormorant Garamond', Georgia, serif" }}
-                        >
-                          {cat.name}
-                        </p>
-                        <p className={`mt-1.5 text-xs tracking-wide transition-opacity ${active ? 'text-white' : 'text-white/55 group-hover:text-white/85'}`}>
-                          {active ? '✦ Currently viewing' : 'Tap to explore →'}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Extra tabs beyond first 3 as slim pill buttons */}
-            {tabs.length > 3 && (
-              <>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {pillTabs.map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={() => setActiveId(cat.id)}
-                      className='px-4 py-1.5 text-xs rounded-full transition-all' style={{ border: `1px solid ${cat.id === activeId ? 'var(--gold)' : 'rgba(255,255,255,0.15)'}`, background: cat.id === activeId ? 'rgba(176,124,58,0.15)' : 'rgba(255,255,255,0.04)', color: cat.id === activeId ? 'var(--gold-light)' : 'rgba(255,255,255,0.5)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em', fontSize: '11px' }}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-
-                {canLoadMore && (
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowAllTabs(v => !v)}
-                      className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition"
-                      style={{
-                        border: '1px solid rgba(255,255,255,0.15)',
-                        background: 'rgba(255,255,255,0.03)',
-                        color: 'rgba(255,255,255,0.7)',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'var(--gold)';
-                        e.currentTarget.style.color = 'var(--gold-light)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-                        e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                      }}
-                    >
-                      {showAllTabs ? 'Show less' : `Load more (${tabs.length - MAX_VISIBLE_TABS} more)`}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="mx-4 sm:mx-6 lg:mx-8" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }} />
-
-          {/* Product grid */}
-          <div className="p-4 sm:p-6 lg:p-8">
-            {activeTab?.loading ? (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {Array.from({ length: productsPerTab }).map((_, i) => (
-                  <div key={i} className="ec-card overflow-hidden rounded-2xl animate-pulse">
-                    <div className="aspect-[4/5] rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                    <div className="p-4 space-y-2">
-                      <div className="h-3 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                      <div className="h-4 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                      <div className="h-4 w-1/2 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : activeTab?.products.length ? (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {activeTab.products.map(product => (
-                  <PremiumProductCard
-                    key={`${activeTab.category.id}-${product.id}`}
-                    product={product}
-                    compact
-                    imageErrored={imageErrors.has(product.id)}
-                    onImageError={onImgError}
-                    onOpen={onProductClick}
-                    onAddToCart={onAddToCart}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div
-                className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-14 text-center"
-                style={{ borderColor: 'rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)' }}
-              >
-                <p className="ec-heading text-lg font-medium " style={{ color: 'rgba(255,255,255,0.35)' }}>No products in this category yet</p>
-                <p className="mt-1 text-sm " style={{ color: 'rgba(255,255,255,0.25)' }}>Check back soon for new arrivals</p>
-              </div>
-            )}
-
-            {activeTab?.category && (
-              <div className="mt-7 flex justify-end">
-                <button
-                  onClick={() => router.push(`/e-commerce/${encodeURIComponent(catSlug(activeTab.category))}`)}
-                  className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium transition whitespace-nowrap"
-                  style={{
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    background: 'transparent',
-                    color: 'rgba(255,255,255,0.7)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--gold)';
-                    e.currentTarget.style.color = 'var(--gold-light)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-                    e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
-                  }}
-                >
-                  View all in {activeTab.category.name} →
-                </button>
-              </div>
-            )}
-          </div>
-
+    <section className="bg-white py-12 sm:py-20 border-t border-gray-50">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+        
+        {/* Header */}
+        <div className="mb-10">
+          <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">
+            {eyebrow ?? 'Collections'}
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-light text-black tracking-tight"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+            {title ?? (parentLabel ? `Shop ${parentLabel}` : 'Shop All')}
+          </h2>
+          {subtitle && (
+            <p className="mt-2 text-gray-500 max-w-lg text-sm sm:text-base">
+              {subtitle}
+            </p>
+          )}
         </div>
+
+        {/* Scrollable text-based sub-category slider */}
+        <div className="relative mb-8 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex items-center gap-8 overflow-x-auto pb-4 scrollbar-hide no-scrollbar">
+            {/* All Products Tab */}
+            <button
+              onClick={() => setActiveId(null)}
+              className={`text-sm sm:text-base font-medium whitespace-nowrap pb-2 border-b-2 transition-all duration-300 ${
+                activeId === null 
+                  ? 'text-black border-black' 
+                  : 'text-gray-400 border-transparent hover:text-black'
+              }`}
+              style={{ fontFamily: "'Jost', sans-serif" }}
+            >
+              All Products
+            </button>
+
+            {/* Sub-category Tabs */}
+            {tabs.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveId(cat.id)}
+                className={`text-sm sm:text-base font-medium whitespace-nowrap pb-2 border-b-2 transition-all duration-300 ${
+                  activeId === cat.id 
+                    ? 'text-black border-black' 
+                    : 'text-gray-400 border-transparent hover:text-black'
+                }`}
+                style={{ fontFamily: "'Jost', sans-serif" }}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Product grid */}
+        <div className="min-h-[400px]">
+          {activeTab?.loading ? (
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-4">
+              {Array.from({ length: productsPerTab }).map((_, i) => (
+                <div key={i} className="animate-pulse">
+                  <div className="aspect-[4/5] rounded-2xl bg-gray-50 mb-4" />
+                  <div className="h-4 bg-gray-50 rounded-full w-3/4" />
+                </div>
+              ))}
+            </div>
+          ) : activeTab?.products.length ? (
+            <div className="grid grid-cols-2 gap-6 sm:gap-8 md:grid-cols-3 lg:grid-cols-4">
+              {activeTab.products.map(p => (
+                <PremiumProductCard
+                  key={`${activeKey}-${p.id}`}
+                  product={p}
+                  compact
+                  imageErrored={imageErrors.has(p.id)}
+                  onImageError={onImgError}
+                  onOpen={onProductClick}
+                  onAddToCart={onAddToCart}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+              <p className="text-gray-400 font-medium">No products found in this collection</p>
+              <button 
+                onClick={() => setActiveId(null)}
+                className="mt-4 text-xs font-bold uppercase tracking-widest text-black underline"
+              >
+                Back to All Products
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* View All Button */}
+        {activeTab?.category && activeTab.products.length > 0 && (
+          <div className="mt-12 flex justify-center">
+            <button
+              onClick={() => router.push(`/e-commerce/${encodeURIComponent(catSlug(activeTab.category))}`)}
+              className="px-10 py-4 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-full hover:bg-gray-800 transition-all active:scale-95"
+            >
+              View Full {activeTab.category.name} Collection
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );

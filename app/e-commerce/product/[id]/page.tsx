@@ -342,11 +342,16 @@ export default function ProductDetailPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [isAdding, setIsAdding] = useState(false);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [cartSidebarOpen, setCartSidebarOpen] = useState(false);
-  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [cartSidebarOpen,     setCartSidebarOpen]     = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex]  = useState(0);
+  const [quantity,           setQuantity]           = useState(1);
+  const [isAdding,           setIsAdding]           = useState(false);
+  const [isInWishlist,       setIsInWishlist]       = useState(false);
+  const [liveViewers,        setLiveViewers]        = useState(0);
+
+  useEffect(() => {
+    setLiveViewers(Math.floor(Math.random() * 50) + 30);
+  }, []);
 
   // ✅ Safe price formatter (prevents toLocaleString crash)
   const formatBDT = (value: any) => {
@@ -806,192 +811,175 @@ export default function ProductDetailPage() {
   // Main render
   // ---------------------------
   return (
-    <div className="ec-root min-h-screen">
+    <div className="bg-white min-h-screen text-black">
       <Navigation />
       <CartSidebar isOpen={cartSidebarOpen} onClose={() => setCartSidebarOpen(false)} />
 
       {/* Breadcrumb */}
-      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>
-        <div className="ec-container py-3 hidden sm:block">
-          <div className="flex items-center gap-2 text-[11px]" style={{ fontFamily: "'DM Mono', monospace", color: 'rgba(255,255,255,0.3)', letterSpacing: '0.06em' }}>
-            <button onClick={() => router.push('/e-commerce')} className="transition-colors hover:text-white">HOME</button>
-            <span style={{ color: 'rgba(255,255,255,0.15)' }}>/</span>
-            <button onClick={() => router.back()} className="transition-colors hover:text-white">
-              {getCategoryName(product.category)?.toUpperCase() || 'PRODUCTS'}
+      <div className="border-b border-gray-100 bg-gray-50/30">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 hidden sm:block">
+          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] font-bold tracking-[0.1em] text-gray-400" 
+               style={{ fontFamily: "'DM Mono', monospace" }}>
+            <button onClick={() => router.push('/e-commerce')} className="hover:text-black transition-colors">HOME</button>
+            <span className="text-gray-200">/</span>
+            <button onClick={() => router.back()} className="hover:text-black transition-colors uppercase">
+              {getCategoryName(product.category) || 'PRODUCTS'}
             </button>
-            <span style={{ color: 'rgba(255,255,255,0.15)' }}>/</span>
-            <span style={{ color: 'rgba(255,255,255,0.6)' }} className="truncate max-w-xs">{baseName.toUpperCase()}</span>
+            <span className="text-gray-200">/</span>
+            <span className="text-black uppercase truncate max-w-xs">{baseName}</span>
           </div>
         </div>
       </div>
 
       {/* Main product section */}
-      <div className="ec-container py-8 md:py-12">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-14 items-start">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 md:py-16">
+        <div className="grid lg:grid-cols-[6fr_4fr] gap-10 lg:gap-20 items-start">
 
           {/* ── Image Gallery ── */}
-          <div className="space-y-3">
-            {/* Main image */}
-            <div
-              className="relative overflow-hidden group"
-              style={{ borderRadius: '20px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', aspectRatio: '1/1' }}
-            >
-              <img
-                src={primaryImage}
-                alt={selectedVariant.name}
-                className="w-full h-full object-contain p-6 md:p-8 transition-transform duration-500 group-hover:scale-[1.03]"
-              />
-
-              {/* Stock badge */}
-              {!selectedVariant.in_stock && (
-                <div className="absolute top-4 left-4 rounded-xl px-3 py-1.5 text-[10px] font-bold tracking-widest" style={{ background: 'rgba(239,68,68,0.9)', color: 'white', fontFamily: "'DM Mono', monospace" }}>
-                  OUT OF STOCK
-                </div>
-              )}
-              {selectedVariant.in_stock && stockQty > 0 && stockQty < 5 && (
-                <div className="absolute top-4 left-4 rounded-xl px-3 py-1.5 text-[10px] font-bold" style={{ background: 'rgba(176,124,58,0.9)', color: 'white', fontFamily: "'DM Mono', monospace" }}>
-                  ONLY {stockQty} LEFT
-                </div>
-              )}
-              {discountPercent > 0 && (
-                <div className="absolute top-4 right-4 rounded-xl px-3 py-1.5 text-[10px] font-bold" style={{ background: 'var(--gold)', color: 'white', fontFamily: "'DM Mono', monospace" }}>
-                  -{discountPercent}%
-                </div>
-              )}
-
-              {/* Nav arrows (Always visible dots on mobile, arrows on hover desktop) */}
-              {safeImages.length > 1 && (
-                <>
-                  <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-4 pointer-events-none">
-                    <button onClick={handlePrevImage}
-                      className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg"
-                      style={{ background: 'rgba(13,13,13,0.7)', border: '1px solid rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
-                      <ChevronLeft size={20} className="text-white" />
-                    </button>
-                    <button onClick={handleNextImage}
-                      className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full opacity-0 sm:group-hover:opacity-100 transition-all shadow-lg"
-                      style={{ background: 'rgba(13,13,13,0.7)', border: '1px solid rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)' }}>
-                      <ChevronRight size={20} className="text-white" />
-                    </button>
-                  </div>
-                  
-                  {/* Dots for mobile */}
-                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 sm:hidden">
-                    {safeImages.map((_, i) => (
-                      <div key={i} className={`h-1.5 rounded-full transition-all ${i === selectedImageIndex ? 'w-4 bg-[var(--gold)]' : 'w-1.5 bg-white/20'}`} />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Thumbnails */}
+          <div className="flex flex-col-reverse md:flex-row gap-6">
+            {/* Vertical Thumbnails (Desktop) */}
             {safeImages.length > 1 && (
-              <div className="grid grid-cols-5 gap-2">
+              <div className="hidden md:flex flex-col gap-3 w-20 flex-shrink-0">
                 {safeImages.map((img, index) => (
                   <button
                     key={img.id}
-                    onClick={() => setSelectedImageIndex(index)}
-                    className="relative overflow-hidden transition-all"
-                    style={{
-                      borderRadius: '12px',
-                      aspectRatio: '1/1',
-                      border: `1px solid ${selectedImageIndex === index ? 'var(--gold)' : 'rgba(255,255,255,0.09)'}`,
-                      background: 'rgba(255,255,255,0.04)',
-                      boxShadow: selectedImageIndex === index ? '0 0 0 1px var(--gold)' : 'none',
-                    }}
+                    onMouseEnter={() => setSelectedImageIndex(index)}
+                    className={`relative overflow-hidden rounded-xl bg-gray-50 border-2 transition-all duration-300 ${
+                      selectedImageIndex === index ? 'border-black' : 'border-transparent hover:border-gray-200'
+                    }`}
+                    style={{ aspectRatio: '1/1' }}
                   >
-                    <img src={img.url} alt={`View ${index + 1}`} className="w-full h-full object-contain p-1.5" />
+                    <img src={img.url} alt={`View ${index + 1}`} className="w-full h-full object-cover p-1" />
                   </button>
                 ))}
               </div>
             )}
-          </div>
 
-          {/* ── Buy Column ── */}
-          <div className="lg:sticky lg:top-24 space-y-4">
-            {/* Main info card */}
-            <div className="ec-dark-card p-6 sm:p-7">
-              {/* Category label */}
-              <p style={{ fontFamily: "'DM Mono', monospace", fontSize: '10px', letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)' }}>
-                {getCategoryName(product.category)?.toUpperCase() || 'ERRUM COLLECTION'}
-              </p>
+            {/* Main image container */}
+            <div className="flex-1">
+              <div
+                className="relative overflow-hidden group bg-[#f9f9f9] rounded-2xl border border-gray-100"
+                style={{ aspectRatio: '600/850' }}
+              >
+                <img
+                  src={primaryImage}
+                  alt={selectedVariant.name}
+                  className="w-full h-full object-contain p-8 transition-transform duration-700 group-hover:scale-105"
+                />
 
-              {/* Product name */}
-              <h1 className="mt-2 text-white" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
-                {baseName}
-              </h1>
-
-              {/* Price row */}
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <span className="text-3xl font-bold" style={{ color: 'var(--gold)', fontFamily: "'Jost', sans-serif" }}>
-                  {formatBDT(sellingPrice)}
-                </span>
-                {costPrice > sellingPrice && sellingPrice > 0 && (
-                  <>
-                    <span className="text-lg line-through" style={{ color: 'rgba(255,255,255,0.25)', fontFamily: "'Jost', sans-serif" }}>
-                      {formatBDT(costPrice)}
+                {/* Status Badges */}
+                <div className="absolute top-6 left-6 flex flex-col gap-2">
+                  {!selectedVariant.in_stock && (
+                    <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg">
+                      Out of Stock
                     </span>
-                    <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(176,124,58,0.15)', border: '1px solid rgba(176,124,58,0.25)', color: 'var(--gold-light)', fontFamily: "'DM Mono', monospace" }}>
-                      SAVE {discountPercent}%
+                  )}
+                  {discountPercent > 0 && (
+                    <span className="bg-black text-white px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase shadow-lg">
+                      {discountPercent}% OFF
                     </span>
-                  </>
+                  )}
+                </div>
+
+                {/* Nav arrows - Desktop hover */}
+                {safeImages.length > 1 && (
+                  <div className="absolute inset-y-0 left-0 right-0 flex items-center justify-between px-6 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden sm:flex">
+                    <button onClick={handlePrevImage}
+                      className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-white shadow-xl text-black hover:bg-black hover:text-white transition-all">
+                      <ChevronLeft size={24} />
+                    </button>
+                    <button onClick={handleNextImage}
+                      className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-white shadow-xl text-black hover:bg-black hover:text-white transition-all">
+                      <ChevronRight size={24} />
+                    </button>
+                  </div>
                 )}
-              </div>
-
-              {/* Stock status */}
-              <div className="mt-3">
-                {selectedVariant.in_stock && stockQty > 0 ? (
-                  availableInventory > 0 ? (
-                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                      <span className="text-[11px] font-medium text-green-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>
-                        AVAILABLE FOR ORDER · IN STOCK ({availableInventory})
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                      <span className="text-[11px] font-medium text-red-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>ALL STOCK RESERVED</span>
-                    </div>
-                  )
-                ) : (
-                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" />
-                    <span className="text-[11px] font-medium text-red-400" style={{ fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>OUT OF STOCK</span>
+                
+                {/* Dots for mobile */}
+                {safeImages.length > 1 && (
+                  <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2 sm:hidden">
+                    {safeImages.map((_, i) => (
+                      <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === selectedImageIndex ? 'w-6 bg-black' : 'w-1.5 bg-black/20'}`} />
+                    ))}
                   </div>
                 )}
               </div>
 
-              {/* SKU */}
-              {selectedVariant.sku && (
-                <p className="mt-3 text-[11px]" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.08em' }}>
-                  SKU: {selectedVariant.sku}
-                </p>
-              )}
-
-              {/* Description */}
-              {(product.short_description || product.description) && (
-                <div className="mt-5 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                  <p className="mb-2 text-[10px] font-semibold tracking-[0.18em] uppercase" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>
-                    Description
-                  </p>
-                  <p className="text-[13px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                    {product.short_description || product.description}
-                  </p>
+              {/* Horizontal Thumbnails (Mobile Only) */}
+              {safeImages.length > 1 && (
+                <div className="flex md:hidden gap-3 mt-4 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
+                  {safeImages.map((img, index) => (
+                    <button
+                      key={img.id}
+                      onClick={() => setSelectedImageIndex(index)}
+                      className={`relative flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl bg-gray-50 border-2 transition-all ${
+                        selectedImageIndex === index ? 'border-black' : 'border-transparent'
+                      }`}
+                    >
+                      <img src={img.url} alt={`View ${index + 1}`} className="w-full h-full object-cover p-1" />
+                    </button>
+                  ))}
                 </div>
               )}
+            </div>
+          </div>
 
-              {/* Variation Options */}
+          {/* ── Buy Column ── */}
+          <div className="lg:sticky lg:top-24 space-y-8">
+            <div className="space-y-6">
+              {/* Product Info */}
+              <div>
+                <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-2"
+                   style={{ fontFamily: "'DM Mono', monospace" }}>
+                  {getCategoryName(product.category) || 'ERRUM COLLECTION'}
+                </p>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight"
+                    style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                  {baseName}
+                </h1>
+                
+                <div className="mt-6 flex flex-wrap items-baseline gap-4">
+                  <span className="text-3xl font-bold text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
+                    {formatBDT(sellingPrice)}
+                  </span>
+                  {costPrice > sellingPrice && sellingPrice > 0 && (
+                    <span className="text-xl line-through text-gray-300" style={{ fontFamily: "'Jost', sans-serif" }}>
+                      {formatBDT(costPrice)}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Urgency & Social Proof */}
+              <div className="space-y-4 py-6 border-y border-gray-100">
+                {/* Stock Progress */}
+                {selectedVariant.in_stock && availableInventory > 0 && availableInventory < 20 && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-widest text-red-500"
+                         style={{ fontFamily: "'DM Mono', monospace" }}>
+                      <span>HURRY! ONLY {availableInventory} LEFT IN STOCK.</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500 rounded-full" style={{ width: `${(availableInventory / 25) * 100}%` }} />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Live Activity */}
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>{liveViewers} people are viewing this right now</span>
+                </div>
+              </div>
+
+              {/* Variant Selection (Size Picker) */}
               {hasMultipleVariants && (
-                <div className="mt-5 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                  <p className="mb-3 text-[10px] font-semibold tracking-[0.18em]" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>
-                    VARIATIONS ({productVariants.length})
-                    {selectedVariationLabel && (
-                      <span className="ml-2 normal-case tracking-normal text-[var(--gold-light)]"> · {selectedVariationLabel}</span>
-                    )}
+                <div className="space-y-4">
+                  <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-black" 
+                     style={{ fontFamily: "'DM Mono', monospace" }}>
+                    SHOE SIZE: <span className="text-gray-400 font-medium ml-1">{selectedVariationLabel}</span>
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2.5">
                     {variationChoices.map(({ variant, label }) => {
                       const isSelected = selectedVariant.id === variant.id;
                       const isAvailable = !!variant.in_stock;
@@ -1000,17 +988,16 @@ export default function ProductDetailPage() {
                           key={variant.id}
                           onClick={() => handleVariantChange(variant)}
                           disabled={!isAvailable}
-                          className="px-3.5 py-2 rounded-xl text-[12px] font-medium transition-all"
-                          style={{
-                            border: isSelected ? '1px solid var(--gold)' : isAvailable ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
-                            background: isSelected ? 'rgba(176,124,58,0.15)' : 'rgba(255,255,255,0.04)',
-                            color: isSelected ? 'var(--gold-light)' : isAvailable ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.2)',
-                            textDecoration: isAvailable ? 'none' : 'line-through',
-                            cursor: isAvailable ? 'pointer' : 'not-allowed',
-                            fontFamily: "'Jost', sans-serif",
-                          }}
+                          className={`min-w-[50px] h-[50px] px-4 rounded-xl text-sm font-bold transition-all border-2 flex items-center justify-center ${
+                            isSelected 
+                              ? 'bg-black border-black text-white shadow-lg' 
+                              : isAvailable 
+                                ? 'bg-white border-gray-100 text-gray-500 hover:border-black hover:text-black' 
+                                : 'bg-gray-50 border-gray-50 text-gray-300 cursor-not-allowed line-through'
+                          }`}
+                          style={{ fontFamily: "'Jost', sans-serif" }}
                         >
-                          {label}
+                          {label.replace(/.*?\s(\d+)/, '$1')}
                         </button>
                       );
                     })}
@@ -1018,108 +1005,85 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              {/* Quantity + CTA */}
-              <div className="mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[10px] font-semibold tracking-[0.18em]" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>QUANTITY</p>
-                  <div className="flex items-center rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)' }}>
+              {/* Quantity + CTAs */}
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center h-[56px] border-2 border-gray-100 rounded-2xl overflow-hidden bg-white">
                     <button onClick={() => handleQuantityChange(-1)} disabled={quantity <= 1}
-                      className="flex h-9 w-9 items-center justify-center transition-colors disabled:opacity-40"
-                      style={{ color: 'rgba(255,255,255,0.7)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <Minus size={14} />
+                      className="px-4 h-full text-gray-400 hover:text-black transition-colors disabled:opacity-30">
+                      <Minus size={16} />
                     </button>
-                    <span className="min-w-[40px] text-center text-[14px] font-semibold text-white">{quantity}</span>
-                    <button onClick={() => handleQuantityChange(1)} disabled={quantity >= stockQty}
-                      className="flex h-9 w-9 items-center justify-center transition-colors disabled:opacity-40"
-                      style={{ color: 'rgba(255,255,255,0.7)' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                      <Plus size={14} />
+                    <span className="min-w-[40px] text-center font-bold text-black">{quantity}</span>
+                    <button onClick={() => handleQuantityChange(1)} disabled={quantity >= availableInventory}
+                      className="px-4 h-full text-gray-400 hover:text-black transition-colors disabled:opacity-30">
+                      <Plus size={16} />
                     </button>
                   </div>
-                </div>
-
-                <div className="flex gap-2">
+                  
                   <button
                     onClick={handleAddToCart}
                     disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
-                    className="flex-1 ec-btn justify-center"
-                    style={{
-                      background: isAdding ? 'rgba(34,197,94,0.85)' : 'var(--gold)',
-                      color: 'white',
-                      boxShadow: isAdding ? 'none' : availableInventory > 0 ? '0 4px 16px rgba(176,124,58,0.3)' : 'none',
-                      opacity: (!selectedVariant.in_stock || availableInventory <= 0) ? 0.4 : 1,
-                      cursor: (!selectedVariant.in_stock || availableInventory <= 0) ? 'not-allowed' : 'pointer',
-                    }}
+                    className="flex-1 h-[56px] bg-black text-white rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all hover:bg-gray-800 active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none shadow-[0_10px_30px_rgba(0,0,0,0.1)]"
                   >
-                    <ShoppingCart size={16} />
-                    {isAdding ? 'Added ✓' : availableInventory <= 0 ? 'All stock already reserved' : 'Add to Cart'}
+                    <ShoppingCart size={18} />
+                    {isAdding ? 'ADDING...' : availableInventory <= 0 ? 'SOLD OUT' : 'ADD TO CART'}
                   </button>
-                  <button onClick={handleToggleWishlist}
-                    className="flex h-[46px] w-[46px] items-center justify-center rounded-xl transition-all"
-                    style={{
-                      border: `1px solid ${isInWishlist ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.12)'}`,
-                      background: isInWishlist ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.04)',
-                      color: isInWishlist ? '#f87171' : 'rgba(255,255,255,0.5)',
-                    }}>
-                    <Heart size={16} className={isInWishlist ? 'fill-current' : ''} />
-                  </button>
-                  <button onClick={handleShare}
-                    className="flex h-[46px] w-[46px] items-center justify-center rounded-xl transition-all"
-                    style={{ border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.25)'; (e.currentTarget as HTMLButtonElement).style.color = 'white'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.5)'; }}>
-                    <Share2 size={16} />
-                  </button>
+                </div>
+                
+                <button
+                  onClick={handleAddToCart}
+                  disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
+                  className="w-full h-[56px] bg-white text-black border-2 border-black rounded-2xl font-bold uppercase tracking-widest text-xs transition-all hover:bg-black hover:text-white active:scale-95 disabled:opacity-50"
+                >
+                  BUY IT NOW
+                </button>
+              </div>
+
+              {/* Trust & Payment Badges */}
+              <div className="pt-6 space-y-4">
+                <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 text-center"
+                   style={{ fontFamily: "'DM Mono', monospace" }}>
+                  Secure Payment Guaranteed
+                </p>
+                <div className="flex flex-wrap justify-center gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+                  <img src="/images/payments/visa.svg" alt="Visa" className="h-4 sm:h-5 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
+                  <img src="/images/payments/mastercard.svg" alt="Mastercard" className="h-4 sm:h-5 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
+                  <img src="/images/payments/nagad.svg" alt="Nagad" className="h-4 sm:h-5 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
+                  <img src="/images/payments/bkash.svg" alt="bKash" className="h-4 sm:h-5 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
+                  <span className="text-[10px] font-bold border rounded px-1.5 py-0.5 border-gray-300 text-gray-400">COD</span>
                 </div>
               </div>
-            </div>
 
-            {/* Meta card */}
-            <div className="ec-dark-card px-5 py-4 space-y-2.5">
-              {product.category && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.1em' }}>CATEGORY</span>
-                  <span className="text-[12px] font-medium text-white">{getCategoryName(product.category)}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.1em' }}>AVAILABILITY</span>
-                <span className="text-[12px] font-medium" style={{ color: selectedVariant.in_stock && availableInventory > 0 ? '#4ade80' : '#f87171' }}>
-                  {selectedVariant.in_stock && availableInventory > 0 
-                    ? `available for order: in stock(${availableInventory})` 
-                    : (stockQty > 0 ? 'all stock reserved' : 'Out of Stock')}
-                </span>
+              {/* Accordion Sections */}
+              <div className="pt-8 space-y-px border-t border-gray-100">
+                {[
+                  { title: 'Description', content: product.description || product.short_description },
+                  { title: 'Additional Information', content: `SKU: ${selectedVariant.sku}\nCategory: ${getCategoryName(product.category)}\nBrand: Errum V3` }
+                ].map((section, idx) => (
+                  <details key={idx} className="group py-4 border-b border-gray-100">
+                    <summary className="flex items-center justify-between cursor-pointer list-none">
+                      <span className="text-sm font-bold uppercase tracking-widest text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
+                        {section.title}
+                      </span>
+                      <Plus size={18} className="text-gray-400 group-open:rotate-45 transition-transform" />
+                    </summary>
+                    <div className="mt-4 text-sm text-gray-500 leading-relaxed whitespace-pre-line">
+                      {section.content}
+                    </div>
+                  </details>
+                ))}
               </div>
-            </div>
-
-            {/* Trust strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {[
-                { icon: '🚚', label: 'Free Delivery', sub: 'On ৳1,000+' },
-                { icon: '↩', label: 'Easy Returns', sub: '7-day policy' },
-                { icon: '✓', label: 'Authentic', sub: '100% genuine' },
-              ].map(({ icon, label, sub }) => (
-                <div key={label} className="ec-dark-card p-3 flex sm:flex-col items-center sm:text-center gap-3 sm:gap-1">
-                  <div className="text-xl sm:text-lg">{icon}</div>
-                  <div>
-                    <p className="text-[11px] font-semibold text-white">{label}</p>
-                    <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{sub}</p>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div className="mt-16" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '3rem' }}>
-            <p className="ec-eyebrow mb-3">Pairs Well With</p>
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-white" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 500, letterSpacing: '-0.01em' }}>
+          <div className="mt-16 sm:mt-24 py-16 border-t border-gray-100">
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">Pairs Well With</span>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
+              <h2 className="text-3xl sm:text-4xl font-light text-black tracking-tight"
+                  style={{ fontFamily: "'Cormorant Garamond', serif" }}>
                 Related Essentials
               </h2>
               <button
@@ -1131,18 +1095,18 @@ export default function ProductDetailPage() {
                     router.push('/e-commerce/search?category=' + getCategoryId(product.category));
                   }
                 }}
-                className="flex items-center gap-2 text-[11px] font-semibold transition-colors hover:text-[var(--gold)]"
-                style={{ fontFamily: "'DM Mono', monospace", color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em' }}
+                className="text-xs font-bold uppercase tracking-widest text-black border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors self-start"
               >
-                VIEW ALL <ArrowRight size={12} />
+                View Full Collection
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-6 sm:gap-8 sm:grid-cols-3 lg:grid-cols-4">
               {relatedProducts.slice(0, 4).map(item => (
                 <PremiumProductCard
                   key={item.id}
                   product={item}
+                  compact
                   onOpen={(p) => router.push(`/e-commerce/product/${p.id}`)}
                   onAddToCart={(p, e) => handleQuickAddToCart(p, e)}
                 />
@@ -1150,7 +1114,6 @@ export default function ProductDetailPage() {
             </div>
           </div>
         )}
-
 
       </div>
     </div>

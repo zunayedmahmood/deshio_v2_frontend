@@ -65,11 +65,11 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
   return (
     <article
       onClick={() => onOpen(product)}
-      className="ec-card ec-card-hover group cursor-pointer overflow-hidden"
-      style={{ borderRadius: '16px' }}
+      className="bg-white group cursor-pointer overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)]"
+      style={{ borderRadius: '24px' }}
     >
       {/* Image */}
-      <div className="relative overflow-hidden aspect-[3/4]" style={{ background: 'rgba(255,255,255,0.03)' }}>
+      <div className="relative overflow-hidden aspect-[3/4] bg-[#f9f9f9]">
         <Image
           src={imageUrl}
           alt={product.display_name || product.base_name || product.name}
@@ -79,37 +79,25 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
         />
 
         {/* Wishlist toggle - always visible on mobile for quick access */}
-        <div className="absolute right-2.5 top-2.5 z-10 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100 transition-all duration-300">
+        <div className="absolute right-3 top-3 z-10 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100 transition-all duration-300">
           <button
             onClick={handleToggleWishlist}
-            className={`flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-colors border ${
+            className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-all border ${
               isInWishlist 
-                ? 'bg-[var(--gold)] border-[var(--gold)] text-black' 
-                : 'bg-black/40 border-white/10 text-white/70'
+                ? 'bg-black border-black text-white' 
+                : 'bg-white/80 border-gray-100 text-black/40 hover:text-black hover:bg-white'
             }`}
           >
-            <Heart className={`h-3.5 w-3.5 ${isInWishlist ? 'fill-current' : ''}`} />
+            <Heart className={`h-4 w-4 ${isInWishlist ? 'fill-current' : ''}`} />
           </button>
         </div>
 
         {/* SALE badge */}
         {salePromo && (
-          <div className="absolute top-2.5 left-2.5 z-10">
+          <div className="absolute top-3 left-3 z-10">
             <span
-              style={{
-                background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
-                borderRadius: '6px',
-                padding: '3px 8px',
-                fontSize: '9px',
-                fontWeight: 700,
-                letterSpacing: '0.1em',
-                color: '#fff',
-                fontFamily: "'DM Mono', monospace",
-                textTransform: 'uppercase',
-                boxShadow: '0 2px 8px rgba(220,38,38,0.45)',
-                display: 'inline-block',
-                animation: 'salePulse 2.4s ease-in-out infinite',
-              }}
+              className="bg-black text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase"
+              style={{ fontFamily: "'DM Mono', monospace" }}
             >
               {salePercent}% OFF
             </span>
@@ -118,24 +106,24 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
 
         {/* Variant count */}
         {extraVariants > 0 && (
-          <div className="absolute left-2.5 bottom-2.5 z-10 transition-transform sm:group-hover:-translate-y-12">
-            <span className="rounded-full px-2.5 py-1 text-[9px] font-semibold text-white"
-                  style={{ background: 'rgba(13,13,13,0.65)', border: '1px solid rgba(255,255,255,0.15)', backdropFilter: 'blur(4px)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.06em' }}>
-              {extraVariants + 1} options
+          <div className="absolute left-3 bottom-3 z-10 transition-transform sm:group-hover:-translate-y-14">
+            <span className="rounded-full px-3 py-1 text-[9px] font-bold text-black border border-black/5 bg-white/90 backdrop-blur-sm tracking-wider"
+                  style={{ fontFamily: "'DM Mono', monospace" }}>
+              +{extraVariants} variants
             </span>
           </div>
         )}
 
-        {/* Slide-up action bar (Desktop hover / Mobile tap indicator) */}
+        {/* Slide-up action bar */}
         <div className="absolute inset-x-0 bottom-0 translate-y-full transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-0 hidden sm:block">
-          <div className="flex items-center gap-1.5 p-2.5">
+          <div className="p-3">
             <button
               onClick={e => {
                 e.stopPropagation();
                 onOpen(product);
               }}
-              className="flex-1 rounded-xl py-3 text-[11px] font-bold text-white transition-all shadow-xl active:scale-[0.97]"
-              style={{ background: 'var(--gold)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: "'Jost', sans-serif" }}
+              className="w-full rounded-xl py-3.5 text-[11px] font-bold text-white bg-black transition-all active:scale-95 shadow-xl uppercase tracking-widest"
+              style={{ fontFamily: "'Jost', sans-serif" }}
             >
               Choose Options
             </button>
@@ -144,47 +132,48 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
       </div>
 
       {/* Info */}
-      <div className={compact ? 'p-3' : 'p-3.5 sm:p-4'}>
-        <div className="flex justify-between items-start gap-2 mb-1">
+      <div className={compact ? 'p-4' : 'p-5 sm:p-6'}>
+        <div className="flex justify-between items-start gap-2 mb-2">
           {categoryName ? (
-            <p className="truncate text-[9px] font-bold tracking-[0.2em] uppercase text-white/20"
+            <p className="truncate text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400"
                style={{ fontFamily: "'DM Mono', monospace" }}>
               {categoryName}
             </p>
           ) : <div />}
           {hasStock && (
-            <span className="flex items-center gap-1 text-[8px] font-bold text-green-500/60 uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
-              ● <span className="hidden xs:inline">In Stock</span>
+            <span className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-500 uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden xs:inline">In Stock</span>
             </span>
           )}
         </div>
         
-        <h3 className="line-clamp-2 font-medium leading-snug group-hover:text-[var(--gold-light)] transition-colors"
+        <h3 className="line-clamp-2 font-medium leading-snug group-hover:text-black transition-colors"
             style={{ 
-              fontFamily: "'Jost', sans-serif", 
-              fontSize: compact ? '13px' : '15px', 
-              color: 'rgba(255,255,255,0.9)', 
-              minHeight: compact ? '2.5rem' : '2.75rem' 
+              fontFamily: "'Cormorant Garamond', serif", 
+              fontSize: compact ? '16px' : '18px', 
+              color: '#111', 
+              minHeight: compact ? '2.5rem' : '3rem' 
             }}>
           {product.display_name || product.base_name || product.name}
         </h3>
         
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/5 pt-2.5">
+        <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-4">
           {salePromo && salePrice !== null ? (
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] line-through text-white/35" style={{ fontFamily: "'Jost', sans-serif" }}>
-                ৳{originalPrice.toFixed(0)}
-              </span>
-              <span className="text-[15px] font-bold text-red-400" style={{ fontFamily: "'Jost', sans-serif" }}>
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-bold text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
                 ৳{salePrice.toFixed(0)}
+              </span>
+              <span className="text-xs line-through text-gray-300" style={{ fontFamily: "'Jost', sans-serif" }}>
+                ৳{originalPrice.toFixed(0)}
               </span>
             </div>
           ) : (
-            <span className="text-[15px] font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
+            <span className="text-lg font-bold text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
               {getCardPriceText(product)}
             </span>
           )}
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-white/20 group-hover:bg-[var(--gold)] group-hover:text-white transition-all duration-300">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-50 text-gray-400 group-hover:bg-black group-hover:text-white transition-all duration-300">
             <ArrowRight size={14} />
           </div>
         </div>

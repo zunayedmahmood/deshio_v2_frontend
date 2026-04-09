@@ -30,16 +30,16 @@ const getTopLevelCategories = (items: CatalogCategory[]): CatalogCategory[] => {
 };
 
 const PALETTE = [
-  ['#e8e4df','#b8b0a8'],
-  ['#dde4e8','#a0afc0'],
-  ['#ede8e0','#c4b89a'],
-  ['#e0e8e4','#9abfb0'],
-  ['#e8e0e8','#b898b8'],
-  ['#e8e8de','#b8b89a'],
-  ['#e0e4e8','#9aaab8'],
-  ['#ece8e0','#ccc0a0'],
-  ['#e4e8e4','#a0b8a0'],
-  ['#e8e4e0','#c0b8b0'],
+  ['#f8f9fa', '#e9ecef'],
+  ['#f1f3f5', '#dee2e6'],
+  ['#e9ecef', '#ced4da'],
+  ['#f8f9fa', '#e9ecef'],
+  ['#f1f3f5', '#dee2e6'],
+  ['#e9ecef', '#ced4da'],
+  ['#f8f9fa', '#e9ecef'],
+  ['#f1f3f5', '#dee2e6'],
+  ['#e9ecef', '#ced4da'],
+  ['#f8f9fa', '#e9ecef'],
 ];
 
 interface OurCategoriesProps {
@@ -51,6 +51,7 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
   const router = useRouter();
   const [categories, setCategories] = React.useState<CatalogCategory[]>(categoriesProp || []);
   const [isFetching, setIsFetching] = React.useState<boolean>(!categoriesProp);
+  const [isExpanded, setIsExpanded] = React.useState(false);
 
   React.useEffect(() => {
     if (categoriesProp) { setCategories(categoriesProp); setIsFetching(false); }
@@ -67,107 +68,107 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
     return () => { active = false; };
   }, [categoriesProp]);
 
-  const display = getTopLevelCategories(categories || []).slice(0, 10);
+  const allDisplay = getTopLevelCategories(categories || []);
+  const initialLimit = 4;
+  const display = isExpanded ? allDisplay : allDisplay.slice(0, initialLimit);
 
   if (loading || isFetching) {
     return (
-      <section className="ec-section">
-        <div className="ec-container">
-          <div className="ec-surface p-5 sm:p-7">
-            <div className="mb-6 space-y-2">
-              <div className="h-2.5 w-28 rounded-full animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />
-              <div className="h-9 w-52 rounded-lg animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            </div>
-            <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="aspect-[3/4] rounded-2xl mb-2" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                  <div className="h-3 rounded-full w-3/4 mx-auto" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                </div>
-              ))}
-            </div>
+      <section className="bg-white py-12 sm:py-20">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 space-y-3">
+            <div className="h-4 w-32 bg-gray-100 rounded-full animate-pulse" />
+            <div className="h-10 w-64 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="aspect-[340/540] rounded-2xl bg-gray-50 mb-4" />
+                <div className="h-4 bg-gray-50 rounded-full w-3/4 mx-auto" />
+              </div>
+            ))}
           </div>
         </div>
       </section>
     );
   }
 
-  if (display.length === 0) return null;
+  if (allDisplay.length === 0) return null;
 
   return (
-    <section className="ec-section">
-      <div className="ec-container">
-        <div className="ec-surface p-5 sm:p-7 relative overflow-hidden">
-          <div className="pointer-events-none absolute -bottom-16 -right-16 h-48 w-48 rounded-full opacity-40"
-               style={{ background: 'radial-gradient(circle, rgba(176,124,58,0.09) 0%, transparent 70%)', filter: 'blur(24px)' }} />
-          <SectionHeader
-            eyebrow="Shop by Category"
-            title="Explore Collections"
-            subtitle="Discover our curated product categories"
-            actionLabel="All Categories"
-            onAction={() => router.push('/e-commerce/categories')}
-          />
-
-          <div className="grid grid-cols-2 min-[420px]:grid-cols-3 sm:grid-cols-5 gap-3">
-            {display.map((cat, i) => {
-              const imgSrc = toAbsoluteAssetUrl(cat.image || cat.image_url || '');
-              const [from, to] = PALETTE[i % PALETTE.length];
-
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => router.push(`/e-commerce/${encodeURIComponent(cat.slug || slugify(cat.name))}`)}
-                  className="group text-left"
-                  type="button"
-                >
-                  {/* Portrait image card */}
-                  <div
-                    className="relative overflow-hidden rounded-2xl transition-all duration-300 group-hover:shadow-lg group-hover:-translate-y-0.5"
-                    style={{ aspectRatio: '3/4' }}
-                  >
-                    {imgSrc ? (
-                      <img
-                        src={imgSrc}
-                        alt={cat.name}
-                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div
-                        className="absolute inset-0"
-                        style={{ background: `linear-gradient(160deg, ${from} 0%, ${to} 100%)` }}
-                      />
-                    )}
-
-                    {/* Dark gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-
-                    {/* Category name on image */}
-                    <div className="absolute inset-x-0 bottom-0 p-2.5 sm:p-3">
-                      <p
-                        className="text-white font-semibold leading-tight drop-shadow"
-                        style={{
-                          fontFamily: "'Cormorant Garamond', serif",
-                          fontSize: 'clamp(12px, 2.5vw, 17px)',
-                          letterSpacing: '-0.01em',
-                        }}
-                      >
-                        {cat.name}
-                      </p>
-                      {Number(cat.product_count || 0) > 0 && (
-                        <p
-                          className="mt-0.5 text-white/60"
-                          style={{ fontFamily: "'DM Mono', monospace", fontSize: '9px', letterSpacing: '0.12em' }}
-                        >
-                          {cat.product_count} items
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+    <section className="bg-white py-12 sm:py-20">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
+          <div>
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">
+              Featured Categories
+            </span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight"
+                style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+              Explore Collections
+            </h2>
+            <p className="mt-2 text-gray-500 max-w-lg text-sm sm:text-base">
+              Discover our curated product categories, handcrafted for quality and style.
+            </p>
           </div>
+          {allDisplay.length > initialLimit && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs font-bold uppercase tracking-widest text-black border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors self-start"
+            >
+              {isExpanded ? 'Show Less' : 'View All Categories'}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+          {display.map((cat, i) => {
+            const imgSrc = toAbsoluteAssetUrl(cat.image || cat.image_url || '');
+            const [from, to] = PALETTE[i % PALETTE.length];
+
+            return (
+              <button
+                key={cat.id}
+                onClick={() => router.push(`/e-commerce/${encodeURIComponent(cat.slug || slugify(cat.name))}`)}
+                className="group relative flex flex-col items-center"
+                type="button"
+              >
+                <div
+                  className="relative w-full overflow-hidden rounded-2xl bg-[#f7f7f7] transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1"
+                  style={{ aspectRatio: '340/540' }}
+                >
+                  {imgSrc ? (
+                    <img
+                      src={imgSrc}
+                      alt={cat.name}
+                      className="absolute inset-0 h-full w-full object-cover mix-blend-multiply transition-transform duration-1000 group-hover:scale-110"
+                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div
+                      className="absolute inset-0 opacity-20"
+                      style={{ background: `linear-gradient(160deg, ${from} 0%, ${to} 100%)` }}
+                    />
+                  )}
+                  
+                  {/* Subtle overlay */}
+                  <div className="absolute inset-0 bg-black/[0.02] transition-colors group-hover:bg-transparent" />
+                  
+                  {/* Category Label at bottom */}
+                  <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col items-center text-center">
+                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-black/40 group-hover:text-black transition-colors"
+                          style={{ fontFamily: "'DM Mono', monospace" }}>
+                      {cat.product_count || 0} items
+                    </span>
+                    <h3 className="mt-2 text-lg sm:text-xl font-medium text-black"
+                        style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                      {cat.name}
+                    </h3>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>
