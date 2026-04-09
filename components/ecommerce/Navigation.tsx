@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { ShoppingCart, Search, User, ChevronDown, LogOut, Heart, Package, Menu, X, Grid3X3 } from 'lucide-react';
+import { ShoppingCart, Search, User, ChevronDown, ChevronRight, LogOut, Heart, Package, Menu, X, Grid3X3 } from 'lucide-react';
 import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 import cartService from '@/services/cartService';
@@ -33,13 +33,31 @@ const Navbar = () => {
   const [mobileActiveCat, setMobileActiveCat] = useState<number | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<number>>(new Set());
   const [scrolled, setScrolled] = useState(false);
+  const [scrollDir, setScrollDir] = useState<'up' | 'down'>('up');
+  const [badgeBump, setBadgeBump] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const lastScrollY = useRef(0);
+  const prevCartCount = useRef(cartCount);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const userRef = useRef<HTMLDivElement>(null);
   const catsRef = useRef<HTMLDivElement>(null);
 
-  /* Scroll shadow */
+  /* Scroll shadow & Hide-on-scroll */
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 4);
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+      setScrolled(currentScrollY > 4);
+
+      if (currentScrollY > lastScrollY.current && currentScrollY > 100) {
+        setScrollDir('down');
+      } else {
+        setScrollDir('up');
+      }
+      lastScrollY.current = currentScrollY;
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -69,6 +87,23 @@ const Navbar = () => {
       window.removeEventListener('customer-auth-changed', h);
     };
   }, [isAuthenticated]);
+
+  /* Cart Badge Pulse */
+  useEffect(() => {
+    if (cartCount > prevCartCount.current) {
+      setBadgeBump(true);
+      const timer = setTimeout(() => setBadgeBump(false), 400);
+      return () => clearTimeout(timer);
+    }
+    prevCartCount.current = cartCount;
+  }, [cartCount]);
+
+  /* Search Auto-focus */
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    }
+  }, [isSearchOpen]);
 
   /* Click outside */
   useEffect(() => {
@@ -103,13 +138,21 @@ const Navbar = () => {
 
   const isActive = (href: string) => pathname === href;
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/e-commerce/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setIsSearchOpen(false);
+      setSearchQuery('');
+    }
+  };
+
   return (
     <>
 
       {/* ── Main navbar ─────────────────────────────────────────────── */}
       <nav
-        className={`ec-nav sticky top-0 z-50 transition-shadow duration-300 ${scrolled ? 'shadow-[0_4px_24px_rgba(0,0,0,0.35)]' : ''}`}
-
+        className={`ec-nav fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? 'shadow-[0_4px_24px_rgba(0,0,0,0.35)]' : ''} ${scrollDir === 'down' && !mobileOpen && !isSearchOpen ? 'lg:translate-y-0 -translate-y-full' : 'translate-y-0'}`}
       >
         <div className="ec-container">
           <div className="flex h-16 items-center justify-between gap-6 sm:h-[68px]">
@@ -235,9 +278,16 @@ const Navbar = () => {
             <div className="flex items-center gap-1 sm:gap-2">
 
               {/* Search */}
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                aria-label="Search"
+              >
+                <Search className="h-4 w-4" />
+              </button>
               <Link
                 href="/e-commerce/search"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                className="hidden lg:flex h-9 w-9 items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-all"
                 aria-label="Search"
               >
                 <Search className="h-4 w-4" />
@@ -301,8 +351,9 @@ const Navbar = () => {
               >
                 <ShoppingCart className="h-4 w-4" />
                 {cartCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--gold)] px-0.5 text-[9px] font-bold text-white">
-                    {cartCount > 99 ? '99+' : cartCount}
+                  <span className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--gold)] px-0.5 text-[9px] font-bold text-white ${badgeBump ? 'badge-bump' : ''}`}>
+                    {badgeBump && <span className="absolute inset-0 rounded-full bg-[var(--gold)] animate-ping opacity-75" />}
+                    <span className="relative z-10">{cartCount > 99 ? '99+' : cartCount}</span>
                   </span>
                 )}
               </Link>
@@ -427,21 +478,24 @@ const Navbar = () => {
                               onClick={() => setMobileActiveCat(mobileActiveCat === cat.id ? null : cat.id)}
                               className="p-2 text-white/20 hover:text-white transition-colors"
                             >
-                              <ChevronDown className={`h-4 w-4 transition-transform ${mobileActiveCat === cat.id ? 'rotate-180' : ''}`} />
+                              <ChevronRight className={`h-4 w-4 transition-transform duration-300 ${mobileActiveCat === cat.id ? 'rotate-90' : ''}`} />
                             </button>
                           )}
                         </div>
-                        {mobileActiveCat === cat.id && (
-                          <div className="pl-4 border-l border-white/10 space-y-1 mb-2">
-                            {cat.children?.map(child => (
-                              <Link key={child.id} href={`/e-commerce/${encodeURIComponent(catSlug(child))}`}
-                                className="block py-1.5 text-[13px] text-white/35 hover:text-[var(--gold-light)] transition-colors"
-                              >
-                                {child.name}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
+                        <div className={`mobile-submenu ${mobileActiveCat === cat.id ? 'open' : ''} pl-4 border-l border-white/10 space-y-1`}>
+                          {cat.children?.map(child => (
+                            <Link key={child.id} href={`/e-commerce/${encodeURIComponent(catSlug(child))}`}
+                              className="block py-1.5 text-[13px] text-white/35 hover:text-[var(--gold-light)] transition-colors"
+                            >
+                              {child.name}
+                            </Link>
+                          ))}
+                          <Link href={`/e-commerce/${encodeURIComponent(catSlug(cat))}`}
+                            className="block py-2 text-[12px] text-[var(--gold)] font-medium hover:text-[var(--gold-light)] transition-colors"
+                          >
+                            See All {cat.name} →
+                          </Link>
+                        </div>
                       </div>
                     ))}
                     <Link href="/e-commerce/categories" className="inline-block mt-2 text-[12px] text-[var(--gold)] font-medium hover:underline">
@@ -468,6 +522,37 @@ const Navbar = () => {
               </div>
             </div>
           </>
+        )}
+        {/* ── Search Overlay (Mobile) ── */}
+        {isSearchOpen && (
+          <div className="fixed inset-0 z-[110] lg:hidden">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm ec-anim-backdrop"
+              onClick={() => setIsSearchOpen(false)}
+            />
+            {/* Input Overlay */}
+            <div className="absolute top-0 left-0 w-full bg-[#0d0d0d] px-6 py-4 shadow-2xl search-slide-down border-b border-white/10">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-4">
+                <Search className="h-5 w-5 text-white/40" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent border-none text-white text-lg font-medium placeholder:text-white/20 focus:ring-0 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsSearchOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/50 hover:text-white transition-all"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </form>
+            </div>
+          </div>
         )}
       </nav>
     </>

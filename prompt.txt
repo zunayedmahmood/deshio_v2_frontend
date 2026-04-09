@@ -230,3 +230,22 @@ Use it as a source of inspiration and make the UI beautiful and modern.
 absolutely DO NOT change/generate any text. all the pre-existing text MUST remain untouched.
 
 update the e-commerce pages and its relevant components, global css etc. to match the blueprint.
+
+
+### ecommerce better 
+
+This is a blueprint of the e-commerce frontend side of our site.
+We want to upgrade our UI.
+ Our client's intent was like this: "We want our website to feel live. The fire emoji when stocks running out, even the fake "X people are viewing this product" all makes it better."
+
+ On our clients theme, we want to both make the pages smoother and polished, but also make them livelier.
+What I want you to do:
+->generate ideas on how to make this e-commerce side look live and robust.
+
+Give ideas for pages/components.
+We don't have to force everything with live updates.
+I want you to generate an md file with proposed changes along with their implementation details. 
+If you want, we are considering to add a couple or two videos/short clips if necessary.
+
+The e-commerce pages aren't mobile optimised (except find-stock, ignore that page for now), and mobile is our first priority, so we need to update each page for mobile optimisation anyways.
+when you're building the suggestions, make each page (and or its components) a complete section. Like, i'll tell Ai to make changes in chunks instead of one go.
