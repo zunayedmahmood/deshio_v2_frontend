@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Facebook, Instagram, Youtube, MapPin, Phone, MessageCircle } from "lucide-react";
+import { Facebook, Instagram, Youtube, MapPin, Phone, MessageCircle, CheckCircle } from "lucide-react";
 
 const BRAND = "Errum";
 
@@ -16,127 +16,98 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="ec-root relative" style={{ background: '#0a0a0a', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-      {/* Gold accent line */}
-      <div className="h-px w-full" style={{ background: 'linear-gradient(90deg, transparent 0%, var(--gold) 50%, transparent 100%)' }} />
-
-      {/* Subtle glow */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-20 left-0 h-64 w-64 rounded-full opacity-[0.07]" style={{ background: 'radial-gradient(circle, var(--gold) 0%, transparent 70%)' }} />
-        <div className="absolute bottom-0 right-0 h-56 w-56 rounded-full opacity-[0.05]" style={{ background: 'radial-gradient(circle, var(--gold) 0%, transparent 70%)' }} />
-      </div>
-
+    <footer className="bg-[var(--bg-depth)] border-t border-[var(--border-default)] relative">
       <div className="ec-container relative">
-        <div className="grid grid-cols-1 gap-10 py-14 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-12 py-20 md:grid-cols-3">
 
           {/* Brand */}
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div>
-              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '28px', fontWeight: 600, color: 'white', letterSpacing: '0.04em' }}>
+              <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '32px', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '0.02em' }}>
                 {BRAND}
-                <span style={{ fontSize: '10px', fontFamily: "'DM Mono', monospace", letterSpacing: '0.2em', color: 'var(--gold)', marginLeft: '8px', fontWeight: 400 }}>STORE</span>
+                <span className="text-[var(--cyan)] ml-2 text-[10px] font-bold tracking-[0.3em] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Studio</span>
               </div>
-              <p className="mt-3 text-[13px] leading-relaxed max-w-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                A complete lifestyle brand — footwear, clothing, watches, and bags curated for everyday confidence across Bangladesh.
+              <p className="mt-4 text-[14px] leading-relaxed text-[var(--text-secondary)] max-w-sm">
+                A premium lifestyle brand — footwear, apparel, and objects curated for everyday confidence and enduring quality.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <div className="flex flex-wrap gap-x-6 gap-y-3">
               {[
-                { href: '/e-commerce/products', label: 'Collection' },
-                { href: '/e-commerce/categories', label: 'Categories' },
-                { href: '/e-commerce/contact', label: 'Contact' },
-                { href: '/e-commerce/order-tracking', label: 'Track Order' },
+                { href: '/e-commerce/products', label: 'Artisanal Edit' },
+                { href: '/e-commerce/categories', label: 'Collections' },
+                { href: '/e-commerce/contact', label: 'Inquiries' },
               ].map(({ href, label }) => (
-                <Link key={href} href={href} className="text-[12px] transition-colors" style={{ color: 'rgba(255,255,255,0.35)' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold-light)')}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
+                <Link key={href} href={href} className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)] hover:text-[var(--cyan)] transition-colors" style={{ fontFamily: "'DM Mono', monospace" }}>
                   {label}
                 </Link>
               ))}
             </div>
 
-            <div className="flex gap-2.5">
+            <div className="flex gap-4">
               {[Facebook, Instagram, Youtube].map((Icon, i) => (
-                <a key={i} href="#" className="flex h-9 w-9 items-center justify-center rounded-xl transition-all"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)' }}
-                  onMouseEnter={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.background = 'rgba(176,124,58,0.15)'; el.style.borderColor = 'rgba(176,124,58,0.3)'; }}
-                  onMouseLeave={e => { const el = e.currentTarget as HTMLAnchorElement; el.style.background = 'rgba(255,255,255,0.05)'; el.style.borderColor = 'rgba(255,255,255,0.09)'; }}
+                <a key={i} href="#" className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-muted)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] transition-all"
                   aria-label="social">
-                  <Icon size={16} style={{ color: 'rgba(255,255,255,0.5)' }} />
+                  <Icon size={18} />
                 </a>
               ))}
             </div>
           </div>
 
           {/* Shopping Promise */}
-          <div className="space-y-4">
-            <h4 className="text-[11px] font-semibold tracking-[0.15em] uppercase" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>
+          <div className="space-y-6">
+            <h4 className="text-[11px] font-bold tracking-[0.25em] uppercase text-[var(--text-muted)]" style={{ fontFamily: "'DM Mono', monospace" }}>
               Our Promise
             </h4>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {[
-                { title: 'Comfort & Quality Assured', sub: 'Thoughtfully selected with quality finishing.' },
-                { title: 'In-Store & Online Support', sub: 'Visit us or order easily — responsive service.' },
-                { title: 'Nationwide Delivery', sub: 'Smooth and reliable delivery across Bangladesh.' },
+                { title: 'Curated Quality', sub: 'Single-source materials, enduring finish.' },
+                { title: 'Nationwide Reach', sub: 'Premium delivery to every corner of Bangladesh.' },
               ].map(({ title, sub }) => (
-                <div key={title} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <p className="text-[13px] font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-[12px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{sub}</p>
+                <div key={title} className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-md)] p-6 transition-all group hover:border-[var(--cyan-border)]">
+                  <div className="flex items-center gap-3 mb-2">
+                    <CheckCircle size={14} className="text-[var(--gold)]" />
+                    <p className="text-[14px] font-semibold text-[var(--text-primary)] uppercase tracking-tight" style={{ fontFamily: "'Jost', sans-serif" }}>{title}</p>
+                  </div>
+                  <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">{sub}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Stores */}
-          <div className="space-y-5">
-            <h4 className="text-[11px] font-semibold tracking-[0.15em] uppercase" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>
-              Stores & Contact
+          <div className="space-y-6">
+            <h4 className="text-[11px] font-bold tracking-[0.25em] uppercase text-[var(--text-muted)]" style={{ fontFamily: "'DM Mono', monospace" }}>
+              Stores & Inquiries
             </h4>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {stores.map(store => (
-                <div key={store.name} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
-                  <p className="text-[13px] font-semibold text-white mb-2">{store.name}</p>
-                  <div className="space-y-1.5">
-                    <div className="flex items-start gap-2 text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      <MapPin size={13} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--gold)' }} />
-                      <span>{store.address}</span>
+                <div key={store.name} className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-md)] p-6 transition-all group hover:border-[var(--cyan-border)]">
+                  <p className="text-[14px] font-semibold text-[var(--text-primary)] uppercase tracking-tight mb-4" style={{ fontFamily: "'Jost', sans-serif" }}>{store.name}</p>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 text-[13px] text-[var(--text-secondary)]">
+                      <MapPin size={14} className="mt-0.5 flex-shrink-0 text-[var(--cyan)]" />
+                      <span className="group-hover:text-[var(--text-primary)] transition-colors">{store.address}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[12px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      <Phone size={13} className="flex-shrink-0" style={{ color: 'var(--gold)' }} />
-                      <span>{store.phone}</span>
+                    <div className="flex items-center gap-3 text-[13px] text-[var(--text-secondary)]">
+                      <Phone size={14} className="flex-shrink-0 text-[var(--cyan)]" />
+                      <span className="group-hover:text-[var(--text-primary)] transition-colors">{store.phone}</span>
                     </div>
                   </div>
                 </div>
               ))}
-
-              {/* WhatsApp */}
-              <div className="rounded-xl p-4" style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.15)' }}>
-                <p className="text-[10px] tracking-[0.15em] uppercase mb-2" style={{ color: 'rgba(255,255,255,0.3)', fontFamily: "'DM Mono', monospace" }}>International Orders</p>
-                <div className="flex items-center gap-2">
-                  <MessageCircle size={14} style={{ color: '#4ade80' }} />
-                  <p className="text-[13px] text-white">WhatsApp: <span className="font-semibold">01942565664</span></p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col items-center justify-between gap-3 border-t py-6 md:flex-row" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-          <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', fontFamily: "'DM Mono', monospace", letterSpacing: '0.08em' }}>
-            © {year} {BRAND}. All rights reserved.
+        <div className="flex flex-col items-center justify-between gap-6 border-t border-[var(--border-default)] py-12 md:flex-row">
+          <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-[0.2em]" style={{ fontFamily: "'DM Mono', monospace" }}>
+            © {year} {BRAND} Studio — All Rights Reserved.
           </p>
-          <div className="flex items-center gap-2">
-            <Link href="/e-commerce/order-tracking"
-              className="rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all"
-              style={{ background: 'rgba(176,124,58,0.15)', border: '1px solid rgba(176,124,58,0.25)', color: 'var(--gold-light)' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(176,124,58,0.25)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(176,124,58,0.15)')}>
-              Track Order
-            </Link>
+          <div className="flex items-center gap-4">
             {['bKash', 'Nagad', 'Card'].map(m => (
-              <span key={m} className="rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'rgba(255,255,255,0.35)', fontFamily: "'DM Mono', monospace" }}>
+              <span key={m} className="px-4 py-2 bg-[var(--bg-lifted)] border border-[var(--border-default)] text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-widest rounded-[var(--radius-sm)]" style={{ fontFamily: "'DM Mono', monospace" }}>
                 {m}
               </span>
             ))}

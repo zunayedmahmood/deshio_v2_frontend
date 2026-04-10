@@ -96,32 +96,34 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
   if (allDisplay.length === 0) return null;
 
   return (
-    <section className="bg-white py-12 sm:py-20">
+    <section className="bg-[var(--bg-depth)] py-16 sm:py-24">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-12 gap-8">
           <div>
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">
-              Featured Categories
+            <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-[var(--cyan)] mb-4 block" style={{ fontFamily: "'DM Mono', monospace" }}>
+              Discovery
             </span>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+            <h2 className="text-4xl sm:text-5xl font-medium text-[var(--text-primary)] tracking-tight"
+              style={{ fontFamily: "'Cormorant Garamond', serif", lineHeight: 1 }}>
               Explore Collections
             </h2>
-            <p className="mt-2 text-gray-500 max-w-lg text-sm sm:text-base">
-              Discover our curated product categories, handcrafted for quality and style.
+            <p className="mt-4 text-[var(--text-secondary)] max-w-lg text-[15px] leading-relaxed">
+              Curated essentials handcrafted for quality, longevity, and everyday style.
             </p>
           </div>
           {allDisplay.length > initialLimit && (
             <button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="text-xs font-bold uppercase tracking-widest text-black border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors self-start"
+              className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--cyan)] transition-all group flex items-center gap-2"
+              style={{ fontFamily: "'DM Mono', monospace" }}
             >
-              {isExpanded ? 'Show Less' : 'View All Categories'}
+              <span>{isExpanded ? 'Show Less' : 'Explore All'}</span>
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
           {display.map((cat, i) => {
             const imgSrc = toAbsoluteAssetUrl(cat.image || cat.image_url || '');
             const [from, to] = PALETTE[i % PALETTE.length];
@@ -130,12 +132,12 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
               <button
                 key={cat.id}
                 onClick={() => router.push(`/e-commerce/${encodeURIComponent(cat.slug || slugify(cat.name))}`)}
-                className="group relative flex flex-col items-center"
+                className="group relative flex flex-col items-center w-full"
                 type="button"
               >
                 <div
-                  className="relative w-full overflow-hidden rounded-2xl bg-[#f7f7f7] transition-all duration-500 group-hover:shadow-2xl group-hover:-translate-y-1"
-                  style={{ aspectRatio: '340/540' }}
+                  className="relative w-full overflow-hidden rounded-[var(--radius-lg)] bg-[var(--bg-surface)] border border-[var(--border-default)] transition-all duration-700 group-hover:shadow-2xl group-hover:border-[var(--border-strong)]"
+                  style={{ aspectRatio: '340/500' }}
                 >
                   {imgSrc ? (
                     <img
@@ -146,24 +148,30 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
                     />
                   ) : (
                     <div
-                      className="absolute inset-0 opacity-20"
+                      className="absolute inset-0 opacity-10"
                       style={{ background: `linear-gradient(160deg, ${from} 0%, ${to} 100%)` }}
                     />
                   )}
 
-                  {/* Subtle overlay */}
-                  <div className="absolute inset-0 bg-black/[0.02] transition-colors group-hover:bg-transparent" />
+                  {/* Subtle warm hover overlay */}
+                  <div className="absolute inset-0 bg-[rgba(28,24,18,0)] transition-colors duration-500 group-hover:bg-[rgba(28,24,18,0.06)]" />
 
                   {/* Category Label at bottom */}
-                  <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col items-center text-center">
-                    <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-black/40 group-hover:text-black transition-colors"
+                  <div className="absolute inset-x-0 bottom-0 p-8 flex flex-col items-start text-left">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2"
                       style={{ fontFamily: "'DM Mono', monospace" }}>
-                      {cat.product_count || 0} items
+                      {cat.product_count || 0} Pieces
                     </span>
-                    <h3 className="mt-2 text-lg sm:text-xl font-medium text-black"
+                    <h3 className="text-2xl font-medium text-[var(--text-primary)]"
                       style={{ fontFamily: "'Cormorant Garamond', serif" }}>
                       {cat.name}
                     </h3>
+                    
+                    {/* CTA Chip */}
+                    <div className="mt-6 px-4 py-2 bg-[var(--bg-root)] text-[var(--text-primary)] rounded-[var(--radius-sm)] text-[10px] font-bold uppercase tracking-widest opacity-0 translate-y-2 transition-all duration-500 group-hover:opacity-100 group-hover:translate-y-0"
+                         style={{ fontFamily: "'DM Mono', monospace" }}>
+                      Shop Collection
+                    </div>
                   </div>
                 </div>
               </button>

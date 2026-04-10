@@ -95,16 +95,19 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
   return (
     <article
       onClick={() => onOpen(product)}
-      className="bg-white group cursor-pointer overflow-hidden transition-all duration-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] ec-anim-fade-up"
+      className="group relative flex flex-col overflow-hidden rounded-[var(--radius-md)] 
+        bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-[var(--shadow-card)]
+        transition-all duration-[220ms] ease-[var(--ease-smooth)]
+        hover:-translate-y-[3px] hover:border-[var(--border-strong)] hover:shadow-[var(--shadow-lifted)]
+        ec-anim-fade-up"
       style={{
-        borderRadius: '24px',
         animationDelay: `${animDelay}ms`,
         animationFillMode: 'both'
       }}
     >
       {/* Image Container */}
-      <div className="relative overflow-hidden aspect-[3/4] bg-[#f2f2f2]">
-        {/* 4.2 — Loading Shimmer */}
+      <div className="relative aspect-[3/4] bg-[var(--bg-depth)] overflow-hidden">
+        {/* Loading Shimmer */}
         {!isLoaded && !imageErrored && (
           <div className="absolute inset-0 z-[1] animate-shimmer" />
         )}
@@ -113,154 +116,113 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
           src={imageUrl}
           alt={product.display_name || product.base_name || product.name}
           fill
-          className={`object-cover transition-all duration-700 group-hover:scale-[1.06] ${isLoaded ? 'opacity-100 blur-0' : 'opacity-0 blur-sm'}`}
+          className={`object-cover object-top transition-all duration-700 group-hover:scale-[1.06] ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
           onLoad={() => setIsLoaded(true)}
           onError={shouldFallback || !onImageError ? undefined : () => onImageError(product.id)}
         />
 
-        {/* Wishlist toggle */}
-        <div className="absolute right-3 top-3 z-10 transition-all duration-300 sm:opacity-0 sm:scale-90 sm:group-hover:opacity-100 sm:group-hover:scale-100">
+        {/* Badges (top-left stacking) */}
+        <div className="absolute top-[10px] left-[10px] flex flex-col gap-1 z-10">
+          {isNew && (
+            <span className="ec-badge-live text-[11px] px-2 py-0.5 font-medium">
+              New
+            </span>
+          )}
+          {salePromo && salePercent > 0 && (
+            <span className="ec-badge-urgent text-[11px] px-2.5 py-1 font-bold tracking-wider">
+              {salePercent}% OFF
+            </span>
+          )}
+          {isLowStock && (
+            <span className="bg-[rgba(224,82,82,0.12)] border border-[rgba(224,82,82,0.28)] text-[#e88] rounded-[var(--radius-pill)] text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider">
+              🔥 ONLY {stock} LEFT
+            </span>
+          )}
+        </div>
+
+        {/* Wishlist Heart */}
+        <div className="absolute right-[10px] top-[10px] z-10 sm:opacity-0 sm:scale-90 transition-all duration-300 sm:group-hover:opacity-100 sm:group-hover:scale-100">
           <button
             onClick={handleToggleWishlist}
-            className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-all border shadow-sm ${isInWishlist
-              ? 'bg-black border-black text-white'
-              : 'bg-white/80 border-gray-100 text-black/40 hover:text-black hover:bg-white'
-              } ${isHeartBeating ? 'scale-125' : 'scale-100'}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-all border ${isInWishlist
+              ? 'bg-[var(--bg-lifted)] border-[var(--gold-border)] text-[var(--gold)]'
+              : 'bg-[var(--bg-surface-2)] border-[var(--border-default)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
+              } ${isHeartBeating ? 'animate-heart-beat' : ''}`}
           >
-            <Heart className={`h-4 w-4 ${isInWishlist ? 'fill-[var(--gold)] text-[var(--gold)]' : ''}`} />
+            <Heart className={`h-4 w-4 ${isInWishlist ? 'fill-[var(--gold)]' : ''}`} />
           </button>
         </div>
 
-        {/* SALE badge */}
-        {salePromo && (
-          <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
-            <span
-              className="bg-black text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
-              {salePercent}% OFF
-            </span>
-            {isLowStock && (
-              <span className="bg-[var(--gold)] text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase flex items-center gap-1"
-                style={{ fontFamily: "'DM Mono', monospace" }}>
-                🔥 ONLY {stock} LEFT
-              </span>
-            )}
-            {isNew && (
-              <span className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase flex items-center gap-1"
-                style={{ fontFamily: "'DM Mono', monospace" }}>
-                <span className="h-1 w-1 rounded-full bg-white animate-pulse" />
-                NEW
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Not on sale but has low stock or is new */}
-        {!salePromo && (isLowStock || isNew) && (
-          <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
-            {isLowStock && (
-              <span className="bg-[var(--gold)] text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase flex items-center gap-1"
-                style={{ fontFamily: "'DM Mono', monospace" }}>
-                🔥 ONLY {stock} LEFT
-              </span>
-            )}
-            {isNew && (
-              <span className="bg-emerald-500 text-white px-3 py-1 rounded-lg text-[9px] font-bold tracking-widest uppercase flex items-center gap-1"
-                style={{ fontFamily: "'DM Mono', monospace" }}>
-                <span className="h-1 w-1 rounded-full bg-white animate-pulse" />
-                NEW
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Variant count */}
+        {/* Variant Count Pill — Desktop Only */}
         {extraVariants > 0 && (
-          <div className="absolute left-3 bottom-3 z-10 transition-transform sm:group-hover:-translate-y-16">
-            <span className="rounded-full px-3 py-1 text-[9px] font-bold text-black border border-black/5 bg-white/90 backdrop-blur-sm tracking-wider"
-              style={{ fontFamily: "'DM Mono', monospace" }}>
-              +{extraVariants} variants
-            </span>
-          </div>
+          <span className="absolute bottom-2 right-2 text-[11px] font-mono 
+            bg-[rgba(17,18,16,0.72)] backdrop-blur-md px-2 py-0.5 rounded-[var(--radius-sm)]
+            text-[var(--ivory-muted)] z-10 hidden sm:block">+{extraVariants} sizes</span>
         )}
 
-
-
-        {/* 4.1 — Desktop Action Bar */}
-        <div className="absolute inset-x-0 bottom-0 translate-y-full transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] sm:group-hover:translate-y-0 hidden sm:block">
-          <div className="p-3">
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                onOpen(product);
-              }}
-              className="w-full rounded-xl py-3.5 text-[11px] font-bold text-white bg-black transition-all active:scale-95 shadow-xl uppercase tracking-widest"
-              style={{ fontFamily: "'Jost', sans-serif" }}
-            >
-              Choose Options
-            </button>
-          </div>
+        {/* Action Bar — Desktop Hover */}
+        <div className="absolute bottom-0 inset-x-0 h-[56px] 
+            bg-gradient-to-t from-[var(--bg-depth)] to-transparent
+            flex items-end pb-3 px-3
+            translate-y-full group-hover:translate-y-0
+            transition-transform duration-[320ms] ease-[var(--ease-smooth)]
+            hidden sm:flex">
+          <button
+            onClick={e => { e.stopPropagation(); onOpen(product); }}
+            className="ec-btn-primary w-full text-[13px] h-[40px]"
+          >
+            Choose Options
+          </button>
         </div>
       </div>
 
       {/* Info */}
-      <div className={compact ? 'p-4' : 'p-5 sm:p-6'}>
-        <div className="flex justify-between items-start gap-2 mb-2">
-          {categoryName ? (
-            <p className="truncate text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400"
-              style={{ fontFamily: "'DM Mono', monospace" }}>
-              {categoryName}
-            </p>
-          ) : <div />}
-          {hasStock && (
-            <span className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-500 uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="hidden xs:inline">In Stock</span>
-            </span>
-          )}
-        </div>
-
-        <h3 className="line-clamp-2 font-medium leading-snug group-hover:text-black transition-colors"
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: compact ? '16px' : '18px',
-            color: '#111',
-            minHeight: compact ? '2.5rem' : '3rem'
-          }}>
+      <div className="flex flex-col gap-1 p-3">
+        {categoryName && (
+          <p className="text-[11px] uppercase tracking-[0.08em] font-mono text-[var(--text-muted)]">
+            {categoryName}
+          </p>
+        )}
+        <h3 className="text-[14px] md:text-[16px] font-[Cormorant_Garamond] 
+          text-[var(--text-primary)] line-clamp-2 leading-snug font-medium min-h-[2.5rem] group-hover:text-[var(--cyan)] transition-colors">
           {product.display_name || product.base_name || product.name}
         </h3>
 
-        <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-4">
-          {salePromo && salePrice !== null ? (
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
-                ৳{salePrice.toFixed(0)}
-              </span>
-              <span className="text-xs line-through text-gray-300" style={{ fontFamily: "'Jost', sans-serif" }}>
-                ৳{originalPrice.toFixed(0)}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
-                ৳{minPrice.toLocaleString()}
-              </span>
-              {hasPriceRange && (
-                <span className="text-[13px] text-gray-400 font-medium" style={{ fontFamily: "'Jost', sans-serif" }}>
-                  – ৳{maxPrice.toLocaleString()}
+        {/* Price Row */}
+        <div className="flex items-center justify-between mt-1 pt-3 border-t border-[var(--border-default)]">
+          <div className="flex items-center gap-2">
+            {salePromo && salePrice !== null ? (
+              <>
+                <span className="text-[16px] font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
+                  ৳{salePrice.toFixed(0)}
                 </span>
-              )}
-            </div>
-          )}
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-50 text-gray-400 sm:group-hover:bg-black sm:group-hover:text-white transition-all duration-300">
+                <span className="text-[12px] line-through text-[var(--text-muted)] font-mono" style={{ fontFamily: "'Jost', sans-serif" }}>
+                  ৳{originalPrice.toFixed(0)}
+                </span>
+              </>
+            ) : (
+              <div className="flex items-baseline gap-1">
+                <span className="text-[16px] font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
+                  ৳{minPrice.toLocaleString()}
+                </span>
+                {hasPriceRange && (
+                  <span className="text-[12px] text-[var(--text-secondary)] font-medium" style={{ fontFamily: "'Jost', sans-serif" }}>
+                    – ৳{maxPrice.toLocaleString()}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="h-7 w-7 flex items-center justify-center rounded-full bg-[var(--bg-surface-2)] text-[var(--text-muted)] group-hover:bg-[var(--cyan)] group-hover:text-[var(--text-on-accent)] transition-all">
             <ArrowRight size={14} />
           </div>
         </div>
-
       </div>
+
+
     </article>
   );
 };
+
 
 export default PremiumProductCard;

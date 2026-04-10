@@ -153,16 +153,14 @@ const NewArrivals: React.FC<NewArrivalsProps> = ({ categoryId, limit = 8 }) => {
   if (products.length === 0) return null;
 
   return (
-    <section className="ec-section">
+    <section className="bg-[var(--bg-root)] py-16 sm:py-24 border-y border-[var(--border-default)]">
       <div className="ec-container">
-        <div className="ec-surface p-4 sm:p-6 lg:p-7 relative overflow-hidden">
-          <div className="pointer-events-none absolute -top-16 -left-16 h-48 w-48 rounded-full opacity-40"
-            style={{ background: 'radial-gradient(circle, rgba(176,124,58,0.10) 0%, transparent 70%)', filter: 'blur(24px)' }} />
+        <div className="relative overflow-hidden">
           <SectionHeader
-            eyebrow="Fresh drop"
+            eyebrow="The Fresh List"
             title="New Arrivals"
-            subtitle="Latest additions to the catalogue"
-            actionLabel="View all products"
+            subtitle="Explore our latest drops and recently curated additions"
+            actionLabel="Discover more"
             onAction={() => router.push('/e-commerce/products')}
           />
 

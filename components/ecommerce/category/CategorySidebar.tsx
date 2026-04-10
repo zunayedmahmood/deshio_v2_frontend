@@ -19,6 +19,10 @@ interface CategorySidebarProps {
   onPriceRangeChange: (range: string) => void;
   selectedStock: string;
   onStockChange: (stock: string) => void;
+  selectedSort?: string;
+  onSortChange?: (sort: any) => void;
+  searchQuery?: string;
+  onSearchChange?: (q: string) => void;
   useIdForRouting?: boolean;
 }
 
@@ -35,9 +39,11 @@ export default function CategorySidebar({
   activeCategory,
   onCategoryChange,
   selectedPriceRange,
-  onPriceRangeChange,
-  selectedStock,
   onStockChange,
+  selectedSort,
+  onSortChange,
+  searchQuery,
+  onSearchChange,
   useIdForRouting = false,
 }: CategorySidebarProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
@@ -74,8 +80,8 @@ export default function CategorySidebar({
       <div key={category.id} className="mb-1">
         <div
           className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${isActive(category)
-              ? 'bg-[rgba(212,169,106,0.16)] text-white font-medium border border-[rgba(212,169,106,0.25)]'
-              : 'hover:bg-white/5 text-white/70'
+              ? 'bg-[var(--cyan-pale)] text-[var(--cyan)] font-medium border border-[var(--cyan-border)]'
+              : 'hover:bg-[var(--ivory-ghost)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
             }`}
           style={{ paddingLeft: `${8 + level * 16}px` }}
         >
@@ -88,7 +94,7 @@ export default function CategorySidebar({
           {hasChildren && (
             <button
               onClick={() => toggleCategory(category.id)}
-              className="p-1 hover:bg-white/5 rounded"
+              className="p-1 hover:bg-[var(--cyan-pale)] hover:text-[var(--cyan)] rounded transition-colors"
             >
               {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
@@ -105,13 +111,55 @@ export default function CategorySidebar({
 
   return (
     <div className="space-y-6">
-      <div className="ec-dark-card p-4">
-        <h3 className="font-semibold text-white mb-4">Categories</h3>
+      {onSearchChange && (
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-lg)] p-4">
+          <h3 className="font-semibold text-[var(--text-primary)] mb-3" style={{ fontFamily: "'Jost', sans-serif" }}>Search</h3>
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="Size, color, fabric..."
+              value={searchQuery || ''}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full bg-[var(--bg-root)] border border-[var(--border-default)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--cyan)] transition-all placeholder:text-[var(--text-muted)]"
+            />
+          </div>
+        </div>
+      )}
+
+      {onSortChange && (
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-lg)] p-4">
+          <h3 className="font-semibold text-[var(--text-primary)] mb-4" style={{ fontFamily: "'Jost', sans-serif" }}>Sort By</h3>
+          <div className="space-y-2">
+            {[
+              { id: 'newest', label: 'Newest Arrivals' },
+              { id: 'price_asc', label: 'Price: Low to High' },
+              { id: 'price_desc', label: 'Price: High to Low' },
+            ].map((option) => (
+              <label key={option.id} className="flex items-center cursor-pointer group">
+                <input
+                  type="radio"
+                  name="sortOrder"
+                  value={option.id}
+                  checked={selectedSort === option.id}
+                  onChange={(e) => onSortChange(e.target.value)}
+                  className="mr-2 accent-[var(--cyan)]"
+                />
+                <span className={`text-sm transition-colors ${selectedSort === option.id ? 'text-[var(--cyan)] font-medium' : 'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'}`}>
+                  {option.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-lg)] p-4">
+        <h3 className="font-semibold text-[var(--text-primary)] mb-4" style={{ fontFamily: "'Jost', sans-serif" }}>Categories</h3>
         <div className="space-y-1 max-h-[400px] overflow-y-auto pr-1 ec-scrollbar">
           <div
             className={`p-2 rounded cursor-pointer transition-colors ${activeCategory === 'all'
-                ? 'bg-[rgba(212,169,106,0.16)] text-white font-medium border border-[rgba(212,169,106,0.25)]'
-                : 'hover:bg-white/5 text-white/70'
+                ? 'bg-[var(--cyan-pale)] text-[var(--cyan)] font-medium border border-[var(--cyan-border)]'
+                : 'hover:bg-[var(--ivory-ghost)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             onClick={() => onCategoryChange('all')}
           >
@@ -121,8 +169,8 @@ export default function CategorySidebar({
         </div>
       </div>
 
-      <div className="ec-dark-card p-4">
-        <h3 className="font-semibold text-white mb-4">Price Range</h3>
+      <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-[var(--radius-lg)] p-4">
+        <h3 className="font-semibold text-[var(--text-primary)] mb-4" style={{ fontFamily: "'Jost', sans-serif" }}>Price Range</h3>
         <div className="space-y-2">
           {[
             { value: 'all', label: 'All Prices' },
@@ -139,9 +187,9 @@ export default function CategorySidebar({
                 value={range.value}
                 checked={selectedPriceRange === range.value}
                 onChange={(e) => onPriceRangeChange(e.target.value)}
-                className="mr-2 accent-[var(--gold)] focus:ring-neutral-200"
+                className="mr-2 accent-[var(--cyan)] focus:ring-[var(--cyan-border)]"
               />
-              <span className="text-sm text-white/70">{range.label}</span>
+              <span className="text-sm text-[var(--text-secondary)]">{range.label}</span>
             </label>
           ))}
         </div>

@@ -100,48 +100,58 @@ export default function HeroSection() {
 
   return (
     <section className="ec-root relative overflow-hidden min-h-screen flex flex-col justify-center">
-      {/* Background image */}
-      <div className="absolute inset-0">
+      {/* Background & Overlays */}
+      <div className="absolute inset-0 bg-[var(--bg-root)]">
         {bgUrl ? (
           <img
             src={bgUrl}
             alt="Hero background"
-            className="h-full w-full object-cover object-center"
+            className="h-full w-full object-cover object-center opacity-40 mix-blend-multiply transition-opacity duration-1000"
             onError={() => setBgUrl('')}
           />
         ) : null}
 
-        {/* Premium overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/45 to-[#0d0d0d]" />
+        {/* Premium atmospheric glows */}
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(900px 600px at 18% 12%, rgba(176,124,58,0.20), transparent 55%), radial-gradient(700px 520px at 82% 68%, rgba(120,160,220,0.14), transparent 60%)',
+              'radial-gradient(900px 600px at 15% 15%, var(--cyan-glow), transparent 60%), radial-gradient(700px 520px at 85% 75%, var(--gold-glow), transparent 60%)',
+            opacity: 0.6,
           }}
         />
+        
+        {/* Ivory depth gradient lead-in */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-root)] via-transparent to-transparent" />
       </div>
 
       {/* Socials (hidden on small) */}
       {socials.length > 0 && (
-        <div className="pointer-events-none absolute left-5 top-1/2 z-10 hidden -translate-y-1/2 flex-col gap-2 lg:flex">
+        <div className="pointer-events-none absolute left-8 top-1/2 z-10 hidden -translate-y-1/2 flex-col gap-4 lg:flex">
           {socials.map(({ label, href, Icon }) => (
             <a
               key={label}
               href={href}
               target="_blank"
               rel="noreferrer"
-              className="pointer-events-auto group flex h-10 w-10 items-center justify-center rounded-full"
+              className="pointer-events-auto group flex h-10 w-10 items-center justify-center rounded-full transition-all duration-300"
               style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
-                backdropFilter: 'blur(10px)',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+                background: 'var(--bg-lifted)',
+                border: '1px solid var(--border-default)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = 'var(--cyan)';
+                e.currentTarget.style.transform = 'translateX(4px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = 'var(--border-default)';
+                e.currentTarget.style.transform = 'translateX(0)';
               }}
               aria-label={label}
               title={label}
             >
-              <Icon className="h-4 w-4 text-white/75 transition group-hover:text-white" />
+              <Icon size={16} className="text-[var(--text-muted)] group-hover:text-[var(--cyan)] transition-colors" />
             </a>
           ))}
         </div>
@@ -150,42 +160,41 @@ export default function HeroSection() {
       {/* Content */}
       <div className="ec-container relative z-10 flex flex-col justify-center py-20">
         <div className="mx-auto w-full max-w-3xl text-center ec-anim-fade-up">
-          <p className="ec-eyebrow justify-center">Search the catalogue</p>
+          <p className="ec-eyebrow justify-center text-[var(--cyan)] mb-6">Established MMXVII</p>
 
           <h1
-            className="mt-4 text-white"
+            className="text-[var(--text-primary)]"
             style={{
-              fontSize: 'clamp(36px, 8vw, 72px)',
-              lineHeight: 1.02,
-              letterSpacing: '-0.02em',
+              fontSize: 'clamp(40px, 8vw, 84px)',
+              lineHeight: 0.95,
+              letterSpacing: '-0.04em',
               fontFamily: "'Cormorant Garamond', serif"
             }}
           >
-            Find your next <span style={{ color: 'var(--gold-light)' }}>favorite</span>
+            Refining the Art of <span className="italic" style={{ color: 'var(--gold)' }}>Lifestyle</span>
           </h1>
 
-          <p className="mx-auto mt-4 max-w-xl text-[14px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.62)' }}>
-            Search by product name, SKU, or category — then explore variants, sizes, and colors in one place.
+          <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-[var(--text-secondary)]">
+            Explore our curated collections of footwear, apparel, and accessories—designed for those who appreciate the finer details of everyday confidence.
           </p>
 
           {/* Search bar */}
-          <form onSubmit={onSubmit} className="mx-auto mt-8 w-full max-w-2xl">
+          <form onSubmit={onSubmit} className="mx-auto mt-10 w-full max-w-2xl">
             <div
-              className="relative overflow-hidden rounded-2xl"
+              className="relative overflow-hidden rounded-[var(--radius-lg)]"
               style={{
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.14)',
-                backdropFilter: 'blur(12px)',
-                boxShadow: '0 22px 70px rgba(0,0,0,0.45)',
+                background: 'var(--bg-lifted)',
+                border: '1px solid var(--border-strong)',
+                boxShadow: 'var(--shadow-lifted)',
               }}
             >
-              <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/55" />
+              <SearchIcon className="pointer-events-none absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search products, SKUs..."
-                className="w-full bg-transparent py-4 pl-12 pr-28 text-[14px] text-white outline-none placeholder:text-white/40"
+                placeholder="Search products, collections..."
+                className="w-full bg-transparent py-5 pl-14 pr-32 text-[15px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                 autoComplete="off"
               />
 
@@ -193,7 +202,7 @@ export default function HeroSection() {
                 <button
                   type="button"
                   onClick={clear}
-                  className="absolute right-[7.25rem] top-1/2 -translate-y-1/2 rounded-lg p-2 text-white/55 transition hover:text-white"
+                  className="absolute right-32 top-1/2 -translate-y-1/2 p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                   aria-label="Clear"
                 >
                   <X className="h-4 w-4" />
@@ -203,12 +212,7 @@ export default function HeroSection() {
               <button
                 type="submit"
                 disabled={!query.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl px-5 py-2.5 text-[12px] font-semibold uppercase tracking-wider transition disabled:cursor-not-allowed disabled:opacity-50"
-                style={{
-                  background: 'var(--gold)',
-                  color: 'white',
-                  boxShadow: '0 10px 26px rgba(176,124,58,0.35)',
-                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 ec-btn-primary px-6 py-2.5 text-[12px] font-bold uppercase tracking-wider"
               >
                 Search
               </button>
@@ -217,29 +221,13 @@ export default function HeroSection() {
 
           {/* Quick category chips */}
           {topCategories.length > 0 && (
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
               {topCategories.map((c) => (
                 <Link
                   key={c.id}
                   href={`/e-commerce/${encodeURIComponent(c.slug || c.name)}`}
-                  className="rounded-full px-3 py-1.5 text-[11px] font-medium transition"
-                  style={{
-                    border: '1px solid rgba(255,255,255,0.14)',
-                    color: 'rgba(255,255,255,0.70)',
-                    background: 'rgba(255,255,255,0.04)',
-                  }}
-                  onMouseEnter={(e) => {
-                    const el = e.currentTarget as HTMLAnchorElement;
-                    el.style.borderColor = 'var(--gold-light)';
-                    el.style.color = 'var(--gold-light)';
-                    el.style.background = 'rgba(176,124,58,0.10)';
-                  }}
-                  onMouseLeave={(e) => {
-                    const el = e.currentTarget as HTMLAnchorElement;
-                    el.style.borderColor = 'rgba(255,255,255,0.14)';
-                    el.style.color = 'rgba(255,255,255,0.70)';
-                    el.style.background = 'rgba(255,255,255,0.04)';
-                  }}
+                  className="rounded-full px-5 py-2 text-[11px] font-bold uppercase tracking-widest transition-all border border-[var(--border-default)] text-[var(--text-secondary)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)]"
+                  style={{ fontFamily: "'DM Mono', monospace" }}
                 >
                   {c.name}
                 </Link>
@@ -249,43 +237,38 @@ export default function HeroSection() {
 
           {/* Socials (mobile) */}
           {socials.length > 0 && (
-            <div className="mt-6 flex items-center justify-center gap-2 lg:hidden">
+            <div className="mt-10 flex items-center justify-center gap-4 lg:hidden">
               {socials.map(({ label, href, Icon }) => (
                 <a
                   key={`m-${label}`}
                   href={href}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex h-10 w-10 items-center justify-center rounded-full"
+                  className="flex h-12 w-12 items-center justify-center rounded-full transition-all"
                   style={{
-                    background: 'rgba(255,255,255,0.06)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    backdropFilter: 'blur(10px)',
+                    background: 'var(--bg-lifted)',
+                    border: '1px solid var(--border-default)',
+                    boxShadow: 'var(--shadow-sm)',
                   }}
                   aria-label={label}
                   title={label}
                 >
-                  <Icon className="h-4 w-4 text-white/75" />
+                  <Icon size={18} className="text-[var(--text-muted)]" />
                 </a>
               ))}
             </div>
           )}
 
           {/* Secondary CTA */}
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/e-commerce/products" className="ec-btn ec-btn-gold">
-              Browse Products
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
+            <Link href="/e-commerce/products" className="ec-btn-primary px-10 py-4 text-xs font-bold uppercase tracking-[0.2em]">
+              Shop Now
             </Link>
             <Link
               href="/e-commerce/categories"
-              className="ec-btn"
-              style={{
-                background: 'rgba(255,255,255,0.08)',
-                color: 'rgba(255,255,255,0.82)',
-                border: '1px solid rgba(255,255,255,0.14)',
-              }}
+              className="ec-btn-ghost px-10 py-4 text-xs font-bold uppercase tracking-[0.2em]"
             >
-              Browse Categories
+              Collections
             </Link>
           </div>
         </div>

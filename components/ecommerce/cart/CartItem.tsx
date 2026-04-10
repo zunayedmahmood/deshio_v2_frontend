@@ -24,6 +24,10 @@ interface CartItemProps {
   isUpdating?: boolean;
 }
 
+const formatBDT = (value: number) => {
+  return `৳${value.toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 export default function CartItem({ item, onQuantityChange, onRemove, isUpdating: externalIsUpdating }: CartItemProps) {
   const { refreshCart } = useCart();
   const router = useRouter();
@@ -125,26 +129,29 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
   }
 
   return (
-    <div className="flex gap-4 border-b pb-4 relative" style={{ borderColor: 'rgba(255,255,255,0.09)' }}>
+    <div className="flex gap-4 p-4 rounded-[var(--radius-md)] bg-[var(--bg-surface)] border border-[var(--border-default)] relative transition-all duration-300 hover:border-[var(--border-strong)]"
+      style={{
+        borderColor: typeof item.maxQuantity === 'number' && item.quantity > item.maxQuantity ? 'rgba(224, 82, 82, 0.4)' : undefined
+      }}
+    >
       {/* Loading Overlay */}
       {isUpdating && (
         <div
-          className="absolute inset-0 flex items-center justify-center z-10 rounded"
-          style={{ background: 'rgba(13,13,13,0.78)', border: '1px solid rgba(255,255,255,0.10)' }}
+          className="absolute inset-0 flex items-center justify-center z-10 rounded-[var(--radius-md)] bg-[var(--bg-depth)]/80 backdrop-blur-[2px]"
         >
-          <Loader2 className="animate-spin" style={{ color: 'var(--gold)' }} size={24} />
+          <Loader2 className="animate-spin text-[var(--cyan)]" size={24} />
         </div>
       )}
 
       {/* Product Image */}
       <div
-        className="relative w-20 h-20 flex-shrink-0 cursor-pointer"
+        className="relative w-20 h-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border-default)]"
         onClick={handleNavigateToProduct}
       >
         <img
           src={item.image || '/placeholder-product.png'}
           alt={item.name}
-          className="w-full h-full object-cover rounded hover:opacity-80 transition-opacity"
+          className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
         />
       </div>
 
@@ -153,39 +160,37 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1 min-w-0 pr-2">
             <h3
-              className="text-sm font-semibold line-clamp-2 cursor-pointer transition-colors"
-              style={{ color: 'rgba(255,255,255,0.92)' }}
+              className="text-[14px] font-medium line-clamp-2 cursor-pointer transition-colors text-[var(--text-primary)] hover:text-[var(--cyan)]"
+              style={{ fontFamily: "'Jost', sans-serif" }}
               onClick={handleNavigateToProduct}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.92)')}
             >
               {item.name}
             </h3>
 
             {/* Variant Info */}
             {(item.color || item.size) && (
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.48)' }}>
-                {item.color && <span>Color: {item.color}</span>}
-                {item.color && item.size && <span> | </span>}
-                {item.size && <span>Size: {item.size}</span>}
+              <p className="text-[11px] mt-1 text-[var(--text-muted)] uppercase tracking-tight" style={{ fontFamily: "'DM Mono', monospace" }}>
+                {item.color && <span>{item.color}</span>}
+                {item.color && item.size && <span className="mx-1 opacity-30">|</span>}
+                {item.size && <span>{item.size}</span>}
               </p>
             )}
 
             {item.sku && (
-              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.42)' }}>SKU: {item.sku}</p>
+              <p className="text-[10px] mt-0.5 text-[var(--text-muted)] uppercase tracking-tight opacity-60" style={{ fontFamily: "'DM Mono', monospace" }}>{item.sku}</p>
             )}
 
             {/* Stock Warning (5.5) */}
             {typeof item.maxQuantity === 'number' && item.quantity > item.maxQuantity ? (
-              <div className="mt-2 py-1 px-2 bg-red-500/10 border border-red-500/20 rounded-md">
-                <p className="text-[10px] font-bold text-red-400 uppercase tracking-tight">
-                  ⚠️ Only {item.maxQuantity} available
+              <div className="mt-2">
+                <p className="text-[12px] font-medium text-[var(--status-danger)]">
+                  ⚠️ Only {item.maxQuantity} available in stock
                 </p>
               </div>
             ) : typeof item.maxQuantity === 'number' && item.maxQuantity > 0 && item.maxQuantity < 5 ? (
-              <div className="mt-2 py-1 px-2 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                <p className="text-[10px] font-medium text-amber-400/90 uppercase tracking-tight">
-                  Only {item.maxQuantity} left in stock
+              <div className="mt-2">
+                <p className="text-[12px] font-medium text-[var(--gold-bright)]">
+                  Only {item.maxQuantity} remaining
                 </p>
               </div>
             ) : null}
@@ -193,11 +198,8 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
           <button
             onClick={handleRemove}
             disabled={isUpdating}
-            className="p-1 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1 rounded-full text-[var(--text-muted)] hover:text-[var(--status-danger)] hover:bg-[var(--status-danger)]/10 transition-all flex-shrink-0 disabled:opacity-50"
             title="Remove from cart"
-            style={{ color: 'rgba(255,255,255,0.65)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             <X size={16} />
           </button>
@@ -206,49 +208,31 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
         {/* Quantity and Price */}
         <div className="flex items-center justify-between">
           {/* Quantity Controls (5.2) */}
-          <div className={`flex items-center rounded-xl overflow-hidden transition-colors ${typeof item.maxQuantity === 'number' && item.quantity > item.maxQuantity ? 'border-red-500/50 bg-red-500/5' : 'border-white/10 bg-white/5'}`}
-            style={{ border: '1px solid' }}>
+          {/* Quantity Controls (5.2) */}
+          <div className="flex items-center rounded-[var(--radius-sm)] overflow-hidden bg-[var(--bg-lifted)] border border-[var(--border-strong)]">
             <button
               onClick={() => handleQuantityChange(-1)}
               disabled={isUpdating || item.quantity <= 1}
-              className="w-11 h-11 flex items-center justify-center transition-all disabled:opacity-20 tap-bounce"
-              style={{ color: 'rgba(255,255,255,0.75)' }}
+              className="w-8 h-8 flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--border-default)] transition-all disabled:opacity-30"
             >
-              <Minus size={14} />
+              <Minus size={12} />
             </button>
-            <input
-              type="number"
-              value={item.quantity}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 1 && !isUpdating) {
-                  handleInputChange(val);
-                }
-              }}
-              disabled={isUpdating}
-              className="w-10 text-center outline-none text-xs font-bold bg-transparent"
-              style={{
-                color: 'rgba(255,255,255,0.92)',
-              }}
-              min="1"
-            />
+            <div className="w-8 text-center text-[13px] font-semibold text-[var(--text-primary)]">
+              {item.quantity}
+            </div>
             <button
               onClick={() => handleQuantityChange(1)}
               disabled={isUpdating || (typeof item.maxQuantity === 'number' && item.quantity >= item.maxQuantity)}
-              className="w-11 h-11 flex items-center justify-center transition-all disabled:opacity-20 tap-bounce"
-              style={{ color: 'rgba(255,255,255,0.75)' }}
+              className="w-8 h-8 flex items-center justify-center text-[var(--text-primary)] hover:bg-[var(--border-default)] transition-all disabled:opacity-30"
             >
-              <Plus size={14} />
+              <Plus size={12} />
             </button>
           </div>
 
           {/* Price */}
           <div className="text-right">
-            <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              ৳{price.toLocaleString('en-BD', { minimumFractionDigits: 2 })} each
-            </p>
-            <p className="text-sm font-bold" style={{ color: 'var(--gold)' }}>
-              ৳{itemTotal.toLocaleString('en-BD', { minimumFractionDigits: 2 })}
+            <p className="text-[14px] font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
+              {formatBDT(price * item.quantity)}
             </p>
           </div>
         </div>

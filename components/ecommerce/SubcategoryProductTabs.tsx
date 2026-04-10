@@ -293,17 +293,17 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
       <section className="bg-white py-12">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-6 space-y-2">
-            <div className="h-3 w-32 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-8 w-56 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-3 w-32 bg-[var(--ivory-ghost)] rounded-full animate-pulse" />
+            <div className="h-8 w-56 bg-[var(--ivory-ghost)] rounded-lg animate-pulse" />
           </div>
           <div className="flex gap-4 mb-8 overflow-hidden">
-            {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-10 w-24 bg-gray-50 rounded-full flex-shrink-0 animate-pulse" />)}
+            {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-10 w-24 bg-[var(--bg-surface)] rounded-full flex-shrink-0 animate-pulse" />)}
           </div>
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="aspect-[4/5] rounded-2xl bg-gray-50 mb-4" />
-                <div className="h-4 bg-gray-50 rounded-full w-3/4" />
+                <div className="aspect-[4/5] rounded-2xl bg-[var(--bg-surface)] mb-4" />
+                <div className="h-4 bg-[var(--bg-surface)] rounded-full w-3/4" />
               </div>
             ))}
           </div>
@@ -316,20 +316,20 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
 
   /* ── main ── */
   return (
-    <section className="bg-white py-12 sm:py-20 border-t border-gray-50">
+    <section className="bg-[var(--bg-root)] py-12 sm:py-20 border-t border-[var(--border-default)]">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
         <div className="mb-10">
-          <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">
+          <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[var(--text-muted)] mb-2 block">
             {eyebrow ?? 'Collections'}
           </span>
-          <h2 className="text-3xl sm:text-4xl font-light text-black tracking-tight"
+          <h2 className="text-3xl sm:text-4xl font-light text-[var(--text-primary)] tracking-tight"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}>
             {title ?? (parentLabel ? `Shop ${parentLabel}` : 'Shop All')}
           </h2>
           {subtitle && (
-            <p className="mt-2 text-gray-500 max-w-lg text-sm sm:text-base">
+            <p className="mt-2 text-[var(--text-secondary)] max-w-lg text-sm sm:text-base">
               {subtitle}
             </p>
           )}
@@ -351,9 +351,9 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
                 key={cat.id}
                 ref={el => { tabRefs.current[cat.id] = el; }}
                 onClick={() => setActiveId(cat.id)}
-                className={`text-sm sm:text-base font-medium whitespace-nowrap pb-3 transition-colors duration-300 ${activeId === cat.id
-                    ? 'text-black'
-                    : 'text-gray-400 hover:text-black'
+                className={`text-sm sm:text-base font-medium whitespace-nowrap px-4 py-2 rounded-[var(--radius-sm)] transition-all duration-300 ${activeId === cat.id
+                  ? 'text-[var(--cyan)] bg-[var(--cyan-pale)]'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--ivory-ghost)]'
                   }`}
                 style={{
                   fontFamily: "'Jost', sans-serif",
@@ -366,7 +366,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
 
             {/* Sliding Underline */}
             <div
-              className="absolute bottom-4 h-0.5 bg-[var(--gold)] transition-all duration-300 ease-out"
+              className="absolute bottom-[-2px] h-[2px] bg-[var(--cyan)] transition-all duration-300 ease-out"
               style={{
                 left: underlineStyle.left,
                 width: underlineStyle.width
@@ -410,8 +410,8 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-              <p className="text-gray-400 font-medium">No products found in this collection</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center bg-[var(--bg-surface)] rounded-3xl border border-dashed border-[var(--border-default)]">
+              <p className="text-[var(--text-muted)] font-medium">No products found in this collection</p>
             </div>
           )}
         </div>
@@ -421,7 +421,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
           <div className="mt-12 flex justify-center">
             <button
               onClick={() => router.push(`/e-commerce/${encodeURIComponent(catSlug(activeTab.category))}`)}
-              className="px-10 py-4 bg-black text-white text-xs font-bold uppercase tracking-widest rounded-full hover:bg-gray-800 transition-all active:scale-95"
+              className="px-10 py-4 bg-[var(--text-primary)] text-[var(--bg-root)] text-xs font-bold uppercase tracking-widest rounded-full hover:opacity-90 transition-all active:scale-95"
             >
               View Full {activeTab.category.name} Collection
             </button>

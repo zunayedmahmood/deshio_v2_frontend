@@ -830,8 +830,8 @@ export default function CheckoutClient() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-neutral-900">Quick Checkout</h1>
-              <p className="text-neutral-600 mt-1">No account needed — just enter your phone and delivery details.</p>
+              <h1 className="text-3xl font-medium text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Quick Checkout</h1>
+              <p className="text-[var(--text-secondary)] mt-1">Direct delivery without account creation.</p>
             </div>
             <Link
               href="/e-commerce/login"
@@ -970,12 +970,12 @@ export default function CheckoutClient() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Special Instructions (optional)</label>
+                    <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-tight">Special Instructions (optional)</label>
                     <textarea
                       rows={3}
                       value={orderNotes}
                       onChange={(e) => setOrderNotes(e.target.value)}
-                      className="w-full border border-neutral-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-neutral-200 focus:border-neutral-900"
+                      className="w-full bg-[var(--bg-surface-2)] border border-[var(--border-strong)] rounded-[var(--radius-md)] px-4 py-3 text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--cyan-glow)] focus:border-[var(--cyan)] transition-all outline-none"
                       placeholder="e.g., deliver after 5 PM"
                     />
                   </div>
@@ -1019,13 +1019,13 @@ export default function CheckoutClient() {
 
             {/* Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm p-6 sticky top-6">
-                <h2 className="text-lg font-semibold text-neutral-900 mb-4">Order Summary</h2>
+              <div className="bg-[var(--bg-surface)] rounded-[var(--radius-lg)] border border-[var(--border-default)] p-6 sticky top-24 shadow-sm">
+                <h2 className="text-xl font-medium text-[var(--text-primary)] mb-6" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Order Summary</h2>
 
-                <div className="space-y-3 max-h-64 overflow-auto pr-1">
+                <div className="space-y-4 max-h-[40vh] overflow-auto pr-1">
                   {selectedItems.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-neutral-100 rounded-xl overflow-hidden flex-shrink-0">
+                    <div key={item.id} className="flex items-center gap-4">
+                      <div className="w-14 h-14 bg-[var(--bg-surface-2)] rounded-[var(--radius-md)] overflow-hidden flex-shrink-0 border border-[var(--border-default)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || (item.images?.[0] as any)?.url || '/placeholder-product.png'}
@@ -1034,41 +1034,41 @@ export default function CheckoutClient() {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-neutral-900 truncate">{item.name}</p>
-                        <p className="text-xs text-neutral-600">Qty: {item.quantity}</p>
+                        <p className="text-[14px] font-medium text-[var(--text-primary)] truncate">{item.name}</p>
+                        <p className="text-[11px] text-[var(--text-muted)] uppercase tracking-tighter" style={{ fontFamily: "'DM Mono', monospace" }}>Qty: {item.quantity}</p>
                       </div>
-                      <div className="text-sm font-semibold text-amber-600">৳{Number(item.total_price).toFixed(0)}</div>
+                      <div className="text-[14px] font-bold text-[var(--gold)]">৳{Number(item.total_price).toLocaleString()}</div>
                     </div>
                   ))}
                 </div>
 
-                <div className="border-t mt-4 pt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-neutral-600">Subtotal</span>
-                    <span className="font-medium">৳{summary.subtotal.toFixed(2)}</span>
+                <div className="border-t border-[var(--border-default)] mt-6 pt-6 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-[var(--text-secondary)]">Subtotal</span>
+                    <span className="text-sm font-medium text-[var(--text-primary)]">৳{summary.subtotal.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-neutral-600">Delivery</span>
-                    <span className="font-medium">৳{shippingCharge.toFixed(2)}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-[var(--text-secondary)]">Standard Delivery</span>
+                    <span className="text-sm font-medium text-[var(--text-primary)]">৳{shippingCharge.toLocaleString()}</span>
                   </div>
                   {couponDiscount > 0 && (
-                    <div className="flex justify-between text-green-700">
-                      <span>Discount</span>
-                      <span className="font-medium">-৳{couponDiscount.toFixed(2)}</span>
+                    <div className="flex justify-between items-center text-[var(--status-success)]">
+                      <span className="text-sm">Store Credit / Promo</span>
+                      <span className="text-sm font-bold">-৳{couponDiscount.toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-base">
-                    <span className="font-semibold">Total</span>
-                    <span className="font-bold text-amber-600">৳{summary.total_amount.toFixed(2)}</span>
+                  <div className="flex justify-between items-center border-t border-[var(--border-strong)] mt-4 pt-4">
+                    <span className="text-base font-bold text-[var(--text-primary)]">Total</span>
+                    <span className="text-2xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>৳{summary.total_amount.toLocaleString()}</span>
                   </div>
                 </div>
 
                 <button
                   onClick={handleGuestPlaceOrder}
                   disabled={isProcessing}
-                  className="w-full mt-5 bg-[var(--gold)] hover:bg-[#9a6b2e] text-white font-semibold py-3 rounded-xl disabled:opacity-60"
+                  className="ec-btn-primary w-full mt-8 py-4 text-xs font-bold tracking-[0.2em] uppercase"
                 >
-                  {isProcessing ? 'Processing…' : `Place Order – ৳${summary.total_amount.toFixed(0)}`}
+                  {isProcessing ? 'Processing…' : `Place Order`}
                 </button>
               </div>
             </div>
@@ -1083,63 +1083,59 @@ export default function CheckoutClient() {
       <Navigation />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
-        {/* 6.1 — Step Progress Bar (Premium Design) */}
         <div className="mb-12">
-          {/* Desktop Progress Bar */}
-          <div className="hidden sm:block">
-            <div className="flex items-center justify-between mb-4">
-              {['shipping', 'payment', 'review'].map((stepId, idx) => {
-                const isActive = currentStep === stepId;
-                const isCompleted = ['shipping', 'payment', 'review'].indexOf(currentStep) > idx;
-                const Icon = [MapPin, CreditCard, Package][idx];
-                const labels = ['Shipping', 'Payment', 'Review'];
+          <div className="hidden sm:flex items-center justify-between mb-8">
+            {['shipping', 'payment', 'review'].map((stepId, idx) => {
+              const isActive = currentStep === stepId;
+              const isCompleted = ['shipping', 'payment', 'review'].indexOf(currentStep) > idx;
+              const Icon = [MapPin, CreditCard, Package][idx];
+              const labels = ['Shipping', 'Payment', 'Review'];
 
-                return (
-                  <div key={stepId} className="flex flex-col items-center flex-1 relative">
-                    {/* Line connector */}
-                    {idx > 0 && (
-                      <div className={`absolute right-[50%] top-5 w-full h-[2px] -z-10 transition-colors duration-500 ${isCompleted || isActive ? 'bg-[var(--gold)]' : 'bg-neutral-100/10'}`} />
-                    )}
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${isActive ? 'bg-neutral-900 border-neutral-900 text-white shadow-xl scale-110' :
-                      isCompleted ? 'bg-[var(--gold)] border-[var(--gold)] text-white' : 'bg-[#0d0d0d] border-neutral-100/10 text-neutral-500'
-                      }`}>
-                      {isCompleted ? <CheckCircle size={18} /> : <Icon size={18} />}
-                    </div>
-                    <span className={`mt-3 text-xs font-bold uppercase tracking-widest ${isActive ? 'text-white' : 'text-white/30'}`} style={{ fontFamily: "'DM Mono', monospace" }}>
-                      {labels[idx]}
-                    </span>
+              return (
+                <div key={stepId} className="flex flex-col items-center flex-1 relative">
+                  {idx > 0 && (
+                    <div className={`absolute right-[50%] top-5 w-full h-[2px] -z-10 transition-colors duration-500 ${isCompleted || isActive ? 'bg-[var(--cyan)] opacity-30' : 'bg-[var(--border-default)]'}`} />
+                  )}
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 border-2 ${
+                    isActive ? 'bg-[var(--cyan-pale)] border-[var(--cyan)] text-[var(--cyan)] shadow-xl scale-110' :
+                    isCompleted ? 'bg-[var(--cyan)] border-[var(--cyan)] text-[var(--bg-root)]' : 
+                    'bg-[var(--bg-depth)] border-[var(--border-default)] text-[var(--text-muted)]'
+                  }`}>
+                    {isCompleted ? <span className="text-sm font-bold">✓</span> : <Icon size={16} />}
                   </div>
-                );
-              })}
-            </div>
-            {/* The actual progress bar track */}
-            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[var(--gold)] transition-all duration-700 ease-out"
-                style={{ width: `${((['shipping', 'payment', 'review'].indexOf(currentStep) + 1) / 3) * 100}%` }}
-              />
-            </div>
+                  <span className={`mt-3 text-[10px] font-bold uppercase tracking-[0.2em] ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'}`} style={{ fontFamily: "'DM Mono', monospace" }}>
+                    {labels[idx]}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Mobile Progress Indicator */}
+          <div className="hidden sm:block h-1 w-full bg-[var(--bg-lifted)] rounded-full overflow-hidden mt-8">
+            <div
+              className="h-full bg-[var(--cyan)] transition-all duration-700 ease-out"
+              style={{ width: `${((['shipping', 'payment', 'review'].indexOf(currentStep) + 1) / 3) * 100}%` }}
+            />
+          </div>
+
           <div className="sm:hidden flex flex-col gap-3">
             <div className="flex justify-between items-end">
               <div>
                 <span className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-[0.2em]" style={{ fontFamily: "'DM Mono', monospace" }}>
                   Step {['shipping', 'payment', 'review'].indexOf(currentStep) + 1} of 3
                 </span>
-                <h2 className="text-xl font-bold text-white mt-1 capitalize">{currentStep} Details</h2>
+                <h2 className="text-xl font-medium text-[var(--text-primary)] mt-1 capitalize" style={{ fontFamily: "'Cormorant Garamond', serif" }}>{currentStep} Details</h2>
               </div>
               <div className="text-right">
-                <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em]" style={{ fontFamily: "'DM Mono', monospace" }}>Next Up</span>
-                <p className="text-sm font-medium text-white/40 capitalize">
+                <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-[0.2em]" style={{ fontFamily: "'DM Mono', monospace" }}>Next Up</span>
+                <p className="text-sm font-medium text-[var(--text-secondary)] capitalize">
                   {currentStep === 'shipping' ? 'Payment' : currentStep === 'payment' ? 'Review' : 'Order Done'}
                 </p>
               </div>
             </div>
-            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-[var(--bg-lifted)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-[var(--gold)] transition-all duration-700 ease-out"
+                className="h-full bg-[var(--cyan)] transition-all duration-700 ease-out"
                 style={{ width: `${((['shipping', 'payment', 'review'].indexOf(currentStep) + 1) / 3) * 100}%` }}
               />
             </div>
@@ -1148,17 +1144,17 @@ export default function CheckoutClient() {
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start gap-3 ec-anim-fade-up">
-            <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
+          <div className="mb-6 bg-[var(--status-danger-pale)] border border-[var(--status-danger)]/20 rounded-xl p-6 flex items-start gap-4 ec-anim-fade-up">
+            <AlertCircle className="text-[var(--status-danger)] flex-shrink-0 mt-0.5" size={20} />
             <div className="flex-1">
-              <h3 className="font-bold text-red-500">Notice</h3>
-              <p className="text-white/80 text-sm font-medium">{error}</p>
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--status-danger)] mb-1" style={{ fontFamily: "'DM Mono', monospace" }}>Action Required</h3>
+              <p className="text-[var(--text-primary)] text-sm font-medium leading-relaxed">{error}</p>
             </div>
-            <button onClick={() => setError(null)} className="text-white/30 hover:text-white transition-colors">✕</button>
+            <button onClick={() => setError(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">✕</button>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start" ref={formRef}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start" ref={formRef}>
           <div className="lg:col-span-2 space-y-8">
             {/* Shipping Info */}
             {currentStep === 'shipping' && (
@@ -1643,13 +1639,13 @@ export default function CheckoutClient() {
 
                 {/* Order Notes */}
                 <div className="bg-white rounded-xl shadow-md p-6">
-                  <h3 className="text-lg font-bold text-neutral-900 mb-4">Order Notes (Optional)</h3>
+                  <h3 className="text-lg font-medium text-[var(--text-primary)] mb-4" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Order Notes (Optional)</h3>
                   <textarea
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     placeholder="Any special instructions for your order"
                     rows={4}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-xl focus:ring-2 focus:ring-neutral-200 focus:border-transparent"
+                    className="w-full px-4 py-3 bg-[var(--bg-surface-2)] border border-[var(--border-strong)] rounded-[var(--radius-md)] text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--cyan-glow)] focus:border-[var(--cyan)] transition-all outline-none"
                   />
                 </div>
 
@@ -1657,17 +1653,16 @@ export default function CheckoutClient() {
                 <button
                   onClick={handlePlaceOrder}
                   disabled={isProcessing}
-                  className="w-full bg-[var(--gold)] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#9a6b2e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="ec-btn-primary w-full py-4 text-xs font-bold tracking-[0.2em] uppercase"
                 >
                   {isProcessing ? (
                     <>
-                      <Loader2 className="animate-spin" size={24} />
-                      Processing Order...
+                      <Loader2 className="animate-spin" size={20} />
+                      Processing...
                     </>
                   ) : (
                     <>
-                      <Package size={24} />
-                      Place Order - ৳{summary.total_amount.toLocaleString('en-BD', { minimumFractionDigits: 2 })}
+                      Place Order
                     </>
                   )}
                 </button>
@@ -1679,42 +1674,41 @@ export default function CheckoutClient() {
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-4">
               {/* Order Summary: Collapsible on Mobile */}
-              <div className="ec-dark-card overflow-hidden shadow-2xl">
+              <div className="bg-[var(--bg-surface)] rounded-[var(--radius-lg)] border border-[var(--border-default)] overflow-hidden shadow-sm">
                 {/* Header / Toggle */}
                 <button
                   onClick={() => setIsSummaryOpen(!isSummaryOpen)}
-                  className="w-full flex items-center justify-between p-6 bg-white/5 sm:cursor-default"
+                  className="w-full flex items-center justify-between p-6 sm:cursor-default"
                 >
                   <div className="flex items-center gap-2">
-                    <ShoppingBag className="text-[var(--gold)]" size={20} />
-                    <h2 className="text-lg font-bold text-white" style={{ fontFamily: "'Jost', sans-serif" }}>Order Summary</h2>
+                    <ShoppingBag className="text-[var(--cyan)]" size={20} />
+                    <h2 className="text-xl font-medium text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Order Summary</h2>
                   </div>
                   <div className="flex items-center gap-3 sm:hidden">
-                    <span className="text-lg font-bold text-[var(--gold)]">৳{summary.total_amount.toLocaleString('en-BD')}</span>
+                    <span className="text-lg font-bold text-[var(--text-primary)]">৳{summary.total_amount.toLocaleString()}</span>
                     <ChevronRight className={`transition-transform duration-300 ${isSummaryOpen ? 'rotate-90' : ''}`} size={20} />
                   </div>
                 </button>
 
                 {/* Content */}
                 <div className={`transition-all duration-500 ease-in-out ${isSummaryOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 sm:max-h-none opacity-0 sm:opacity-100'} overflow-hidden`}>
-                  <div className="p-6 pt-0 space-y-6">
-                    {/* Items List */}
-                    <div className="space-y-4 max-h-64 overflow-y-auto pr-2 ec-scrollbar group">
+                  <div className="p-6 pt-0">
+                    <div className="space-y-4">
                       {selectedItems.map((item: any) => {
                         const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
                         return (
-                          <div key={item.id} className="flex gap-4 items-center group/item">
-                            <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/5">
+                          <div key={item.id} className="flex gap-4 items-center">
+                            <div className="w-14 h-14 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
                               <img
-                                src={item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || '/placeholder-product.png'}
+                                src={item.image || item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || '/placeholder-product.png'}
                                 alt={item.name}
-                                className="w-full h-full object-cover grayscale-[0.3] group-hover/item:grayscale-0 transition-all duration-500"
+                                className="w-full h-full object-cover"
                               />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-bold text-white/90 leading-tight truncate">{item.name}</h4>
-                              <p className="text-xs text-white/40 mt-1 uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
-                                Qty: {item.quantity} × ৳{unitPrice.toLocaleString('en-BD')}
+                              <h4 className="text-[14px] font-medium text-[var(--text-primary)] leading-tight truncate" style={{ fontFamily: "'Jost', sans-serif" }}>{item.name}</h4>
+                              <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight" style={{ fontFamily: "'DM Mono', monospace" }}>
+                                Qty: {item.quantity} × ৳{unitPrice.toLocaleString()}
                               </p>
                             </div>
                           </div>
@@ -1723,30 +1717,28 @@ export default function CheckoutClient() {
                     </div>
 
                     {/* Fees & Discounts */}
-                    <div className="space-y-3 pt-6 border-t border-white/5">
+                    <div className="space-y-3 pt-6 border-t border-[var(--border-default)]">
                       <div className="flex justify-between text-sm">
-                        <span className="text-white/40">Subtotal</span>
-                        <span className="text-white/90 font-medium">৳{summary.subtotal.toLocaleString('en-BD', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[var(--text-secondary)]">Subtotal</span>
+                        <span className="text-[var(--text-primary)] font-medium">৳{summary.subtotal.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-white/40">Delivery</span>
-                        <span className="text-white/90 font-medium">+ ৳{shippingCharge.toLocaleString('en-BD', { minimumFractionDigits: 2 })}</span>
+                        <span className="text-[var(--text-secondary)]">Delivery</span>
+                        <span className="text-[var(--text-primary)] font-medium">+ ৳{shippingCharge.toLocaleString()}</span>
                       </div>
                       {summary.discount_amount > 0 && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-green-400 font-medium">Discount</span>
-                          <span className="text-green-400 font-bold">- ৳{summary.discount_amount.toLocaleString('en-BD', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[var(--status-success)] font-medium">Discount</span>
+                          <span className="text-[var(--status-success)] font-bold">- ৳{summary.discount_amount.toLocaleString()}</span>
                         </div>
                       )}
 
                       {/* Total */}
-                      <div className="flex justify-between pt-4 border-t border-white/10 items-end">
-                        <div>
-                          <p className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]" style={{ fontFamily: "'DM Mono', monospace" }}>Total payable</p>
-                          <h3 className="text-2xl font-black text-[var(--gold)] mt-0.5" style={{ fontFamily: "'Jost', sans-serif" }}>
-                            ৳{summary.total_amount.toLocaleString('en-BD', { minimumFractionDigits: 2 })}
-                          </h3>
-                        </div>
+                      <div className="flex justify-between pt-6 border-t border-[var(--border-strong)] items-center">
+                        <span className="text-base font-bold text-[var(--text-primary)]">Total</span>
+                        <h3 className="text-2xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                          ৳{summary.total_amount.toLocaleString()}
+                        </h3>
                       </div>
                     </div>
                   </div>
@@ -1754,13 +1746,13 @@ export default function CheckoutClient() {
               </div>
 
               {/* Secure Payment Badge */}
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
+              <div className="p-5 rounded-[var(--radius-lg)] bg-[var(--bg-surface-2)] border border-[var(--border-default)] flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-[var(--status-success)]/10 flex items-center justify-center text-[var(--status-success)]">
                   <Lock size={18} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white/90">Secure Checkout</h4>
-                  <p className="text-[10px] text-white/40">SSL Encrypted Transaction</p>
+                  <h4 className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-tight">Secure Checkout</h4>
+                  <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>SSL Encrypted</p>
                 </div>
               </div>
             </div>

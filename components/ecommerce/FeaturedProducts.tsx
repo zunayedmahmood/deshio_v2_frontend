@@ -163,17 +163,14 @@ const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ categoryId, limit =
   if (products.length === 0) return null;
 
   return (
-    <section className="ec-section">
+    <section className="bg-[var(--bg-depth)] py-16 sm:py-24 border-y border-[var(--border-default)]">
       <div className="ec-container">
-        <div className="ec-surface p-4 sm:p-6 lg:p-7 relative overflow-hidden">
-          {/* Section gold accent glow */}
-          <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full opacity-40"
-            style={{ background: 'radial-gradient(circle, rgba(176,124,58,0.12) 0%, transparent 70%)', filter: 'blur(24px)' }} />
+        <div className="relative overflow-hidden">
           <SectionHeader
-            eyebrow="Curated edit"
-            title="Featured Products"
-            subtitle="Highlighted items and best storefront picks"
-            actionLabel="View all products"
+            eyebrow="The Edit"
+            title="Featured Selection"
+            subtitle="Explore our most-coveted items and season highlights"
+            actionLabel="View all"
             onAction={() => router.push('/e-commerce/products')}
           />
 

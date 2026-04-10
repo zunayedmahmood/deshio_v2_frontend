@@ -69,13 +69,13 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="flex justify-between items-baseline">
-          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-black"
+        <div className="flex justify-between items-baseline mb-4">
+          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[var(--text-muted)]"
             style={{ fontFamily: "'DM Mono', monospace" }}>
             Select Option
           </p>
-          <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md">
-            {variants.length} available
+          <span className="text-[10px] font-medium text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-[var(--radius-sm)]">
+            {variants.length} variations
           </span>
         </div>
 
@@ -89,24 +89,21 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
               <button
                 key={v.id}
                 onClick={() => onVariantChange(v)}
-                className={`min-h-[44px] min-w-[60px] px-5 rounded-xl text-[11px] font-bold transition-all border-2 flex items-center justify-center relative overflow-hidden ${isSelected
-                    ? 'bg-black border-black text-white shadow-[0_8px_20px_rgba(0,0,0,0.15)] z-10'
+                className={`min-h-[44px] min-w-[70px] px-5 rounded-xl text-xs font-bold transition-all border flex items-center justify-center relative overflow-hidden ${
+                  isSelected
+                    ? 'bg-[var(--cyan-pale)] border-[var(--cyan)] text-[var(--cyan)] shadow-[0_4px_12px_rgba(34,211,238,0.1)] z-10'
                     : isAvailable
-                      ? 'bg-white border-gray-100 text-gray-500 hover:border-black hover:text-black'
-                      : 'bg-gray-50/50 border-gray-50 text-gray-300 cursor-not-allowed'
-                  }`}
+                      ? 'bg-[var(--bg-surface-2)] border-[var(--border-default)] text-[var(--text-primary)] hover:border-[var(--cyan)] hover:text-[var(--cyan)]'
+                      : 'bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-muted)] opacity-35 cursor-not-allowed'
+                }`}
                 style={{ fontFamily: "'Jost', sans-serif" }}
               >
                 <span className="relative z-20 whitespace-nowrap">{label}</span>
 
                 {!isAvailable && (
-                  <div className="absolute inset-0 pointer-events-none opacity-20">
-                    <div className="absolute top-1/2 left-0 w-full h-[1px] bg-gray-400 -rotate-45" />
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute top-1/2 left-0 w-[150%] h-[1px] bg-[var(--text-muted)] -rotate-45 -translate-x-1/4" />
                   </div>
-                )}
-
-                {isSelected && (
-                  <div className="absolute top-0 right-0 w-0 h-0 border-t-[12px] border-l-[12px] border-t-white/20 border-l-transparent" />
                 )}
               </button>
             );

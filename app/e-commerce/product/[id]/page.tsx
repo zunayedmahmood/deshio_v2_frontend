@@ -813,12 +813,12 @@ export default function ProductDetailPage() {
   // ---------------------------
   if (loading) {
     return (
-      <div className="ec-root min-h-screen">
+      <div className="ec-root bg-[var(--bg-root)] min-h-screen">
         <Navigation />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto" style={{ borderColor: 'var(--gold)' }}></div>
-            <p className="mt-4 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Loading product...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto border-[var(--cyan)]"></div>
+            <p className="mt-4 text-sm text-[var(--text-muted)]">Loading product...</p>
           </div>
         </div>
       </div>
@@ -827,17 +827,17 @@ export default function ProductDetailPage() {
 
   if (error || !product || !selectedVariant) {
     return (
-      <div className="ec-root min-h-screen">
+      <div className="ec-root bg-[var(--bg-root)] min-h-screen">
         <Navigation />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-3 text-white">
+            <h1 className="text-2xl font-bold mb-3 text-[var(--text-primary)]">
               Product Not Found
             </h1>
-            <p className="mb-6 text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{error}</p>
+            <p className="mb-6 text-sm text-[var(--text-muted)]">{error}</p>
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-xs font-semibold text-white hover:bg-black transition"
+              className="inline-flex items-center justify-center rounded-xl bg-[var(--text-primary)] px-5 py-3 text-xs font-semibold text-[var(--bg-root)] hover:opacity-90 transition"
             >
               Go Back
             </button>
@@ -880,22 +880,22 @@ export default function ProductDetailPage() {
   // Main render
   // ---------------------------
   return (
-    <div className="bg-white min-h-screen text-black">
+    <div className="bg-[var(--bg-root)] min-h-screen text-[var(--text-primary)]">
       <Navigation />
       <CartSidebar isOpen={cartSidebarOpen} onClose={() => setCartSidebarOpen(false)} />
 
       {/* Breadcrumb */}
-      <div className="border-b border-gray-100 bg-gray-50/30">
+      <div className="border-b border-[var(--border-default)]">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4 hidden sm:block">
-          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] font-bold tracking-[0.1em] text-gray-400"
+          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] font-medium tracking-[0.1em] text-[var(--text-muted)]"
             style={{ fontFamily: "'DM Mono', monospace" }}>
-            <button onClick={() => router.push('/e-commerce')} className="hover:text-black transition-colors">HOME</button>
-            <span className="text-gray-200">/</span>
-            <button onClick={() => router.back()} className="hover:text-black transition-colors uppercase">
+            <button onClick={() => router.push('/e-commerce')} className="hover:text-[var(--text-primary)] transition-colors">HOME</button>
+            <span className="text-[var(--border-strong)]">›</span>
+            <button onClick={() => router.back()} className="hover:text-[var(--text-primary)] transition-colors uppercase">
               {getCategoryName(product.category) || 'PRODUCTS'}
             </button>
-            <span className="text-gray-200">/</span>
-            <span className="text-black uppercase truncate max-w-xs">{baseName}</span>
+            <span className="text-[var(--border-strong)]">›</span>
+            <span className="text-[var(--text-secondary)] uppercase truncate max-w-xs">{baseName}</span>
           </div>
         </div>
       </div>
@@ -917,21 +917,21 @@ export default function ProductDetailPage() {
             <div className="space-y-6">
               {/* Product Info */}
               <div>
-                <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-gray-400 mb-2"
+                <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[var(--text-muted)] mb-2"
                   style={{ fontFamily: "'DM Mono', monospace" }}>
                   {getCategoryName(product.category) || 'ERRUM COLLECTION'}
                 </p>
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-black tracking-tight"
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-light text-[var(--text-primary)] tracking-tight"
                   style={{ fontFamily: "'Cormorant Garamond', serif" }}>
                   {baseName}
                 </h1>
 
                 <div className="mt-6 flex flex-wrap items-baseline gap-4">
-                  <span className="text-3xl font-bold text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
+                  <span className="text-3xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Jost', sans-serif" }}>
                     {formatBDT(sellingPrice)}
                   </span>
                   {costPrice > sellingPrice && sellingPrice > 0 && (
-                    <span className="text-xl line-through text-gray-300" style={{ fontFamily: "'Jost', sans-serif" }}>
+                    <span className="text-xl line-through text-[var(--text-muted)] opacity-60" style={{ fontFamily: "'Jost', sans-serif" }}>
                       {formatBDT(costPrice)}
                     </span>
                   )}
@@ -939,11 +939,11 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Urgency & Social Proof */}
-              <div className="space-y-4 py-6 border-y border-gray-100">
+              <div className="space-y-4 py-6 border-y border-[var(--border-default)]">
                 {/* Live Activity (3.2) */}
-                <div className="flex items-center gap-2 text-xs font-medium text-amber-600 bg-amber-50 py-2 px-3 rounded-lg w-fit">
-                  <span className="flex h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  <span>👁 {liveViewers} people viewing this right now</span>
+                <div className="ec-badge-live px-3 py-2 flex items-center gap-2 w-fit">
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-[var(--cyan)] animate-pulse" />
+                  <span>{liveViewers} people viewing this right now</span>
                 </div>
 
                 {/* Stock Progress Bar (3.3) */}
@@ -951,21 +951,22 @@ export default function ProductDetailPage() {
                   <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest"
                     style={{
                       fontFamily: "'DM Mono', monospace",
-                      color: availableInventory <= 5 ? '#ef4444' : availableInventory <= 10 ? '#f59e0b' : '#10b981'
+                      color: availableInventory <= 5 ? 'var(--status-danger)' : availableInventory <= 20 ? 'var(--gold-bright)' : 'var(--status-success)'
                     }}>
                     <span>
                       {availableInventory <= 0 ? 'Out of stock' :
                         availableInventory <= 5 ? `🔥 Almost gone! Only ${availableInventory} left` :
-                          availableInventory <= 10 ? `Selling fast — only ${availableInventory} left` :
-                            `In Stock — ${availableInventory} units available`}
+                          availableInventory <= 20 ? `Selling fast — only ${availableInventory} left` :
+                            'In Stock'}
                     </span>
                   </div>
-                  <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-[6px] w-full bg-[var(--bg-lifted)] rounded-[var(--radius-pill)] overflow-hidden">
                     <div
-                      className={`h-full transition-[width] duration-700 ease-out rounded-full ${availableInventory <= 5 ? 'bg-red-500 animate-pulse' :
-                          availableInventory <= 10 ? 'bg-amber-500' :
-                            'bg-emerald-500'
-                        }`}
+                      className={`h-full transition-[width,background-color] duration-700 ease-out rounded-[var(--radius-pill)] ${
+                        availableInventory <= 5 ? 'bg-[var(--status-danger)] animate-pulse' :
+                        availableInventory <= 20 ? 'bg-[var(--status-warning)]' :
+                        'bg-[var(--status-success)]'
+                      }`}
                       style={{ width: `${Math.min((availableInventory / 25) * 100, 100)}%` }}
                     />
                   </div>
@@ -985,14 +986,14 @@ export default function ProductDetailPage() {
               {/* Quantity + CTAs */}
               <div className="space-y-4 pt-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center h-[56px] border-2 border-gray-100 rounded-2xl overflow-hidden bg-white">
+                  <div className="flex items-center h-[56px] border border-[var(--border-default)] rounded-2xl overflow-hidden bg-[var(--bg-surface)]">
                     <button onClick={() => handleQuantityChange(-1)} disabled={quantity <= 1}
-                      className="px-4 h-full text-gray-400 hover:text-black transition-colors disabled:opacity-30">
+                      className="px-4 h-full text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-30">
                       <Minus size={16} />
                     </button>
-                    <span className="min-w-[40px] text-center font-bold text-black">{quantity}</span>
+                    <span className="min-w-[40px] text-center font-bold text-[var(--text-primary)]">{quantity}</span>
                     <button onClick={() => handleQuantityChange(1)} disabled={quantity >= availableInventory}
-                      className="px-4 h-full text-gray-400 hover:text-black transition-colors disabled:opacity-30">
+                      className="px-4 h-full text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-30">
                       <Plus size={16} />
                     </button>
                   </div>
@@ -1001,8 +1002,9 @@ export default function ProductDetailPage() {
                     ref={mainCtaRef}
                     onClick={handleAddToCart}
                     disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
-                    className={`flex-1 h-[56px] rounded-2xl font-bold uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-3 transition-all active:scale-95 disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none shadow-[0_10px_30px_rgba(0,0,0,0.1)] ${cartStatus === 'success' ? 'bg-[#9a6b2e] text-white' : 'bg-black text-white hover:bg-gray-800'
-                      }`}
+                    className={`flex-1 h-[56px] rounded-2xl font-bold uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-3 transition-all active:scale-95 disabled:bg-[var(--bg-surface-2)] disabled:text-[var(--text-muted)] disabled:shadow-none shadow-[var(--shadow-card)] ${
+                      cartStatus === 'success' ? 'bg-[var(--status-success)] text-[var(--text-on-accent)]' : 'ec-btn-primary'
+                    }`}
                   >
                     {cartStatus === 'idle' && <ShoppingCart size={18} />}
                     {cartStatus === 'loading' && <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
@@ -1014,7 +1016,7 @@ export default function ProductDetailPage() {
                 <button
                   onClick={handleAddToCart}
                   disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
-                  className="w-full h-[56px] bg-white text-black border-2 border-black rounded-2xl font-bold uppercase tracking-widest text-xs transition-all hover:bg-black hover:text-white active:scale-95 disabled:opacity-50"
+                  className="w-full h-[56px] bg-transparent text-[var(--text-primary)] border-2 border-[var(--text-primary)] rounded-2xl font-bold uppercase tracking-widest text-xs transition-all hover:bg-[var(--text-primary)] hover:text-[var(--bg-root)] active:scale-95 disabled:opacity-50"
                 >
                   BUY IT NOW
                 </button>
@@ -1030,19 +1032,19 @@ export default function ProductDetailPage() {
               </div>
 
               {/* Accordion Sections */}
-              <div className="pt-8 space-y-px border-t border-gray-100">
+              <div className="pt-8 space-y-px border-t border-[var(--border-default)]">
                 {[
                   { title: 'Description', content: product.description || product.short_description },
                   { title: 'Additional Information', content: `SKU: ${selectedVariant.sku}\nCategory: ${getCategoryName(product.category)}` }
                 ].map((section, idx) => (
-                  <details key={idx} className="group py-4 border-b border-gray-100">
+                  <details key={idx} className="group py-4 border-b border-[var(--border-default)]">
                     <summary className="flex items-center justify-between cursor-pointer list-none">
-                      <span className="text-sm font-bold uppercase tracking-widest text-black" style={{ fontFamily: "'Jost', sans-serif" }}>
+                      <span className="text-sm font-bold uppercase tracking-widest text-[var(--text-primary)]" style={{ fontFamily: "'Jost', sans-serif" }}>
                         {section.title}
                       </span>
-                      <Plus size={18} className="text-gray-400 group-open:rotate-45 transition-transform" />
+                      <Plus size={18} className="text-[var(--text-muted)] group-open:rotate-45 transition-transform" />
                     </summary>
-                    <div className="mt-4 text-sm text-gray-500 leading-relaxed whitespace-pre-line">
+                    <div className="mt-4 text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">
                       {section.content}
                     </div>
                   </details>
@@ -1054,60 +1056,65 @@ export default function ProductDetailPage() {
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (
-          <div className="mt-16 sm:mt-24 py-16 border-t border-gray-100">
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">Pairs Well With</span>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
-              <h2 className="text-3xl sm:text-4xl font-light text-black tracking-tight"
-                style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-                Related Essentials
-              </h2>
-              <button
-                onClick={() => {
-                  const slug = getCategorySlug(product.category);
-                  if (slug) {
-                    router.push(`/e-commerce/${slug}`);
-                  } else {
-                    router.push('/e-commerce/search?category=' + getCategoryId(product.category));
-                  }
-                }}
-                className="text-xs font-bold uppercase tracking-widest text-black border-b border-black pb-1 hover:text-gray-600 hover:border-gray-600 transition-colors self-start"
-              >
-                View Full Collection
-              </button>
-            </div>
+          <div className="mt-16 sm:mt-24 py-16 bg-[var(--bg-surface)] border-y border-[var(--border-default)] -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div className="max-w-[1400px] mx-auto">
+              <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[var(--text-muted)] mb-2 block">Pairs Well With</span>
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-10 gap-4">
+                <h2 className="text-3xl sm:text-4xl font-light text-[var(--text-primary)] tracking-tight"
+                  style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                  Related Essentials
+                </h2>
+                <button
+                  onClick={() => {
+                    const slug = getCategorySlug(product.category);
+                    if (slug) {
+                      router.push(`/e-commerce/${slug}`);
+                    } else {
+                      router.push('/e-commerce/search?category=' + getCategoryId(product.category));
+                    }
+                  }}
+                  className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--text-primary)] pb-1 hover:opacity-60 transition-all self-start"
+                >
+                  View Full Collection
+                </button>
+              </div>
 
-            <div className="grid grid-cols-2 gap-6 sm:gap-8 sm:grid-cols-3 lg:grid-cols-4">
-              {relatedProducts.map(item => (
-                <PremiumProductCard
-                  key={item.id}
-                  product={item}
-                  compact
-                  onOpen={(p) => router.push(`/e-commerce/product/${p.id}`)}
-                  onAddToCart={(p, e) => handleQuickAddToCart(p, e)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        {/* 3.7 — Recently Viewed Strip */}
-        {recentlyViewed.length > 0 && (
-          <div className="mt-16 sm:mt-24 py-16 border-t border-gray-100">
-            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-400 mb-2 block">Your History</span>
-            <h2 className="text-3xl sm:text-4xl font-light text-black tracking-tight mb-10"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-              Recently Viewed
-            </h2>
-            <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-              {recentlyViewed.map(item => (
-                <div key={item.id} className="min-w-[180px] sm:min-w-[220px]">
+              <div className="grid grid-cols-2 gap-6 sm:gap-8 sm:grid-cols-3 lg:grid-cols-4">
+                {relatedProducts.map(item => (
                   <PremiumProductCard
+                    key={item.id}
                     product={item}
                     compact
                     onOpen={(p) => router.push(`/e-commerce/product/${p.id}`)}
                     onAddToCart={(p, e) => handleQuickAddToCart(p, e)}
                   />
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3.7 — Recently Viewed Strip */}
+        {recentlyViewed.length > 0 && (
+          <div className="py-16 bg-[var(--bg-surface)] border-b border-[var(--border-default)] -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div className="max-w-[1400px] mx-auto">
+              <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[var(--text-muted)] mb-2 block" style={{ fontFamily: "'DM Mono', monospace" }}>Your History</span>
+              <h2 className="text-3xl sm:text-4xl font-light text-[var(--text-primary)] tracking-tight mb-10"
+                style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                Recently Viewed
+              </h2>
+              <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide no-scrollbar">
+                {recentlyViewed.map(item => (
+                  <div key={item.id} className="min-w-[180px] sm:min-w-[220px]">
+                    <PremiumProductCard
+                      product={item}
+                      compact
+                      onOpen={(p) => router.push(`/e-commerce/product/${p.id}`)}
+                      onAddToCart={(p, e) => handleQuickAddToCart(p, e)}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

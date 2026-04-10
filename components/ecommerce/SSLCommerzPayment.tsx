@@ -180,43 +180,46 @@ export default function SSLCommerzPayment({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-[var(--bg-surface)] rounded-[var(--radius-lg)] border border-[var(--border-default)] p-8 shadow-sm">
       {/* 6.5 — SSLCommerz Redirect Overlay */}
       {showRedirectOverlay && (
-        <div className="fixed inset-0 z-[9999] bg-[#0d0d0d] flex items-center justify-center p-6 text-center animate-in fade-in duration-500">
-          <div className="max-w-md w-full space-y-8 ec-anim-fade-up">
+        <div className="fixed inset-0 z-[9999] bg-[var(--bg-root)]/92 backdrop-blur-[8px] flex items-center justify-center p-6 text-center animate-in fade-in duration-700">
+          <div className="max-w-md w-full space-y-10 ec-anim-fade-up">
             <div className="relative inline-block">
-              <div className="w-24 h-24 rounded-full border-t-2 border-[var(--gold)] animate-spin" />
+              <div className="w-24 h-24 rounded-full border-t-2 border-[var(--cyan)] animate-spin" />
               <div className="absolute inset-0 flex items-center justify-center">
-                <ShieldCheck className="text-[var(--gold)]" size={40} />
+                <ShieldCheck className="text-[var(--status-success)]" size={40} />
               </div>
             </div>
             
-            <div className="space-y-3">
-              <h2 className="text-3xl font-black text-white" style={{ fontFamily: "'Jost', sans-serif" }}>Secure Encryption</h2>
-              <p className="text-white/40 text-sm tracking-wide uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>
-                Connecting to payment gateway...
+            <div className="space-y-4">
+              <h2 className="text-3xl font-medium text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Taking you to secure payment...</h2>
+              <p className="text-[var(--text-secondary)] text-[12px] tracking-[0.2em] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>
+                Encryption handshake active
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center gap-6">
-              <div className="flex flex-col items-center gap-1">
-                <div className="h-6 w-12 bg-white/20 rounded-md animate-pulse" />
-                <span className="text-[8px] text-white/20 uppercase font-bold">VISA</span>
+            <div className="p-6 rounded-[var(--radius-lg)] bg-[var(--bg-surface)] border border-[var(--border-default)] flex items-center justify-center gap-8">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-6 w-12 bg-[var(--bg-depth)] rounded-md" />
+                <span className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-widest">VISA</span>
               </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="h-6 w-12 bg-white/20 rounded-md animate-pulse" />
-                <span className="text-[8px] text-white/20 uppercase font-bold">BKASH</span>
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-6 w-12 bg-[var(--bg-depth)] rounded-md" />
+                <span className="text-[9px] text-[var(--text-muted)] uppercase font-bold tracking-widest">BKASH</span>
               </div>
-              <div className="w-[1px] h-8 bg-white/10" />
+              <div className="w-[1px] h-10 bg-[var(--border-default)]" />
               <div className="text-left">
-                <p className="text-xs font-bold text-white/80">SSLCommerz</p>
-                <p className="text-[10px] text-white/40">Official Partner</p>
+                <p className="text-xs font-bold text-[var(--text-primary)]">Verified by SSLCommerz</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Lock size={10} className="text-[var(--status-success)]" />
+                  <p className="text-[10px] text-[var(--status-success)] font-medium">Bank-level Security</p>
+                </div>
               </div>
             </div>
 
-            <p className="text-[10px] text-white/20 italic">
-              Please do not refresh or close this window
+            <p className="text-[11px] text-[var(--text-muted)] italic">
+              Please do not close this window while we secure your session
             </p>
           </div>
         </div>

@@ -152,11 +152,11 @@ export default function PaymentStatusChecker({ onPaymentVerified }: PaymentStatu
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         {paymentResult.status === 'success' && (
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center text-center p-6 ec-anim-fade-in">
-            <div className="relative mb-8">
-              <div className="w-24 h-24 rounded-full border-4 border-green-500/30 ec-success-circle" />
+          <div className="absolute inset-0 bg-[var(--bg-root)] flex flex-col items-center justify-center text-center p-6 ec-anim-fade-in">
+            <div className="relative mb-10 scale-125">
+              <div className="w-24 h-24 rounded-full border-4 border-[var(--status-success)] opacity-20" />
               <svg
-                className="absolute inset-0 w-24 h-24 text-green-500"
+                className="absolute inset-0 w-24 h-24 text-[var(--status-success)]"
                 viewBox="0 0 52 52"
                 fill="none"
                 stroke="currentColor"
@@ -164,27 +164,33 @@ export default function PaymentStatusChecker({ onPaymentVerified }: PaymentStatu
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path className="ec-check-draw" d="M14 27l7 7 16-16" />
+                <path className="ec-check-draw" style={{ strokeDasharray: 50, strokeDashoffset: 50, animation: 'ec-draw 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards' }} d="M14 27l7 7 16-16" />
               </svg>
             </div>
 
-            <h2 className="text-4xl md:text-5xl font-serif text-white mb-4 ec-anim-fade-up ec-delay-2">Order Placed!</h2>
-            <p className="text-white/60 text-lg mb-8 max-w-md ec-anim-fade-up ec-delay-3">
-              Thank you for your purchase. Your payment was verified successfully and we're getting your order ready.
+            <h2 className="text-5xl md:text-6xl font-medium text-[var(--text-primary)] mb-4 ec-anim-fade-up" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Order Placed!</h2>
+            
+            <div className="ec-anim-fade-up ec-delay-1 mb-8">
+               <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold tracking-[0.3em] mb-2" style={{ fontFamily: "'DM Mono', monospace" }}>Confirmation ID</p>
+               <p className="text-[var(--cyan)] text-xl font-bold tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>#{paymentResult.orderNumber}</p>
+            </div>
+
+            <p className="text-[var(--text-secondary)] text-[15px] mb-10 max-w-md ec-anim-fade-up ec-delay-2 leading-relaxed">
+              Experience the art of confidence. Your wardrobe expansion has been secured and we are preparing your selection for transit.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 ec-anim-fade-up ec-delay-4">
+            <div className="flex flex-col sm:flex-row gap-4 ec-anim-fade-up ec-delay-3">
               <button
                 onClick={() => router.push(`/e-commerce/my-account/orders/${paymentResult.orderNumber}`)}
-                className="ec-btn ec-btn-gold"
+                className="ec-btn-primary px-10 py-4 text-[11px] font-bold uppercase tracking-widest"
               >
-                Track Order
+                Track Journey
               </button>
               <button
                 onClick={() => setPaymentResult({ status: null, orderNumber: null, message: null })}
-                className="ec-btn bg-white/10 text-white hover:bg-white/20"
+                className="ec-btn-ghost px-10 py-4 text-[11px] font-bold uppercase tracking-widest"
               >
-                Close
+                Continue Exploring
               </button>
             </div>
           </div>

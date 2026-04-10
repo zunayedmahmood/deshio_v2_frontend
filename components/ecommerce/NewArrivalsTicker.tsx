@@ -43,19 +43,17 @@ export default function NewArrivalsTicker() {
   const displayProducts = [...products, ...products];
 
   return (
-    <div className="ec-ticker-container bg-[#0a0a0a] border-y border-white/5 py-8">
+    <div className="ec-ticker-container bg-[var(--bg-surface)] border-y border-[var(--border-default)] py-4">
       <div
         className={`ec-ticker-track ${isPaused ? 'paused' : ''}`}
         onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)} // Resume after 2s
+        onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
       >
         {displayProducts.map((product, idx) => (
-          <div key={`${product.id}-${idx}`} className="w-[280px] px-3 flex-shrink-0">
-            <PremiumProductCard
-              product={product}
-              onOpen={() => router.push(`/e-commerce/product/${product.id}`)}
-              onAddToCart={() => router.push(`/e-commerce/product/${product.id}`)}
-            />
+          <div key={`${product.id}-${idx}`} className="inline-flex items-center mx-6">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mr-3" style={{ fontFamily: "'DM Mono', monospace" }}>New Arrival</span>
+            <span className="text-[14px] font-medium text-[var(--text-secondary)] uppercase tracking-tight" style={{ fontFamily: "'Jost', sans-serif" }}>{product.name}</span>
+            <span className="ml-6 text-[var(--cyan)]">●</span>
           </div>
         ))}
       </div>

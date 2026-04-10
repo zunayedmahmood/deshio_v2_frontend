@@ -42,7 +42,7 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-md ec-anim-backdrop"
+          className="fixed inset-0 z-[100] bg-[rgba(28,24,18,0.30)] backdrop-blur-[4px] ec-anim-backdrop"
           onClick={onClose}
         />
       )}
@@ -51,25 +51,25 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
       <div
         className={`
           fixed right-0 top-0 bottom-0 z-[101] w-full sm:w-[400px] 
-          bg-[#0d0d0d] shadow-[-20px_0_80px_rgba(0,0,0,0.8)]
+          bg-[var(--bg-depth)] shadow-[-20px_0_80px_rgba(0,0,0,0.12)]
           flex flex-col transition-transform duration-500 cubic-bezier(0.32, 0.72, 0, 1)
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}
         `}
         style={{
-          borderLeft: '1px solid rgba(255,255,255,0.05)',
+          borderLeft: '1px solid var(--border-default)',
         }}
       >
         {/* Header */}
-        <div className="flex h-20 items-center justify-between px-6 border-b border-white/5 bg-white/[0.02]">
+        <div className="flex h-20 items-center justify-between px-6 border-b border-[var(--border-default)]">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-white" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Shopping bag</h2>
+            <h2 className="text-2xl font-medium text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Your Bag</h2>
             <span className="text-[11px] font-bold text-[var(--gold)]" style={{ fontFamily: "'DM Mono', monospace" }}>
               ({cart.length})
             </span>
           </div>
           <button
             onClick={onClose}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/40 hover:text-white bg-white/5 transition-all"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all"
           >
             <X size={20} />
           </button>
@@ -96,8 +96,8 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                   <X className="h-4 w-4 text-[--gold]" />
                 </div>
               </div>
-              <h3 className="text-xl font-light text-white mb-2" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Your cart is empty</h3>
-              <p className="text-xs text-white/30 mb-10 max-w-[200px] leading-relaxed uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
+              <h3 className="text-2xl font-light text-[var(--text-primary)] mb-2" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Your cart is empty</h3>
+              <p className="text-xs text-[var(--text-secondary)] mb-10 max-w-[200px] leading-relaxed uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>
                 Add something to your collection to get started.
               </p>
               <button
@@ -105,8 +105,7 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                   onClose();
                   router.push('/e-commerce/categories');
                 }}
-                className="px-10 py-4 rounded-2xl bg-white text-black text-[11px] font-bold tracking-widest uppercase hover:bg-[--gold] hover:text-white transition-all active:scale-95 shadow-xl"
-                style={{ fontFamily: "'Jost', sans-serif" }}
+                className="ec-btn-ghost px-10 py-4"
               >
                 Start Shopping
               </button>
@@ -127,42 +126,30 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
         {/* Footer */}
         {!isLoading && cart.length > 0 && (
-          <div className="border-t border-white/5 p-6 space-y-5 bg-white/[0.02]">
-
-            <div className="flex items-center justify-between py-2 border-t border-white/5">
-              <span className="text-sm font-medium text-white/40">Subtotal:</span>
-              <span className="text-base font-semibold text-white/80">
+          <div className="border-t border-[var(--border-default)] p-6 space-y-5 bg-[var(--bg-depth)]">
+            <div className="flex items-center justify-between py-2 border-b border-[var(--border-default)]">
+              <span className="text-sm font-medium text-[var(--text-secondary)]">Subtotal</span>
+              <span className="text-xl font-medium text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
                 {formatBDT(subtotal)}
               </span>
             </div>
 
-            <div className="flex items-center justify-between py-2 border-white/5">
-              <span className="text-sm font-medium text-white/40">Delivery:</span>
-              <span className="text-base font-semibold text-white/80">
-                {formatBDT(deliveryCharge)}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between py-3 border-t border-white/10">
-              <span className="text-sm font-bold text-white/60 uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>Total:</span>
-              <span className="text-2xl font-bold text-[var(--gold)]">
-                {formatBDT(total)}
-              </span>
+            <div className="flex items-center justify-between py-1">
+              <span className="text-[12px] text-[var(--text-muted)]">Includes standard delivery to your location</span>
             </div>
 
             {/* Buttons */}
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 gap-3 pt-2">
               <button
                 onClick={handleCheckout}
                 disabled={isAnyOverStock}
-                className="w-full py-4 rounded-2xl font-bold bg-[var(--gold)] text-white shadow-[0_10px_30px_rgba(176,124,58,0.2)] transition-all hover:bg-[#9a6b2e] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ fontFamily: "'Jost', sans-serif" }}
+                className="ec-btn-primary w-full py-4 text-xs font-bold tracking-widest uppercase"
               >
-                PROCEED TO CHECKOUT
+                CHECKOUT NOW
               </button>
               <button
                 onClick={handleViewCart}
-                className="w-full py-3 text-[11px] font-bold tracking-[0.2em] text-white/30 hover:text-white transition-colors uppercase"
+                className="w-full py-3 text-[11px] font-bold tracking-[0.2em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase"
                 style={{ fontFamily: "'DM Mono', monospace" }}
               >
                 VIEW FULL BAG

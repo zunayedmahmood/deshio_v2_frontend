@@ -216,7 +216,8 @@ export default function CategoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [partialLoadWarning, setPartialLoadWarning] = useState<string | null>(null);
 
-  const selectedSort: GetProductsParams['sort_by'] = 'newest';
+  const [selectedSort, setSelectedSort] = useState<GetProductsParams['sort_by']>('newest');
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
@@ -283,6 +284,7 @@ export default function CategoryPage() {
       page: 1,
       per_page: API_PER_PAGE,
       sort_by: selectedSort,
+      search: searchQuery || undefined,
     };
 
     if (selectedPriceRange !== 'all') {
@@ -316,8 +318,9 @@ export default function CategoryPage() {
       'cat',
       slugKey,
       String(activeCategory?.id || ''),
-      selectedSort,
+      selectedSort || '',
       selectedPriceRange,
+      searchQuery,
     ].join('::');
   };
 
@@ -451,7 +454,7 @@ export default function CategoryPage() {
     cacheRef.current = {};
     fetchProducts(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory?.id, categoriesLoading, selectedPriceRange]);
+  }, [activeCategory?.id, categoriesLoading, selectedPriceRange, selectedSort, searchQuery]);
 
   const handleImageError = (productId: number) => {
     setImageErrors((prev) => {
@@ -519,15 +522,15 @@ export default function CategoryPage() {
     return (
       <>
         <Navigation />
-        <div className="ec-root ec-darkify min-h-screen">
+        <div className="ec-root bg-[var(--bg-root)] min-h-screen">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="animate-pulse">
-              <div className="h-8 rounded w-1/4 mb-8 animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }}></div>
+              <div className="h-8 rounded w-1/4 mb-8 animate-pulse" style={{ background: 'var(--ivory-ghost)' }}></div>
               <div className="flex gap-8">
-                <div className="w-64 h-96 rounded-lg animate-pulse" style={{ background: 'rgba(255,255,255,0.08)' }}></div>
+                <div className="w-64 h-96 rounded-lg animate-pulse" style={{ background: 'var(--bg-surface)' }}></div>
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[...Array(6)].map((_, i) => (
-                    <div key={i} className="ec-card aspect-[3/4] rounded-2xl animate-pulse bg-white/5" />
+                    <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse bg-[var(--bg-surface)]" />
                   ))}
                 </div>
               </div>
@@ -542,15 +545,17 @@ export default function CategoryPage() {
     <>
       <Navigation />
 
-      <div className="ec-root ec-darkify min-h-screen">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "'Jost', sans-serif" }}>{activeCategory?.name || 'Products'}</h1>
-            <p className="text-white/40 font-medium tracking-wide ec-eyebrow uppercase text-xs">
-              {totalResults} {totalResults === 1 ? 'product' : 'products'} found
+      <div className="ec-root bg-[var(--bg-root)] min-h-screen">
+        <div className="bg-[var(--bg-surface)] border-b border-[var(--border-default)] mb-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <h1 className="text-4xl font-light text-[var(--text-primary)] mb-2" style={{ fontFamily: "'Cormorant Garamond', serif" }}>{activeCategory?.name || 'Products'}</h1>
+            <p className="text-[var(--text-muted)] font-medium tracking-wide ec-eyebrow uppercase text-xs">
+              {totalResults} {totalResults === 1 ? 'item' : 'items'} found
             </p>
           </div>
+        </div>
 
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
           <div className="flex flex-col lg:flex-row gap-8">
             {/* Desktop sidebar */}
             <aside className="hidden xl:block w-64 flex-shrink-0">
@@ -562,6 +567,10 @@ export default function CategoryPage() {
                 onPriceRangeChange={setSelectedPriceRange}
                 selectedStock="all"
                 onStockChange={() => { }}
+                selectedSort={selectedSort}
+                onSortChange={setSelectedSort}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
               />
             </aside>
 
@@ -575,28 +584,32 @@ export default function CategoryPage() {
               )}
 
               {error ? (
-                <div className="text-center py-20">
-                  <p className="text-rose-400 mb-6">{error}</p>
+                <div className="text-center py-24 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-default)]">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-50 mx-auto mb-6">
+                    <X className="h-8 w-8 text-rose-500" />
+                  </div>
+                  <h3 className="text-xl font-medium text-[var(--text-primary)] mb-2">Failed to load products</h3>
+                  <p className="text-[var(--text-secondary)] mb-8 max-w-xs mx-auto">We encountered an issue while reaching our catalog servers. Please check your connection and try again.</p>
                   <button
                     onClick={() => fetchProducts(currentPage)}
-                    className="px-8 py-3 bg-[var(--gold)] text-white rounded-xl hover:bg-[#9a6b2e]"
+                    className="px-10 py-3.5 bg-[var(--text-primary)] text-[var(--bg-root)] rounded-xl hover:opacity-90 font-bold transition-all"
                   >
                     Try Again
                   </button>
                 </div>
               ) : products.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 text-center bg-white/5 rounded-3xl border border-dashed border-white/10 ec-anim-fade-up">
-                  <div className="h-20 w-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
-                    <X className="h-8 w-8 text-white/20" />
+                <div className="flex flex-col items-center justify-center py-32 text-center bg-[var(--bg-surface)] rounded-3xl border border-dashed border-[var(--border-default)] ec-anim-fade-up">
+                  <div className="h-20 w-20 rounded-full bg-[var(--bg-root)] flex items-center justify-center mb-6">
+                    <X className="h-8 w-8 text-[var(--text-muted)] opacity-40" />
                   </div>
-                  <h3 className="text-2xl font-light text-white mb-2" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Nothing here yet</h3>
-                  <p className="text-white/40 mb-8 max-w-xs mx-auto text-sm">We couldn't find any products matching your current filters. Try adjusting them or browse our full collection.</p>
+                  <h3 className="text-2xl font-light text-[var(--text-primary)] mb-2" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Nothing here yet</h3>
+                  <p className="text-[var(--text-secondary)] mb-8 max-w-xs mx-auto text-sm">We couldn't find any products matching your current filters. Try adjusting them or browse our full collection.</p>
                   <button 
                     onClick={() => {
                       setSelectedPriceRange('all');
                       handleCategoryChange('all');
                     }}
-                    className="ec-btn ec-btn-gold px-10"
+                    className="ec-btn bg-[var(--text-primary)] text-[var(--bg-root)] hover:opacity-90 px-10"
                   >
                     Browse All Products
                   </button>
@@ -622,7 +635,7 @@ export default function CategoryPage() {
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-20 transition-all text-sm"
+                        className="px-5 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] disabled:opacity-20 transition-all text-sm"
                       >
                         Previous
                       </button>
@@ -635,8 +648,8 @@ export default function CategoryPage() {
                               key={pageNum}
                               onClick={() => handlePageChange(pageNum)}
                               className={`h-10 w-10 rounded-xl text-sm font-medium transition-all ${currentPage === pageNum
-                                  ? 'bg-[var(--gold)] text-white shadow-lg shadow-gold/20'
-                                  : 'bg-white/5 text-white/60 hover:bg-white/10 hover:text-white'
+                                  ? 'bg-[var(--cyan)] text-[var(--text-on-accent)] shadow-lg shadow-cyan/20'
+                                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:border-[var(--cyan)] hover:text-[var(--cyan)]'
                                 }`}
                             >
                               {pageNum}
@@ -648,7 +661,7 @@ export default function CategoryPage() {
                       <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="px-5 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:bg-white/10 disabled:opacity-20 transition-all text-sm"
+                        className="px-5 py-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)] disabled:opacity-20 transition-all text-sm"
                       >
                         Next
                       </button>
@@ -670,21 +683,21 @@ export default function CategoryPage() {
             className={`fixed inset-0 bg-black/60 backdrop-blur-md ${isClosingFilters ? 'ec-anim-backdrop-out' : 'ec-anim-backdrop'}`}
             onClick={closeFilters}
           />
-          <div className={`relative z-[101] w-full bg-[#0d0d0d] rounded-t-3xl shadow-[0_-20px_80px_rgba(0,0,0,0.8)] flex flex-col max-h-[90vh] ${isClosingFilters ? 'ec-anim-slide-out-down' : 'ec-anim-slide-in-up'}`}>
+          <div className={`relative z-[101] w-full bg-[var(--bg-lifted)] rounded-t-3xl shadow-[var(--shadow-lifted)] flex flex-col max-h-[90vh] ${isClosingFilters ? 'ec-anim-slide-out-down' : 'ec-anim-slide-in-up'}`}>
             {/* Handle bar */}
-            <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto my-3" />
+            <div className="w-12 h-1.5 bg-[var(--border-strong)] rounded-full mx-auto my-3" />
             
-            <div className="flex items-center justify-between p-6 pt-2 border-b border-white/5">
-              <h2 className="text-xl font-bold text-white uppercase tracking-tight" style={{ fontFamily: "'Jost', sans-serif" }}>Filters & Sort</h2>
+            <div className="flex items-center justify-between p-6 pt-2 border-b border-[var(--border-default)]">
+              <h2 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-tight" style={{ fontFamily: "'Jost', sans-serif" }}>Filters & Sort</h2>
               <button 
                 onClick={closeFilters} 
-                className="flex h-9 w-9 items-center justify-center rounded-full text-white/50 hover:text-white bg-white/5 transition-all"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] bg-[var(--bg-surface)] transition-all"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto ec-scrollbar p-6 space-y-10 pb-32">
+            <div className="flex-1 overflow-y-auto ec-scrollbar p-6 space-y-8 pb-32 focus-within:pb-80">
               <CategorySidebar
                 categories={categories}
                 activeCategory={categorySlug}
@@ -696,13 +709,17 @@ export default function CategoryPage() {
                 onPriceRangeChange={setSelectedPriceRange}
                 selectedStock="all"
                 onStockChange={() => { }}
+                selectedSort={selectedSort}
+                onSortChange={setSelectedSort}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
               />
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d] to-transparent pt-10">
+            <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[var(--bg-lifted)] via-[var(--bg-lifted)] to-transparent pt-10">
               <button 
                 onClick={closeFilters}
-                className="w-full py-4 rounded-2xl bg-[var(--gold)] text-white font-bold shadow-[0_10px_30px_rgba(176,124,58,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all"
+                className="w-full py-4 rounded-2xl bg-[var(--text-primary)] text-[var(--bg-root)] font-bold shadow-[var(--shadow-lifted)] hover:scale-[1.02] active:scale-[0.98] transition-all"
               >
                 Show Results
               </button>
@@ -715,7 +732,7 @@ export default function CategoryPage() {
       <div className="xl:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-full px-6 max-w-[320px]">
         <button
           onClick={() => setIsFiltersOpen(true)}
-          className="w-full py-4 bg-white text-black rounded-full font-bold shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all text-sm uppercase tracking-widest border border-black/5"
+          className="w-full py-4 bg-[var(--bg-lifted)] text-[var(--text-primary)] rounded-full font-bold shadow-[var(--shadow-lifted)] flex items-center justify-center gap-3 active:scale-95 transition-all text-sm uppercase tracking-widest border border-[var(--border-strong)]"
           style={{ fontFamily: "'Jost', sans-serif" }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></svg>

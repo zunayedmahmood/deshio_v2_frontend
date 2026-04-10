@@ -86,7 +86,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
               key={img.id || index}
               onMouseEnter={() => scrollToImage(index)}
               onClick={() => scrollToImage(index)}
-              className={`relative overflow-hidden rounded-xl bg-gray-50 border-2 transition-all duration-200 flex-shrink-0 w-16 md:w-full ${activeIndex === index ? 'border-black' : 'border-transparent hover:border-gray-200'
+              className={`relative overflow-hidden rounded-xl bg-[var(--bg-surface)] border-2 transition-all duration-200 flex-shrink-0 w-16 md:w-full ${activeIndex === index ? 'border-[var(--cyan)]' : 'border-transparent hover:border-[var(--border-strong)]'
                 }`}
               style={{ aspectRatio: '1/1' }}
             >
@@ -102,7 +102,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar md:overflow-hidden rounded-2xl border border-gray-100 bg-[#f9f9f9]"
+          className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar md:overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface-2)]"
           style={{ aspectRatio: '600/850' }}
         >
           <div className="flex h-full md:block">
@@ -129,24 +129,38 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
               </span>
             )}
             {discountPercent > 0 && (
-              <span className="bg-black text-white px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase shadow-lg">
+              <span className="ec-badge-urgent px-3 py-1 text-[10px] font-bold tracking-widest uppercase">
                 {discountPercent}% OFF
               </span>
             )}
           </div>
+
+          {/* Mobile Carousel Dots */}
+          {safeImages.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 md:hidden z-30">
+              {safeImages.map((_, i) => (
+                <div 
+                  key={i} 
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === activeIndex ? 'w-6 bg-[var(--cyan)]' : 'w-1.5 bg-[var(--border-strong)]'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
 
           {/* Navigation Arrows (Desktop) */}
           {safeImages.length > 1 && (
             <div className="absolute inset-y-0 left-0 right-0 hidden sm:flex items-center justify-between px-6 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
               <button
                 onClick={(e) => { e.stopPropagation(); prevImage(); }}
-                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-white shadow-xl text-black hover:bg-black hover:text-white transition-all"
+                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-[var(--bg-lifted)] border border-[var(--border-default)] shadow-xl text-[var(--text-primary)] hover:bg-[var(--cyan)] hover:text-[var(--text-on-accent)] transition-all"
               >
                 <ChevronLeft size={24} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); nextImage(); }}
-                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-white shadow-xl text-black hover:bg-black hover:text-white transition-all"
+                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-[var(--bg-lifted)] border border-[var(--border-default)] shadow-xl text-[var(--text-primary)] hover:bg-[var(--cyan)] hover:text-[var(--text-on-accent)] transition-all"
               >
                 <ChevronRight size={24} />
               </button>

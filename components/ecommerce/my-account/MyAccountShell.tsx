@@ -37,22 +37,24 @@ export default function MyAccountShell({
           <AccountSidebar />
         </div>
 
-        <div className="flex-1 lg:ml-8">
-          <h1 className="text-2xl font-bold mb-2 text-white">{title}</h1>
-          {subtitle ? <p className="text-white/60 mb-6 text-sm">{subtitle}</p> : null}
+        <div className="flex-1 lg:ml-12">
+          <h1 className="text-3xl font-medium mb-2 text-[var(--text-primary)]" style={{ fontFamily: "'Cormorant Garamond', serif" }}>{title}</h1>
+          {subtitle ? <p className="text-[var(--text-secondary)] mb-10 text-[14px] leading-relaxed max-w-xl">{subtitle}</p> : null}
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-4 border-gold border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-24">
+              <div className="w-10 h-10 border-[3px] border-[var(--cyan)] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            children
+            <div className="ec-anim-fade-up">
+              {children}
+            </div>
           )}
         </div>
       </div>
 
       {/* 8.2 — Mobile Tab Navigation */}
-      <div className="ec-mobile-tabs lg:hidden">
+      <div className="ec-mobile-tabs lg:hidden bg-[var(--bg-depth)] border-t border-[var(--border-default)]">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = pathname === tab.path;
@@ -60,10 +62,14 @@ export default function MyAccountShell({
             <button
               key={tab.label}
               onClick={() => router.push(tab.path)}
-              className={`ec-mobile-tab-item ${isActive ? 'ec-mobile-tab-item-active' : ''}`}
+              className={`flex flex-col items-center justify-center gap-1 flex-1 transition-all duration-300 py-3 ${
+                isActive 
+                  ? 'text-[var(--cyan)]' 
+                  : 'text-[var(--text-muted)]'
+              }`}
             >
-              <Icon size={20} />
-              <span>{tab.label}</span>
+              <Icon size={18} className={isActive ? 'stroke-[2.5px]' : 'stroke-[1.5px]'} />
+              <span className="text-[9px] font-bold uppercase tracking-widest" style={{ fontFamily: "'DM Mono', monospace" }}>{tab.label}</span>
             </button>
           );
         })}

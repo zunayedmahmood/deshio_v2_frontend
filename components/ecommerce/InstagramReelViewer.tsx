@@ -44,23 +44,24 @@ export default function InstagramReelViewer() {
   }, [activeIndex]);
 
   return (
-    <section className="ec-section overflow-hidden bg-[#0d0d0d] relative py-16">
-      <div className="ec-container mb-12">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+    <section className="bg-[var(--bg-surface)] relative py-20 border-y border-[var(--border-default)]">
+      <div className="ec-container mb-16">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
           <div>
-            <div className="ec-eyebrow mb-3">Live from Socials</div>
-            <h2 className="text-white text-4xl md:text-5xl font-serif tracking-tight">The Errum Feed</h2>
-            <p className="text-white/40 mt-4 max-w-lg">
-              Explore our latest drops, styling tips, and community highlights straight from Instagram.
+            <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--cyan)] mb-4" style={{ fontFamily: "'DM Mono', monospace" }}>On the Feed</div>
+            <h2 className="text-[var(--text-primary)] text-4xl md:text-5xl font-medium tracking-tight" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Culture in Motion</h2>
+            <p className="text-[var(--text-secondary)] mt-4 max-w-lg text-[15px] leading-relaxed">
+              Explore our latest drops, community styling, and behind-the-scenes highlights straight from our studio.
             </p>
           </div>
           <a
             href="https://www.instagram.com/errum_bd/"
             target="_blank"
             rel="noopener noreferrer"
-            className="ec-btn bg-white/5 border border-white/10 text-white hover:bg-white/10 flex items-center gap-2 group self-start md:self-auto"
+            className="flex items-center gap-3 px-6 py-3 bg-[var(--bg-lifted)] border border-[var(--border-strong)] text-[var(--text-primary)] rounded-[var(--radius-sm)] text-[12px] font-bold uppercase tracking-widest hover:bg-[var(--cyan-pale)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] transition-all group self-start md:self-auto"
+            style={{ fontFamily: "'DM Mono', monospace" }}
           >
-            <Instagram size={18} className="group-hover:text-pink-500 transition-colors" />
+            <Instagram size={16} className="transition-colors" />
             <span>Follow @errum_bd</span>
           </a>
         </div>
@@ -77,7 +78,7 @@ export default function InstagramReelViewer() {
           <button
             onClick={prev}
             disabled={activeIndex === 0}
-            className={`w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all pointer-events-auto ${activeIndex === 0 ? 'opacity-0' : 'hover:bg-white/20 opacity-100'
+            className={`w-12 h-12 rounded-full backdrop-blur-md border flex items-center justify-center transition-all pointer-events-auto ${activeIndex === 0 ? 'opacity-0' : 'bg-[var(--bg-lifted)] border-[var(--border-default)] text-[var(--text-primary)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] opacity-100'
               }`}
           >
             <ChevronLeft size={24} />
@@ -85,7 +86,7 @@ export default function InstagramReelViewer() {
           <button
             onClick={next}
             disabled={activeIndex === REEL_URLS.length - 1}
-            className={`w-12 h-12 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white transition-all pointer-events-auto ${activeIndex === REEL_URLS.length - 1 ? 'opacity-0' : 'hover:bg-white/20 opacity-100'
+            className={`w-12 h-12 rounded-full backdrop-blur-md border flex items-center justify-center transition-all pointer-events-auto ${activeIndex === REEL_URLS.length - 1 ? 'opacity-0' : 'bg-[var(--bg-lifted)] border-[var(--border-default)] text-[var(--text-primary)] hover:border-[var(--cyan)] hover:text-[var(--cyan)] opacity-100'
               }`}
           >
             <ChevronRight size={24} />
@@ -99,7 +100,6 @@ export default function InstagramReelViewer() {
             const isActive = diff === 0;
             const isPrev = diff === -1;
             const isNext = diff === 1;
-            const isVisible = Math.abs(diff) <= 1;
 
             let transform = 'scale(0.8) translateX(0)';
             let opacity = '0';
@@ -140,7 +140,7 @@ export default function InstagramReelViewer() {
                 <div className="relative group">
                   {/* Center Focus Reflection Effect */}
                   {isActive && (
-                    <div className="absolute -inset-4 bg-white/5 blur-3xl rounded-full -z-10 animate-pulse" />
+                    <div className="absolute -inset-8 bg-[var(--cyan-glow)] blur-[80px] rounded-full -z-10 opacity-30" />
                   )}
                   <InstagramEmbed url={url} />
                 </div>
@@ -151,12 +151,12 @@ export default function InstagramReelViewer() {
       </div>
 
       {/* Pagination Dots */}
-      <div className="flex justify-center gap-2 mt-8 pb-4">
+      <div className="flex justify-center gap-3 mt-12 pb-4">
         {REEL_URLS.map((_, i) => (
           <button
             key={i}
             onClick={() => setActiveIndex(i)}
-            className={`h-1.5 transition-all duration-300 rounded-full ${i === activeIndex ? 'w-8 bg-gold' : 'w-2 bg-white/20'
+            className={`h-1.5 transition-all duration-500 rounded-full ${i === activeIndex ? 'w-10 bg-[var(--cyan)]' : 'w-2 bg-[var(--border-strong)]'
               }`}
           />
         ))}
