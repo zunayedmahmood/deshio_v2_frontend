@@ -46,14 +46,22 @@ export default function NewArrivalsTicker() {
     <div className="ec-ticker-container bg-[var(--bg-surface)] border-y border-[var(--border-default)] py-4">
       <div
         className={`ec-ticker-track ${isPaused ? 'paused' : ''}`}
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
         onTouchStart={() => setIsPaused(true)}
-        onTouchEnd={() => setTimeout(() => setIsPaused(false), 2000)}
+        onTouchEnd={() => setIsPaused(false)}
       >
         {displayProducts.map((product, idx) => (
           <div key={`${product.id}-${idx}`} className="inline-flex items-center mx-6">
             <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mr-3" style={{ fontFamily: "'DM Mono', monospace" }}>New Arrival</span>
-            <span className="text-[14px] font-medium text-[var(--text-secondary)] uppercase tracking-tight" style={{ fontFamily: "'Jost', sans-serif" }}>{product.name}</span>
-            <span className="ml-6 text-[var(--cyan)]">●</span>
+            <button 
+              onClick={() => router.push(`/e-commerce/product/${product.id}`)}
+              className="text-[14px] font-medium text-[var(--text-secondary)] uppercase tracking-tight hover:text-[var(--cyan)] transition-colors" 
+              style={{ fontFamily: "'Jost', sans-serif" }}
+            >
+              {(product as any).base_name || product.name}
+            </button>
+            <span className="ml-6 text-[var(--cyan)] opacity-20">●</span>
           </div>
         ))}
       </div>

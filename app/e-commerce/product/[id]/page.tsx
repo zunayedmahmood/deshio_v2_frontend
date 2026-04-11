@@ -849,7 +849,7 @@ export default function ProductDetailPage() {
   // ---------------------------
   // Derived safe values
   // ---------------------------
-  const baseName = getBaseProductName(product.name);
+  const baseName = (product as any).base_name || getBaseProductName(product.name);
 
   const sellingPrice = Number(selectedVariant.selling_price ?? 0);
   const costPrice = Number((product as any).cost_price ?? 0);
@@ -951,12 +951,12 @@ export default function ProductDetailPage() {
                   <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest"
                     style={{
                       fontFamily: "'DM Mono', monospace",
-                      color: availableInventory <= 5 ? 'var(--status-danger)' : availableInventory <= 20 ? 'var(--gold-bright)' : 'var(--status-success)'
+                      color: availableInventory <= 5 ? 'var(--status-danger)' : availableInventory <= 10 ? 'var(--gold-bright)' : 'var(--status-success)'
                     }}>
                     <span>
                       {availableInventory <= 0 ? 'Out of stock' :
                         availableInventory <= 5 ? `🔥 Almost gone! Only ${availableInventory} left` :
-                          availableInventory <= 20 ? `Selling fast — only ${availableInventory} left` :
+                          availableInventory <= 10 ? `Selling fast — only ${availableInventory} left` :
                             'In Stock'}
                     </span>
                   </div>
@@ -964,7 +964,7 @@ export default function ProductDetailPage() {
                     <div
                       className={`h-full transition-[width,background-color] duration-700 ease-out rounded-[var(--radius-pill)] ${
                         availableInventory <= 5 ? 'bg-[var(--status-danger)] animate-pulse' :
-                        availableInventory <= 20 ? 'bg-[var(--status-warning)]' :
+                        availableInventory <= 10 ? 'bg-[var(--status-warning)]' :
                         'bg-[var(--status-success)]'
                       }`}
                       style={{ width: `${Math.min((availableInventory / 25) * 100, 100)}%` }}

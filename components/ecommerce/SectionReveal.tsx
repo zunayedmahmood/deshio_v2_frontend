@@ -37,7 +37,8 @@ export default function SectionReveal({
         }
       },
       {
-        threshold,
+        threshold: threshold || 0.2,
+        rootMargin: '0px 0px -100px 0px', // Trigger only when 100px from the bottom
       }
     );
 

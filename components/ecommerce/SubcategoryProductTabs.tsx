@@ -75,19 +75,10 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
   const [parentLabel, setParentLabel] = useState<string>('');
   const [parentNode, setParentNode] = useState<CatalogCategory | null>(null);
   const [heroImgByCat, setHeroImgByCat] = useState<Record<number, string>>({});
-  const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<string | number, HTMLButtonElement | null>>({});
 
-  useEffect(() => {
-    const activeTab = tabRefs.current[activeId === null ? 'all' : activeId];
-    if (activeTab && tabsContainerRef.current) {
-      setUnderlineStyle({
-        left: activeTab.offsetLeft,
-        width: activeTab.offsetWidth
-      });
-    }
-  }, [activeId, tabs]);
+
   const findParentNode = (flat: CatalogCategory[], queries: string[]): CatalogCategory | null => {
     const q = (queries || []).map(normalizeKey).filter(Boolean);
     if (!q.length) return null;
@@ -364,14 +355,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
               </button>
             ))}
 
-            {/* Sliding Underline */}
-            <div
-              className="absolute bottom-[-2px] h-[2px] bg-[var(--cyan)] transition-all duration-300 ease-out"
-              style={{
-                left: underlineStyle.left,
-                width: underlineStyle.width
-              }}
-            />
+
           </div>
         </div>
 

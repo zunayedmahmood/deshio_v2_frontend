@@ -103,12 +103,14 @@ export default function HeroSection() {
       {/* Background & Overlays */}
       <div className="absolute inset-0 bg-[var(--bg-root)]">
         {bgUrl ? (
-          <img
-            src={bgUrl}
-            alt="Hero background"
-            className="h-full w-full object-cover object-center opacity-40 mix-blend-multiply transition-opacity duration-1000"
-            onError={() => setBgUrl('')}
-          />
+          <div className="absolute inset-0 bg-black/10 z-0">
+            <img
+              src={bgUrl}
+              alt="Hero background"
+              className="h-full w-full object-cover object-center opacity-70 mix-blend-multiply transition-opacity duration-1000"
+              onError={() => setBgUrl('')}
+            />
+          </div>
         ) : null}
 
         {/* Premium atmospheric glows */}
@@ -117,10 +119,10 @@ export default function HeroSection() {
           style={{
             background:
               'radial-gradient(900px 600px at 15% 15%, var(--cyan-glow), transparent 60%), radial-gradient(700px 520px at 85% 75%, var(--gold-glow), transparent 60%)',
-            opacity: 0.6,
+            opacity: 0.4,
           }}
         />
-        
+
         {/* Ivory depth gradient lead-in */}
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-root)] via-transparent to-transparent" />
       </div>
@@ -160,7 +162,6 @@ export default function HeroSection() {
       {/* Content */}
       <div className="ec-container relative z-10 flex flex-col justify-center py-20">
         <div className="mx-auto w-full max-w-3xl text-center ec-anim-fade-up">
-          <p className="ec-eyebrow justify-center text-[var(--cyan)] mb-6">Established MMXVII</p>
 
           <h1
             className="text-[var(--text-primary)]"
@@ -174,16 +175,16 @@ export default function HeroSection() {
             Refining the Art of <span className="italic" style={{ color: 'var(--gold)' }}>Lifestyle</span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-[var(--text-secondary)]">
+          <p className="mx-auto mt-6 max-w-xl text-[15px] leading-relaxed text-[var(--text-primary)] font-semibold">
             Explore our curated collections of footwear, apparel, and accessories—designed for those who appreciate the finer details of everyday confidence.
           </p>
 
           {/* Search bar */}
           <form onSubmit={onSubmit} className="mx-auto mt-10 w-full max-w-2xl">
             <div
-              className="relative overflow-hidden rounded-[var(--radius-lg)]"
+              className="relative overflow-hidden rounded-[var(--radius-lg)] backdrop-blur-md"
               style={{
-                background: 'var(--bg-lifted)',
+                background: 'rgba(255, 254, 252, 0.85)', // High-opacity ivory fallback
                 border: '1px solid var(--border-strong)',
                 boxShadow: 'var(--shadow-lifted)',
               }}
@@ -194,7 +195,7 @@ export default function HeroSection() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search products, collections..."
-                className="w-full bg-transparent py-5 pl-14 pr-32 text-[15px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                className="w-full bg-transparent py-5 pl-14 pr-32 text-[15px] text-[var(--text-primary)] font-semibold outline-none placeholder:text-[var(--text-muted)]"
                 autoComplete="off"
               />
 
