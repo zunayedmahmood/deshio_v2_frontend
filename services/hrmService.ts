@@ -3,37 +3,11 @@ import axiosInstance from '@/lib/axios';
 export interface AttendancePolicy {
   id: number;
   store_id: number;
-  mode: 'fixed_day_off' | 'always_on_duty' | string;
-  fixed_days_off?: string[] | null;
-  fixed_start_time?: string | null;
-  fixed_end_time?: string | null;
-  effective_from?: string;
-  effective_to?: string | null;
-  timezone?: string;
-  notes?: string | null;
-  late_fee_per_minute?: number;
-  overtime_rate_per_hour?: number;
-  grace_period_minutes?: number;
-}
-
-export interface EmployeeSchedule {
-  id: number;
-  employee_id: number;
-  store_id: number;
-  start_time: string;
-  end_time: string;
-  effective_from: string;
-  effective_to?: string | null;
-  duty_mode?: 'all_days' | 'weekly_pattern' | 'selected_dates' | string;
-  weekly_days?: string[] | null;
-  duty_dates?: string[] | null;
-  notes?: string | null;
-  employee?: {
-    id: number;
-    name: string;
-    employee_code?: string;
-    store_id?: number;
-  };
+  shift_start: string;
+  shift_end: string;
+  late_grace_period: number;
+  early_exit_grace_period: number;
+  weekend_days: string[];
 }
 
 export interface AttendanceRecord {
@@ -43,17 +17,10 @@ export interface AttendanceRecord {
   clock_in: string | null;
   clock_out: string | null;
   status: 'present' | 'late' | 'absent' | 'leave' | 'half_day' | 'holiday_auto' | 'off_day_auto' | string;
-  is_late?: boolean;
-  is_early_exit?: boolean;
-  overtime_minutes?: number;
-  undertime_minutes?: number;
-  scheduled_start_time?: string | null;
-  scheduled_end_time?: string | null;
-  duty_minutes?: number;
-  worked_minutes?: number;
-  overtime_hhmm?: string;
-  duty_hhmm?: string;
-  worked_hhmm?: string;
+  is_late: boolean;
+  is_early_exit: boolean;
+  overtime_minutes: number;
+  undertime_minutes: number;
   employee?: {
     name: string;
   };
@@ -66,8 +33,11 @@ export interface SalesTarget {
   target_month: string;
   achieved_amount: number;
   achievement_percentage: number;
+  remaining_amount?: number;
+  order_count?: number;
   employee?: {
     name: string;
+    employee_code?: string;
   };
 }
 
@@ -80,16 +50,6 @@ const hrmService = {
 
   async upsertStorePolicy(data: any): Promise<any> {
     const response = await axiosInstance.post('/hrm/attendance/policy', data);
-    return response.data;
-  },
-
-  async getSchedules(params: { store_id: number; employee_id?: number; date?: string }): Promise<EmployeeSchedule[]> {
-    const response = await axiosInstance.get('/hrm/attendance/schedules', { params });
-    return response.data.success && Array.isArray(response.data.data) ? response.data.data : [];
-  },
-
-  async assignSchedule(data: any): Promise<any> {
-    const response = await axiosInstance.post('/hrm/attendance/schedules', data);
     return response.data;
   },
 

@@ -341,16 +341,17 @@ class OrderController extends Controller
                 }
             }
 
-            // Get salesman (employee creating the order)
-            // For POS/counter: allow manual salesman_id entry (manager creating order for another salesman)
-            // For social/ecommerce: use authenticated employee
+            // Get salesman (employee receiving the sale credit)
+            // Keep created_by as the authenticated actor for audit purposes.
             if ($request->filled('salesman_id')) {
-                $salesmanId = $request->salesman_id;
+                $salesmanId = (int) $request->salesman_id;
                 $salesman = Employee::findOrFail($salesmanId);
             } else {
-                $salesmanId = Auth::id();
+                $salesmanId = (int) Auth::id();
                 $salesman = Employee::find($salesmanId);
             }
+
+            $actorId = (int) Auth::id();
 
             // Determine fulfillment status based on order type
             // Counter orders: immediate fulfillment (barcode scanned at POS)
@@ -383,7 +384,8 @@ class OrderController extends Controller
                 'shipping_amount' => $request->shipping_amount ?? 0,
                 'notes' => $request->notes,
                 'shipping_address' => $request->shipping_address,
-                'created_by' => $salesmanId,  // Track salesman (manual or auth)
+                'created_by' => $actorId,
+                'salesman_id' => $salesmanId,
                 'order_date' => now(),
             ]);
 

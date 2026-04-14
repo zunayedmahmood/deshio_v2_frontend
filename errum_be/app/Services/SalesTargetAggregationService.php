@@ -38,6 +38,7 @@ class SalesTargetAggregationService
     {
         $query = Order::query()
             ->whereNull('deleted_at')
+            ->where('order_type', 'counter')
             ->where(function ($q) use ($employeeId) {
                 $q->where('salesman_id', $employeeId)
                   ->orWhere(function ($q2) use ($employeeId) {
@@ -76,7 +77,7 @@ class SalesTargetAggregationService
 
     private function dimsFromCurrentOrder(Order $order): ?array
     {
-        if (!$this->isCountableStatus($order->status)) {
+        if (!$this->isCountableStatus($order->status) || $order->order_type !== 'counter') {
             return null;
         }
 
@@ -102,7 +103,7 @@ class SalesTargetAggregationService
         }
 
         $status = $old['status'] ?? null;
-        if (!$status || !$this->isCountableStatus((string) $status)) {
+        if (!$status || !$this->isCountableStatus((string) $status) || (($old['order_type'] ?? null) !== 'counter')) {
             return null;
         }
 
