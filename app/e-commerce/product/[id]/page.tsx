@@ -734,6 +734,48 @@ export default function ProductDetailPage() {
     }
   };
 
+  const handleBuyItNow = async () => {
+    if (!selectedVariant || !selectedVariant.in_stock) return;
+
+    const stockQty = Number(selectedVariant.stock_quantity ?? 0);
+    const currentAvailable = Number(selectedVariant.available_inventory ?? stockQty);
+    if (currentAvailable <= 0) return;
+
+    try {
+      setIsAdding(true);
+      const res = await cartService.addToCart({
+        product_id: selectedVariant.id,
+        quantity: quantity,
+        variant_options: {
+          color: selectedVariant.color,
+          size: selectedVariant.size,
+        },
+        notes: undefined
+      });
+
+      const cartItemId = res?.cart_item?.id;
+      if (cartItemId) {
+        localStorage.setItem('checkout-selected-items', JSON.stringify([cartItemId]));
+        router.push('/e-commerce/checkout');
+      } else {
+        // Fallback: try to find the item in the cart
+        const cartData = await cartService.getCart();
+        const addedItem = cartData.cart_items.find(it => it.product_id === selectedVariant.id);
+        if (addedItem) {
+          localStorage.setItem('checkout-selected-items', JSON.stringify([addedItem.id]));
+          router.push('/e-commerce/checkout');
+        } else {
+          router.push('/e-commerce');
+        }
+      }
+    } catch (error: any) {
+      console.error('Error in Buy it Now:', error);
+      alert(error.message || 'Failed to process Buy it Now. Please try again.');
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   const handleQuickAddToCart = async (item: SimpleProduct, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -1014,7 +1056,7 @@ export default function ProductDetailPage() {
                 </div>
 
                 <button
-                  onClick={handleAddToCart}
+                  onClick={handleBuyItNow}
                   disabled={!selectedVariant.in_stock || isAdding || availableInventory <= 0}
                   className="w-full h-[56px] bg-transparent text-[var(--text-primary)] border-2 border-[var(--text-primary)] rounded-2xl font-bold uppercase tracking-widest text-xs transition-all hover:bg-[var(--text-primary)] hover:text-[var(--bg-root)] active:scale-95 disabled:opacity-50"
                 >

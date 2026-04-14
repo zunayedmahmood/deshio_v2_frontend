@@ -124,81 +124,84 @@ export default function CheckoutClient() {
     }
   }, [searchParams]);
 
-  // ✅ FIXED: Load selected items directly from backend
-  useEffect(() => {
-    const loadCheckoutItems = async () => {
-      console.log('🔍 === CHECKOUT LOAD START ===');
+  const refreshCheckoutItems = async () => {
+    const selectedIdsStr = localStorage.getItem('checkout-selected-items');
+    if (!selectedIdsStr) {
+      router.push('/e-commerce/cart');
+      return;
+    }
 
-      const selectedIdsStr = localStorage.getItem('checkout-selected-items');
-      console.log('📋 localStorage checkout items:', selectedIdsStr);
-
-      if (!selectedIdsStr) {
-        console.warn('⚠️ No selected items in localStorage, redirecting to cart...');
-        setIsLoadingItems(false);
+    try {
+      const ids = JSON.parse(selectedIdsStr);
+      if (!Array.isArray(ids) || ids.length === 0) {
         router.push('/e-commerce/cart');
         return;
       }
 
-      try {
-        const ids = JSON.parse(selectedIdsStr);
-        console.log('🔢 Selected IDs:', ids);
+      const cartData = await cartService.getCart();
+      const items = cartData.cart_items.filter(item => ids.includes(item.id));
 
-        if (!Array.isArray(ids) || ids.length === 0) {
-          console.error('❌ Invalid selected items format');
-          localStorage.removeItem('checkout-selected-items');
-          setIsLoadingItems(false);
-          router.push('/e-commerce/cart');
-          return;
-        }
-
-        // ✅ Load fresh cart data from backend
-        console.log('📦 Fetching cart from backend...');
-        const cartData = await cartService.getCart();
-        console.log('✅ Cart data loaded:', cartData);
-
-        // ✅ Filter by selected IDs
-        const items = cartData.cart_items.filter(item => ids.includes(item.id));
-        console.log('✅ Filtered checkout items:', items);
-        console.log('✅ Item count:', items.length);
-
-        if (items.length === 0) {
-          console.error('❌ No matching items found in cart!');
-          alert('Selected items are no longer in your cart. Redirecting...');
-          localStorage.removeItem('checkout-selected-items');
-          setIsLoadingItems(false);
-          router.push('/e-commerce/cart');
-          return;
-        }
-
-        // ✅ Transform to match expected format
-        const transformedItems = items.map(item => ({
-          id: item.id,
-          product_id: item.product_id,
-          name: item.product.name,
-          images: item.product.images || [],
-          sku: item.product.sku ?? '',
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.total_price,
-          variant_options: item.variant_options,
-          notes: item.notes,
-        }));
-
-        console.log('✅ Setting selected items:', transformedItems);
-        setSelectedItems(transformedItems);
-        setIsLoadingItems(false);
-        console.log('🔍 === CHECKOUT LOAD END ===');
-
-      } catch (error) {
-        console.error('❌ Error loading checkout items:', error);
+      if (items.length === 0) {
         localStorage.removeItem('checkout-selected-items');
-        setIsLoadingItems(false);
-        router.push('/e-commerce/cart');
+        router.push('/e-commerce');
+        return;
       }
-    };
 
-    loadCheckoutItems();
-  }, [router]); // ✅ Remove cart dependency - we fetch directly
+      const transformedItems = items.map(item => ({
+        id: item.id,
+        product_id: item.product_id,
+        name: item.product.name,
+        images: item.product.images || [],
+        sku: item.product.sku ?? '',
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        variant_options: item.variant_options,
+        notes: item.notes,
+        available_inventory: item.product.available_inventory,
+      }));
+
+      setSelectedItems(transformedItems);
+      setIsLoadingItems(false);
+    } catch (error) {
+      console.error('❌ Error refreshing checkout items:', error);
+    }
+  };
+
+  useEffect(() => {
+    refreshCheckoutItems();
+  }, [router]);
+
+  const handleUpdateQuantity = async (cartItemId: number, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    try {
+      await cartService.updateQuantity(cartItemId, { quantity: newQuantity });
+      await refreshCheckoutItems();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update quantity');
+    }
+  };
+
+  const handleRemoveItem = async (cartItemId: number) => {
+    if (!confirm('Remove this item from your order?')) return;
+    try {
+      await cartService.removeFromCart(cartItemId);
+      const selectedIdsStr = localStorage.getItem('checkout-selected-items');
+      if (selectedIdsStr) {
+        const ids = JSON.parse(selectedIdsStr).filter((id: number) => id !== cartItemId);
+        if (ids.length === 0) {
+          localStorage.removeItem('checkout-selected-items');
+          router.push('/e-commerce');
+        } else {
+          localStorage.setItem('checkout-selected-items', JSON.stringify(ids));
+          await refreshCheckoutItems();
+        }
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove item');
+    }
+  };
+
 
   // Fetch addresses
   useEffect(() => {
@@ -1697,8 +1700,8 @@ export default function CheckoutClient() {
                       {selectedItems.map((item: any) => {
                         const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
                         return (
-                          <div key={item.id} className="flex gap-4 items-center">
-                            <div className="w-14 h-14 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
+                          <div key={item.id} className="flex gap-4 items-start py-2 border-b border-[var(--border-default)] last:border-0">
+                            <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
                               <img
                                 src={item.image || item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || '/placeholder-product.png'}
                                 alt={item.name}
@@ -1706,18 +1709,74 @@ export default function CheckoutClient() {
                               />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-[14px] font-medium text-[var(--text-primary)] leading-tight truncate" style={{ fontFamily: "'Jost', sans-serif" }}>{item.name}</h4>
+                              <div className="flex justify-between gap-2">
+                                <h4 className="text-[13px] font-medium text-[var(--text-primary)] leading-tight truncate" style={{ fontFamily: "'Jost', sans-serif" }}>{item.name}</h4>
+                                <button
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  className="text-[var(--text-muted)] hover:text-[var(--status-danger)] transition-colors p-1"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
                               <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight" style={{ fontFamily: "'DM Mono', monospace" }}>
-                                Qty: {item.quantity} × ৳{unitPrice.toLocaleString()}
+                                ৳{unitPrice.toLocaleString()}
                               </p>
+                              <div className="flex items-center justify-between mt-2">
+                                <div className="flex items-center rounded-lg bg-[var(--bg-depth)] border border-[var(--border-default)]">
+                                  <button
+                                    onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                    disabled={item.quantity <= 1}
+                                    className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="w-6 text-center text-[11px] font-bold text-[var(--text-primary)]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                    disabled={item.quantity >= (item.available_inventory ?? 999)}
+                                    className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <span className="text-[13px] font-bold text-[var(--text-primary)]">
+                                  ৳{(unitPrice * item.quantity).toLocaleString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
 
+                    {/* Coupon Input */}
+                    <div className="mt-6 pt-6 border-t border-[var(--border-default)]">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="PROMO CODE"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="flex-1 px-4 py-3 rounded-xl bg-[var(--bg-surface-2)] border border-[var(--border-default)] text-[11px] font-bold tracking-widest text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--cyan)] transition-all"
+                          style={{ fontFamily: "'DM Mono', monospace" }}
+                        />
+                        <button
+                          onClick={handleApplyCoupon}
+                          disabled={couponApplyLoading || !couponCode}
+                          className="px-6 py-3 rounded-xl bg-[var(--text-primary)] text-[var(--bg-root)] text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all"
+                        >
+                          {couponApplyLoading ? 'Apply...' : 'Apply'}
+                        </button>
+                      </div>
+                      {couponError && <p className="text-[10px] text-[var(--status-danger)] mt-2 font-medium">{couponError}</p>}
+                      {couponSuccess && <p className="text-[10px] text-[var(--status-success)] mt-2 font-medium">{couponSuccess}</p>}
+                    </div>
+
                     {/* Fees & Discounts */}
-                    <div className="space-y-3 pt-6 border-t border-[var(--border-default)]">
+                    <div className="space-y-3 pt-6">
+
                       <div className="flex justify-between text-sm">
                         <span className="text-[var(--text-secondary)]">Subtotal</span>
                         <span className="text-[var(--text-primary)] font-medium">৳{summary.subtotal.toLocaleString()}</span>

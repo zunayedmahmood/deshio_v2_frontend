@@ -6,6 +6,7 @@ import { CartProvider } from '@/app/e-commerce/CartContext';
 import { PromotionProvider } from '@/contexts/PromotionContext';
 import Footer from '@/components/ecommerce/Footer';
 import ScrollToTopOnRouteChange from '@/components/ecommerce/ScrollToTopOnRouteChange';
+import GlobalCartSidebar from '@/components/ecommerce/cart/GlobalCartSidebar';
 
 
 export default function EcommerceLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,8 @@ export default function EcommerceLayout({ children }: { children: React.ReactNod
           <Suspense fallback={null}>
             <ScrollToTopOnRouteChange />
           </Suspense>
+
+          <GlobalCartSidebar />
 
           {/* ── Root wrapper: hardcoded dark ink background, no CSS class dependency ── */}
           <div

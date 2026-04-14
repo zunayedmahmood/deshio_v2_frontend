@@ -145,14 +145,7 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
                 disabled={isAnyOverStock}
                 className="ec-btn-primary w-full py-4 text-xs font-bold tracking-widest uppercase"
               >
-                CHECKOUT NOW
-              </button>
-              <button
-                onClick={handleViewCart}
-                className="w-full py-3 text-[11px] font-bold tracking-[0.2em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors uppercase"
-                style={{ fontFamily: "'DM Mono', monospace" }}
-              >
-                VIEW FULL BAG
+                PROCEED TO CHECKOUT
               </button>
             </div>
           </div>

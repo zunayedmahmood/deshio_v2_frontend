@@ -7,6 +7,8 @@ import { ShoppingCart, Search, User, ChevronDown, LogOut, Heart, Package, Menu, 
 import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 import cartService from '@/services/cartService';
+import { useCart } from '@/app/e-commerce/CartContext';
+
 
 const slugify = (value: string) =>
   value
@@ -23,6 +25,8 @@ const Navbar = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { customer, isAuthenticated, logout } = useCustomerAuth();
+  const { setIsCartOpen } = useCart();
+
 
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [cartCount, setCartCount] = useState(0);
@@ -281,7 +285,9 @@ const Navbar = () => {
               )}
 
               {/* Cart */}
-              <Link href="/e-commerce/cart" aria-label="Cart"
+              <button
+                onClick={() => setIsCartOpen(true)}
+                aria-label="Cart"
                 className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
               >
                 <ShoppingCart className="h-4 w-4" />
@@ -290,7 +296,8 @@ const Navbar = () => {
                     {cartCount > 99 ? '99+' : cartCount}
                   </span>
                 )}
-              </Link>
+              </button>
+
 
               {/* Mobile menu button */}
               <button
