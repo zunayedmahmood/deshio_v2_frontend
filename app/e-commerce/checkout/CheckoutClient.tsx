@@ -845,9 +845,9 @@ export default function CheckoutClient() {
           </div>
 
           {error && (
-            <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-start ec-anim-fade-up">
-              <AlertCircle className="text-red-400 mr-3 mt-0.5 flex-shrink-0" size={20} />
-              <div className="text-white/90 font-medium">{error}</div>
+            <div className="mb-6 bg-red-600 rounded-xl p-4 flex items-start ec-anim-fade-up shadow-lg shadow-red-500/20">
+              <AlertCircle className="text-white mr-3 mt-0.5 flex-shrink-0" size={20} />
+              <div className="text-white font-medium">{error}</div>
             </div>
           )}
 
@@ -1204,13 +1204,13 @@ export default function CheckoutClient() {
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-[var(--status-danger-pale)] border border-[var(--status-danger)]/20 rounded-xl p-6 flex items-start gap-4 ec-anim-fade-up">
-            <AlertCircle className="text-[var(--status-danger)] flex-shrink-0 mt-0.5" size={20} />
+          <div className="mb-6 bg-red-600 rounded-xl p-6 flex items-start gap-4 ec-anim-fade-up shadow-lg shadow-red-500/20">
+            <AlertCircle className="text-white flex-shrink-0 mt-0.5" size={20} />
             <div className="flex-1">
-              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--status-danger)] mb-1" style={{ fontFamily: "'DM Mono', monospace" }}>Action Required</h3>
-              <p className="text-[var(--text-primary)] text-sm font-medium leading-relaxed">{error}</p>
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/90 mb-1" style={{ fontFamily: "'DM Mono', monospace" }}>Action Required</h3>
+              <p className="text-white text-sm font-medium leading-relaxed">{error}</p>
             </div>
-            <button onClick={() => setError(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">✕</button>
+            <button onClick={() => setError(null)} className="text-white/70 hover:text-white transition-colors">✕</button>
           </div>
         )}
 
@@ -1827,7 +1827,11 @@ export default function CheckoutClient() {
                           {couponApplyLoading ? 'Apply...' : 'Apply'}
                         </button>
                       </div>
-                      {couponError && <p className="text-[10px] text-[var(--status-danger)] mt-2 font-medium">{couponError}</p>}
+                      {couponError && (
+                        <div className="mt-2 px-3 py-2 bg-red-600 rounded-lg text-[10px] text-white font-bold uppercase tracking-wider animate-pulse">
+                          {couponError}
+                        </div>
+                      )}
                       {couponSuccess && <p className="text-[10px] text-[var(--status-success)] mt-2 font-medium">{couponSuccess}</p>}
                     </div>
 

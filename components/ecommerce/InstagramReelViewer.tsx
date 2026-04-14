@@ -135,7 +135,7 @@ export default function InstagramReelViewer() {
         We do NOT use min-h anymore — height is always exactly what the tallest reel needs.
       */}
       <div
-        className="relative flex items-center justify-center select-none"
+        className="relative flex items-center justify-center select-none w-full overflow-hidden"
         style={{ height: carouselHeight }}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}

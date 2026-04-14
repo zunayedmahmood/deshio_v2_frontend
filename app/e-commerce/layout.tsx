@@ -29,8 +29,10 @@ export default function EcommerceLayout({ children }: { children: React.ReactNod
           }}
         >
           {/* All page content */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', zIndex: 10 }}>
             {children}
+          </div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
             <Footer />
           </div>
         </div>

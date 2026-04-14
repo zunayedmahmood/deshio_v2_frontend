@@ -18,6 +18,7 @@ import catalogService, {
 } from '@/services/catalogService';
 import PremiumProductCard from '@/components/ecommerce/ui/PremiumProductCard';
 import PriceRangeSelector from '@/components/ecommerce/products/PriceRangeSelector';
+import CategorySidebar from '@/components/ecommerce/category/CategorySidebar';
 import { fireToast } from '@/lib/globalToast';
 import { buildCardProductsFromResponse } from '@/lib/ecommerceCardUtils';
 
@@ -243,58 +244,6 @@ export default function SearchClient({ initialQuery = '' }: { initialQuery?: str
     setImageErrors(prev => new Set(prev).add(id));
   };
 
-  const handleCategoryToggle = (id: number | string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setOpenCategoryId(prev => (prev === id ? null : id));
-  };
-
-  const renderCategory = (cat: any, depth = 0, isMobile = false) => {
-    const hasChildren = cat.children && cat.children.length > 0;
-    const isOpen = openCategoryId === cat.id;
-    const isSelected = String(selectedCategoryId) === String(cat.id);
-
-    return (
-      <div key={cat.id} className="flex flex-col gap-1">
-        <div className="flex items-center gap-1 group">
-          <button
-            onClick={() => updateURL({ category: String(cat.id) })}
-            className={`flex-1 text-left px-4 py-2.5 rounded-xl transition-all text-sm truncate ${isSelected
-                ? 'bg-[var(--gold)] text-[var(--text-on-accent)] shadow-lg shadow-gold/20'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--ivory-ghost)]'
-              } ${isMobile && !isSelected ? 'border border-[var(--border-default)] bg-[var(--bg-depth)]' : ''}`}
-            style={{
-              fontFamily: "'Jost', sans-serif",
-              paddingLeft: depth > 0 ? `${16 + depth * 12}px` : undefined
-            }}
-          >
-            {cat.name}
-          </button>
-          {hasChildren && (
-            <button
-              onClick={(e) => handleCategoryToggle(cat.id, e)}
-              className={`p-2 rounded-xl transition-all ${isOpen ? 'text-[var(--cyan)] bg-[var(--cyan-pale)]' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-depth)]'
-                }`}
-            >
-              <svg
-                className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          )}
-        </div>
-        {hasChildren && isOpen && (
-          <div className="flex flex-col gap-1 mt-1 max-h-[400px] overflow-y-auto ec-scrollbar pr-1">
-            {cat.children.map((child: any) => renderCategory(child, depth + 1, isMobile))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // Rendering pagination numbers (consistent with products page)
   const renderPaginationRange = () => {
     if (!pagination || pagination.last_page <= 1) return null;
@@ -368,47 +317,19 @@ export default function SearchClient({ initialQuery = '' }: { initialQuery?: str
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
 
           {/* Sidebar (Desktop) */}
-          <aside className="lg:col-span-3 space-y-10 lg:block hidden">
-            <div className="space-y-4">
-              <h3 className="text-[11px] font-bold tracking-[0.25em] text-[var(--text-muted)] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Product Collections</h3>
-              <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={() => {
-                    updateURL({ category: 'all' });
-                    setOpenCategoryId(null);
-                  }}
-                  className={`text-left px-4 py-2.5 rounded-xl transition-all text-sm ${selectedCategoryId === 'all'
-                      ? 'bg-[var(--gold)] text-[var(--text-on-accent)] shadow-lg shadow-gold/20'
-                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--ivory-ghost)]'
-                    }`}
-                  style={{ fontFamily: "'Jost', sans-serif" }}
-                >
-                  Show All
-                </button>
-                {categories.map((cat) => renderCategory(cat, 0, false))}
-              </div>
-            </div>
-
-            <PriceRangeSelector
+          <aside className="lg:col-span-3 lg:block hidden">
+            <CategorySidebar
+              categories={categories}
+              activeCategory={String(selectedCategoryId)}
+              onCategoryChange={(cat) => updateURL({ category: cat })}
               selectedPriceRange={priceRange}
               onPriceRangeChange={handlePriceChange}
+              selectedStock="all"
+              onStockChange={() => {}}
+              selectedSort={sortBy}
+              onSortChange={handleSortChange}
+              useIdForRouting={true}
             />
-
-            <div className="space-y-4">
-              <h3 className="text-[11px] font-bold tracking-[0.25em] text-[var(--text-muted)] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Sort Results</h3>
-              <div className="ec-surface p-2">
-                <select
-                  value={sortBy}
-                  onChange={e => handleSortChange(e.target.value)}
-                  className="w-full bg-transparent text-[var(--text-primary)] py-2.5 px-3 focus:outline-none cursor-pointer text-sm"
-                  style={{ fontFamily: "'Jost', sans-serif" }}
-                >
-                  <option value="newest">Newest Arrivals</option>
-                  <option value="price_asc">Price: Low to High</option>
-                  <option value="price_desc">Price: High to Low</option>
-                </select>
-              </div>
-            </div>
           </aside>
 
           {/* Mobile Filter Toggle */}
@@ -536,48 +457,22 @@ export default function SearchClient({ initialQuery = '' }: { initialQuery?: str
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto ec-scrollbar p-6 space-y-10 pb-32">
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-bold tracking-[0.25em] text-[var(--text-muted)] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Collections</h3>
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    onClick={() => {
-                      updateURL({ category: 'all' });
-                      setOpenCategoryId(null);
-                    }}
-                    className={`px-4 py-4 rounded-xl border text-sm text-left font-medium transition-all ${selectedCategoryId === 'all' ? 'border-[var(--cyan-border)] bg-[var(--cyan-pale)] text-[var(--text-primary)]' : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'}`}
-                  >
-                    All Collections
-                  </button>
-                  <div className="max-h-[400px] overflow-y-auto ec-scrollbar pr-1">
-                    {categories.map((cat) => renderCategory(cat, 0, true))}
-                  </div>
-                </div>
-              </div>
-
-              <PriceRangeSelector
+            <div className="flex-1 overflow-y-auto ec-scrollbar p-0">
+               <CategorySidebar
+                categories={categories}
+                activeCategory={String(selectedCategoryId)}
+                onCategoryChange={(cat) => {
+                  updateURL({ category: cat });
+                  closeFilters();
+                }}
                 selectedPriceRange={priceRange}
                 onPriceRangeChange={handlePriceChange}
+                selectedStock="all"
+                onStockChange={() => {}}
+                selectedSort={sortBy}
+                onSortChange={handleSortChange}
+                useIdForRouting={true}
               />
-
-              <div className="space-y-4">
-                <h3 className="text-[10px] font-bold tracking-[0.25em] text-[var(--text-muted)] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Sort Results</h3>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { id: 'newest', label: 'Newest Arrivals' },
-                    { id: 'price_asc', label: 'Price: Low to High' },
-                    { id: 'price_desc', label: 'Price: High to Low' },
-                  ].map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={() => handleSortChange(opt.id)}
-                      className={`text-left p-5 rounded-xl border transition-all text-sm font-medium ${sortBy === opt.id ? 'border-[var(--cyan-border)] bg-[var(--cyan-pale)] text-[var(--text-primary)]' : 'border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--text-secondary)]'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div className="absolute bottom-0 left-0 right-0 p-6 bg-[var(--bg-root)] border-t border-[var(--border-default)]">

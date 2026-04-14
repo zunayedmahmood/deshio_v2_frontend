@@ -3,12 +3,25 @@
 import React, { useEffect, useState } from 'react';
 import Navigation from '@/components/ecommerce/Navigation';
 import HeroSection from '@/components/ecommerce/HeroSection';
-import OurCategories from '@/components/ecommerce/OurCategories';
-import FeaturedProducts from '@/components/ecommerce/FeaturedProducts';
-import NewArrivals from '@/components/ecommerce/NewArrivals';
-import SubcategoryProductTabs from '@/components/ecommerce/SubcategoryProductTabs';
+import dynamic from 'next/dynamic';
+
+const OurCategories = dynamic(() => import('@/components/ecommerce/OurCategories'), {
+  loading: () => <div style={{ minHeight: '400px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
+});
+const FeaturedProducts = dynamic(() => import('@/components/ecommerce/FeaturedProducts'), {
+  loading: () => <div style={{ minHeight: '600px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
+});
+const NewArrivals = dynamic(() => import('@/components/ecommerce/NewArrivals'), {
+  loading: () => <div style={{ minHeight: '600px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
+});
+const SubcategoryProductTabs = dynamic(() => import('@/components/ecommerce/SubcategoryProductTabs'), {
+  loading: () => <div style={{ minHeight: '800px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
+});
+const InstagramReelViewer = dynamic(() => import('@/components/ecommerce/InstagramReelViewer'), {
+  ssr: false,
+  loading: () => <div style={{ minHeight: '760px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
+});
 import SectionReveal from '@/components/ecommerce/SectionReveal';
-import InstagramReelViewer from '@/components/ecommerce/InstagramReelViewer';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 
 const CUSTOM_SECTIONS: Record<string, { eyebrow: string; subtitle: string; queries: string[] }> = {

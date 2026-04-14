@@ -540,7 +540,7 @@ const Navbar = () => {
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: (isCartOpen || isFiltersOpen) ? -1 : 1005,
+          zIndex: (isCartOpen || isFiltersOpen) ? -1 : 10000,
           opacity: (isCartOpen || isFiltersOpen) ? 0 : 1,
           pointerEvents: (isCartOpen || isFiltersOpen) ? 'none' : 'auto',
           visibility: (isCartOpen || isFiltersOpen) ? 'hidden' : 'visible',
