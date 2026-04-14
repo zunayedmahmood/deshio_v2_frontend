@@ -58,7 +58,7 @@ const NewArrivals: React.FC<NewArrivalsProps> = ({ categoryId, limit = 8 }) => {
     try {
       const response = await catalogService.getProducts({
         page: 1,
-        per_page: Math.max(limit * 8, 80),
+        per_page: limit,
         category_id: categoryId,
         sort_by: 'newest',
         sort: 'created_at',
@@ -69,11 +69,10 @@ const NewArrivals: React.FC<NewArrivalsProps> = ({ categoryId, limit = 8 }) => {
 
       const rawCards = buildCardProductsFromResponse(response);
 
-      // Sort by created_at ONLY — not updated_at
+      // We maintain client side sort to ensure flawless display regardless of unstable backend default ordering.
       const sorted = [...rawCards].sort((a, b) => getCreatedMs(b) - getCreatedMs(a));
 
       // Always show the newest top N products available, without strict date cutoffs.
-      // This ensures the section never ungracefully hides itself in dev environments or stale datasets.
       setProducts(sorted.slice(0, limit));
     } catch (error) {
       console.error('Error fetching new arrivals:', error);

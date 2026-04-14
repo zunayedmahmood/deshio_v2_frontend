@@ -8,6 +8,7 @@ interface SectionRevealProps {
   threshold?: number;
   triggerOnce?: boolean;
   staggerChildren?: boolean;
+  minHeight?: string;
 }
 
 /**
@@ -20,15 +21,18 @@ export default function SectionReveal({
   threshold = 0.1,
   triggerOnce = true,
   staggerChildren = false,
+  minHeight = '300px',
 }: SectionRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [hasIntersected, setHasIntersected] = useState(false);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true);
+          setHasIntersected(true);
           if (triggerOnce) {
             observer.unobserve(entry.target);
           }
@@ -37,8 +41,8 @@ export default function SectionReveal({
         }
       },
       {
-        threshold: threshold || 0.2,
-        rootMargin: '0px 0px -100px 0px', // Trigger only when 100px from the bottom
+        threshold: threshold || 0.1,
+        rootMargin: '300px 0px 300px 0px', // Pre-load slightly before scrolling into view
       }
     );
 
@@ -62,8 +66,9 @@ export default function SectionReveal({
     <div
       ref={ref}
       className={`ec-reveal ${isVisible ? 'ec-reveal-active' : ''} ${className}`}
+      style={{ minHeight: !hasIntersected ? minHeight : undefined }}
     >
-      {children}
+      {hasIntersected ? children : null}
     </div>
   );
 }

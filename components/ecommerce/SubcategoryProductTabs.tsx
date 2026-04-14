@@ -294,7 +294,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i}>
-                <div style={{ aspectRatio: '3/4', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
+                <div style={{ aspectRatio: '2/3', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
                 <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '75%' }} />
               </div>
             ))}
@@ -309,7 +309,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
   /* ── main ── */
   return (
     <section style={{ background: '#ffffff', padding: '48px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 16px' }} className="sm:px-6 lg:px-8">
+      <div className="ec-container">
 
         {/* Section header — reference style */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
@@ -368,7 +368,7 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i}>
-                  <div style={{ aspectRatio: '3/4', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
+                  <div style={{ aspectRatio: '2/3', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
                   <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '75%', marginBottom: '6px' }} />
                   <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '40%' }} />
                 </div>
@@ -380,7 +380,6 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
                 <PremiumProductCard
                   key={`${activeKey}-${p.id}`}
                   product={p}
-                  compact
                   animDelay={Math.min(index, 9) * 60}
                   imageErrored={imageErrors.has(p.id)}
                   onImageError={onImgError}

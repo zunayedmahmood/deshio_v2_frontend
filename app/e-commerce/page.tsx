@@ -5,11 +5,8 @@ import Navigation from '@/components/ecommerce/Navigation';
 import HeroSection from '@/components/ecommerce/HeroSection';
 import dynamic from 'next/dynamic';
 
-const OurCategories = dynamic(() => import('@/components/ecommerce/OurCategories'), {
+const CollectionTiles = dynamic(() => import('@/components/ecommerce/CollectionTiles'), {
   loading: () => <div style={{ minHeight: '400px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
-});
-const FeaturedProducts = dynamic(() => import('@/components/ecommerce/FeaturedProducts'), {
-  loading: () => <div style={{ minHeight: '600px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
 });
 const NewArrivals = dynamic(() => import('@/components/ecommerce/NewArrivals'), {
   loading: () => <div style={{ minHeight: '600px', margin: '40px 0' }} className="w-full bg-[var(--bg-surface-2)] animate-pulse rounded-2xl" />
@@ -63,30 +60,25 @@ export default function HomePage() {
     <div className="ec-root min-h-screen" style={{ background: '#ffffff' }}>
       <Navigation />
 
-      {/* Hero section */}
+      {/* 1. Hero section */}
       <HeroSection />
 
-      {/* Instagram Reels Feed */}
+      {/* 2. Collection Tiles */}
+      <SectionReveal>
+        <CollectionTiles />
+      </SectionReveal>
+
+      {/* 3. Instagram Reels Feed */}
       <SectionReveal threshold={0.05}>
         <InstagramReelViewer />
       </SectionReveal>
 
-      {/* New Arrivals */}
+      {/* 4. New Arrivals */}
       <SectionReveal>
         <NewArrivals limit={40} />
       </SectionReveal>
 
-      {/* Featured Categories */}
-      <SectionReveal>
-        <OurCategories categories={categories} />
-      </SectionReveal>
-
-      {/* Featured Products */}
-      <SectionReveal>
-        <FeaturedProducts />
-      </SectionReveal>
-
-      {/* Dynamic Shop by Subcategory sections */}
+      {/* 5. Dynamic Shop by Subcategory sections (categories wise) */}
       {categories.map((cat) => {
         const slug = (cat.slug || cat.name).toLowerCase();
         const custom = CUSTOM_SECTIONS[slug] ||
@@ -102,8 +94,6 @@ export default function HomePage() {
           </SectionReveal>
         );
       })}
-
-
     </div>
   );
 }
