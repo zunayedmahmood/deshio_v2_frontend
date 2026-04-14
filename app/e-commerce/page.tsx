@@ -8,7 +8,6 @@ import FeaturedProducts from '@/components/ecommerce/FeaturedProducts';
 import NewArrivals from '@/components/ecommerce/NewArrivals';
 import SubcategoryProductTabs from '@/components/ecommerce/SubcategoryProductTabs';
 import SectionReveal from '@/components/ecommerce/SectionReveal';
-import NewArrivalsTicker from '@/components/ecommerce/NewArrivalsTicker';
 import InstagramReelViewer from '@/components/ecommerce/InstagramReelViewer';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 
@@ -42,57 +41,54 @@ export default function HomePage() {
     catalogService.getCategories()
       .then(tree => {
         const top = tree.filter(c => !c.parent_id);
-        // Sort by product count or something significant
-        setCategories(top.sort((a,b) => (b.product_count || 0) - (a.product_count || 0)));
+        setCategories(top.sort((a, b) => (b.product_count || 0) - (a.product_count || 0)));
       })
       .catch(console.error);
   }, []);
 
   return (
-    <div className="ec-root min-h-screen">
+    <div className="ec-root min-h-screen" style={{ background: '#ffffff' }}>
       <Navigation />
 
-      {/* 7.1 — Hero section (Full height) */}
+      {/* Hero section */}
       <HeroSection />
 
-      {/* 7.3 — New Arrivals Ticker (Infinite auto-scroll beneath hero) */}
-      <NewArrivalsTicker />
+      {/* Featured Categories */}
+      <SectionReveal>
+        <OurCategories categories={categories} />
+      </SectionReveal>
 
-      <div className="space-y-4">
-        <SectionReveal>
-          <OurCategories categories={categories} />
-        </SectionReveal>
+      {/* New Arrivals */}
+      <SectionReveal>
+        <NewArrivals />
+      </SectionReveal>
 
-        {/* 7.4 — Instagram Reels Feed */}
-        <SectionReveal threshold={0.05}>
-          <InstagramReelViewer />
-        </SectionReveal>
+      {/* Featured Products */}
+      <SectionReveal>
+        <FeaturedProducts />
+      </SectionReveal>
 
-        <SectionReveal>
-          <FeaturedProducts />
-        </SectionReveal>
+      {/* Dynamic Shop by Subcategory sections */}
+      {categories.map((cat) => {
+        const slug = (cat.slug || cat.name).toLowerCase();
+        const custom = CUSTOM_SECTIONS[slug] ||
+          Object.values(CUSTOM_SECTIONS).find(s => s.queries.includes(slug));
 
-        <SectionReveal>
-          <NewArrivals />
-        </SectionReveal>
+        return (
+          <SectionReveal key={cat.id} threshold={0.1}>
+            <SubcategoryProductTabs
+              parentQueries={custom ? custom.queries : [slug]}
+              eyebrow={custom ? custom.eyebrow : cat.name}
+              subtitle={custom ? custom.subtitle : `Explore our curated selection of quality ${cat.name} essentials.`}
+            />
+          </SectionReveal>
+        );
+      })}
 
-        {/* Dynamic Shop by Subcategory sections */}
-        {categories.map((cat) => {
-          const slug = (cat.slug || cat.name).toLowerCase();
-          const custom = CUSTOM_SECTIONS[slug] || 
-                         Object.values(CUSTOM_SECTIONS).find(s => s.queries.includes(slug));
-
-          return (
-            <SectionReveal key={cat.id} threshold={0.1}>
-              <SubcategoryProductTabs
-                parentQueries={custom ? custom.queries : [slug]}
-                eyebrow={custom ? custom.eyebrow : cat.name}
-                subtitle={custom ? custom.subtitle : `Explore our curated selection of quality ${cat.name} essentials.`}
-              />
-            </SectionReveal>
-          );
-        })}
-      </div>
+      {/* Instagram Reels Feed — keep as-is */}
+      <SectionReveal threshold={0.05}>
+        <InstagramReelViewer />
+      </SectionReveal>
     </div>
   );
 }

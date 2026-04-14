@@ -309,3 +309,22 @@ what we do not need to add or change: texts.
 generate the md file such that, each section can be given to an ai model in chunks.
 We want it to be aesthetically pleasing, smooth, and light-weight, but also have that "live" feeling.
 the website already supports some very nice features, especially in homepage, so we don't necessarily want them gone.
+
+
+#e-commerce copy
+
+See New Ui folder. 
+
+these are images of the website whose ui we want to copy in the e-commerce pages.
+
+copy the ui, color schemes, and overall design.
+the design should be focused on mobile view and optimised for that.
+
+for the texts and descriptions, the original texts already present are the source of truth, do not change them anywhere at all.
+the footer should have the texts as they are, simply update stylings.
+
+basically, use the images as inspiration and update our current website to 90% similar to that.
+
+this is what we want to keep from the old one: instagram viewer.
+
+some pages like categories, search page, about-us etc are not in here. update all the pages, their components to match this new styling, theme and UI.

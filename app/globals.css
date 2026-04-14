@@ -76,45 +76,46 @@ body {
 @layer base {
   :root {
 
-    /* --- Base Backgrounds (cool-ivory scale, lightest → deepest) --- */
-    --bg-root: #f4f7f7;
-    /* Page root. Faint cyan-cool white. Replaces --ink-black */
-    --bg-surface: #edf1f1;
-    /* Cards and panels */
-    --bg-surface-2: #e3e9e9;
-    /* Hover states, input fields */
-    --bg-depth: #d6dede;
-    /* Nav, footer, sidebars — deepest bg tone */
-    --bg-lifted: #e8eded;
+    /* --- Base Backgrounds (pure white e-commerce theme) --- */
+    --bg-root: #ffffff;
+    /* Page root — pure white */
+    --bg-surface: #ffffff;
+    /* Cards and panels — white */
+    --bg-surface-2: #f5f5f5;
+    /* Hover states, input fields — light grey */
+    --bg-depth: #f0f0f0;
+    /* Nav, footer, sidebars — light grey */
+    --bg-lifted: #f8f8f8;
     /* Dropdowns, modals */
+    --ivory-ghost: #f5f5f5;
 
-    /* --- Cyan (Brand Primary) --- */
-    --cyan: #00959c;
-    /* Brand cyan, darkened for contrast on cool-light bg */
-    --cyan-bright: #00b4bc;
+    /* --- Brand Black (Primary - replaces cyan) --- */
+    --cyan: #111111;
+    /* Brand primary — jet black */
+    --cyan-bright: #333333;
     /* Hover state */
-    --cyan-dim: #007078;
+    --cyan-dim: #000000;
     /* Active/pressed state */
-    --cyan-pale: rgba(0, 149, 156, 0.10);
+    --cyan-pale: rgba(17, 17, 17, 0.06);
     /* Tinted surface: active tab, chip bg */
-    --cyan-glow: rgba(0, 149, 156, 0.18);
+    --cyan-glow: rgba(17, 17, 17, 0.12);
     /* Focus ring glow */
-    --cyan-border: rgba(0, 149, 156, 0.32);
+    --cyan-border: rgba(17, 17, 17, 0.25);
     /* Accent borders */
 
-    /* --- Gold (Price / Luxury Detail) --- */
-    --gold: #9c6b1e;
-    /* Warm amber-gold — contrast-safe on cool-light bg */
-    --gold-bright: #b88030;
-    /* Hover, secondary gold text */
-    --gold-dim: #7e5518;
+    /* --- Gold (Price Display) --- */
+    --gold: #111111;
+    /* Price text — black */
+    --gold-bright: #333333;
+    /* Hover */
+    --gold-dim: #000000;
     /* Active/pressed */
-    --gold-pale: rgba(156, 107, 30, 0.10);
+    --gold-pale: rgba(17, 17, 17, 0.06);
     /* Gold-tinted surfaces */
-    --gold-glow: rgba(156, 107, 30, 0.18);
-    /* Gold glow */
-    --gold-border: rgba(156, 107, 30, 0.30);
-    /* Gold accent borders */
+    --gold-glow: rgba(17, 17, 17, 0.10);
+    /* Glow */
+    --gold-border: rgba(17, 17, 17, 0.20);
+    /* Accent borders */
 
     /* --- Semantic / Status --- */
     --status-success: #1a9456;
@@ -123,44 +124,43 @@ body {
     /* Low stock — amber */
     --status-danger: #b83228;
     /* Out of stock, error */
-    --status-info: var(--cyan);
+    --status-info: #111111;
 
-    /* --- Typography (cool-dark ink on cool-ivory) --- */
-    --text-primary: #141c1c;
-    /* Primary body text — cool near-black */
-    --text-secondary: #3d5050;
-    /* Subtext, metadata — cool mid teal-grey */
-    --text-muted: #7a9090;
-    /* Placeholder, disabled, labels — muted teal-grey */
-    --text-on-accent: #f4f7f7;
-    /* Text placed on cyan or gold buttons */
-    --ivory-muted: #d6dede;
-    /* Muted ivory for text on dark panels */
+    /* --- Typography (dark ink on white) --- */
+    --text-primary: #111111;
+    /* Primary body text — near-black */
+    --text-secondary: #555555;
+    /* Subtext, metadata */
+    --text-muted: #999999;
+    /* Placeholder, disabled, labels */
+    --text-on-accent: #ffffff;
+    /* Text placed on black buttons */
+    --ivory-muted: #cccccc;
+    /* Muted text for dark panels */
 
     /* --- Borders & Dividers --- */
-    --border-default: rgba(20, 28, 28, 0.10);
+    --border-default: rgba(0, 0, 0, 0.10);
     /* Standard card borders */
-    --border-strong: rgba(20, 28, 28, 0.20);
+    --border-strong: rgba(0, 0, 0, 0.20);
     /* Emphasized borders */
-    --border-cyan: var(--cyan-border);
-    --border-gold: var(--gold-border);
+    --border-cyan: rgba(0, 0, 0, 0.25);
+    --border-gold: rgba(0, 0, 0, 0.20);
 
-    /* --- Shadows (cool-tinted, matching the base) --- */
-    --shadow-card: 0 1px 4px rgba(20, 28, 28, 0.07), 0 2px 12px rgba(20, 28, 28, 0.05);
-    --shadow-lifted: 0 4px 24px rgba(20, 28, 28, 0.10), 0 1px 6px rgba(20, 28, 28, 0.07);
-    --shadow-cyan: 0 0 16px rgba(0, 149, 156, 0.22);
-    --shadow-gold: 0 0 14px rgba(156, 107, 30, 0.18);
+    /* --- Shadows --- */
+    --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.06), 0 2px 12px rgba(0, 0, 0, 0.04);
+    --shadow-lifted: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 6px rgba(0, 0, 0, 0.05);
+    --shadow-cyan: 0 0 16px rgba(0, 0, 0, 0.15);
+    --shadow-gold: 0 0 14px rgba(0, 0, 0, 0.10);
 
     /* --- Radii --- */
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 16px;
-    --radius-xl: 24px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 20px;
     --radius-pill: 999px;
 
     /* --- Transitions --- */
     --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
-    /* Keep — signature magnetic ease */
     --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
     --ease-out: cubic-bezier(0.0, 0.0, 0.3, 1);
     --transition-fast: 100ms var(--ease-smooth);
@@ -176,10 +176,8 @@ body {
     isolation: isolate;
   }
 
-
-
   .ec-root :where(h1, h2, h3, h4, h5, h6, .ec-heading) {
-    font-family: "Cormorant Garamond", ui-serif, Georgia, serif;
+    font-family: "Jost", ui-sans-serif, system-ui, sans-serif;
     letter-spacing: -0.01em;
   }
 

@@ -7,7 +7,6 @@ import { useCart } from '@/app/e-commerce/CartContext';
 import catalogService, { SimpleProduct } from '@/services/catalogService';
 import { buildCardProductsFromResponse } from '@/lib/ecommerceCardUtils';
 import PremiumProductCard from '@/components/ecommerce/ui/PremiumProductCard';
-import SectionHeader from '@/components/ecommerce/ui/SectionHeader';
 import { fireToast } from '@/lib/globalToast';
 
 interface NewArrivalsProps {
@@ -126,23 +125,21 @@ const NewArrivals: React.FC<NewArrivalsProps> = ({ categoryId, limit = 8 }) => {
 
   if (isLoading) {
     return (
-      <section className="ec-section">
+      <section style={{ background: '#ffffff', padding: '48px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
         <div className="ec-container">
-          <div className="ec-surface p-4 sm:p-6 lg:p-7">
-            <div className="h-3 w-32 rounded rounded" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            <div className="mt-3 h-8 w-48 rounded rounded" style={{ background: 'rgba(255,255,255,0.08)' }} />
-            <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: limit }).map((_, i) => (
-                <div key={i} className="ec-card overflow-hidden rounded-2xl animate-pulse">
-                  <div className="aspect-[4/5] rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                  <div className="p-4 space-y-2">
-                    <div className="h-3 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                    <div className="h-4 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                    <div className="h-4 w-1/2 rounded rounded" style={{ background: 'rgba(255,255,255,0.05)' }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
+            <div style={{ height: '24px', width: '180px', background: '#f5f5f5', borderRadius: '4px' }} />
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div style={{ aspectRatio: '2/3', background: '#f5f5f5', borderRadius: '4px', marginBottom: '12px' }} />
+                <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '70%', marginBottom: '6px' }} />
+                <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '40%' }} />
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -153,30 +150,58 @@ const NewArrivals: React.FC<NewArrivalsProps> = ({ categoryId, limit = 8 }) => {
   if (products.length === 0) return null;
 
   return (
-    <section className="bg-[var(--bg-root)] py-16 sm:py-24 border-y border-[var(--border-default)]">
+    <section style={{ background: '#ffffff', padding: '48px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
       <div className="ec-container">
-        <div className="relative overflow-hidden">
-          <SectionHeader
-            eyebrow="The Fresh List"
-            title="New Arrivals"
-            subtitle="Explore our latest drops and recently curated additions"
-            actionLabel="Discover more"
-            onAction={() => router.push('/e-commerce/products')}
-          />
-
-          <div className="flex sm:grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 ec-horizontal-scroll -mx-4 px-4 sm:mx-0 sm:px-0">
-            {products.map((product) => (
-              <div key={product.id} className="w-[85vw] sm:w-auto">
-                <PremiumProductCard
-                  product={product}
-                  imageErrored={imageErrors.has(product.id)}
-                  onImageError={handleImageError}
-                  onOpen={handleProductClick}
-                  onAddToCart={handleAddToCart}
-                />
-              </div>
-            ))}
+        {/* Section header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ height: '1px', flex: 1, maxWidth: '40px', background: '#111111' }} />
+            <h2 style={{
+              fontFamily: "'Jost', sans-serif",
+              fontSize: '18px',
+              fontWeight: 800,
+              textTransform: 'uppercase',
+              letterSpacing: '0.15em',
+              color: '#111111',
+              margin: 0,
+            }}>
+              New Arrivals
+            </h2>
+            <div style={{ height: '1px', flex: 1, maxWidth: '40px', background: '#111111' }} />
           </div>
+          <button
+            onClick={() => router.push('/e-commerce/products')}
+            style={{
+              fontFamily: "'Jost', sans-serif",
+              fontSize: '12px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              color: '#111111',
+              background: 'none',
+              border: '1.5px solid #111111',
+              borderRadius: '4px',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            View All
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
+          {products.map((product) => (
+            <PremiumProductCard
+              key={product.id}
+              product={product}
+              imageErrored={imageErrors.has(product.id)}
+              onImageError={handleImageError}
+              onOpen={handleProductClick}
+              onAddToCart={handleAddToCart}
+            />
+          ))}
         </div>
       </div>
     </section>

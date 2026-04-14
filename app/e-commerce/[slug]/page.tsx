@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Navigation from '@/components/ecommerce/Navigation';
-import CartSidebar from '@/components/ecommerce/cart/CartSidebar';
 import CategorySidebar from '@/components/ecommerce/category/CategorySidebar';
 import { useCart } from '@/app/e-commerce/CartContext';
 import catalogService, {
@@ -204,7 +203,7 @@ const buildCardProductsFromFlatCatalog = (rawProducts: (Product | SimpleProduct)
 export default function CategoryPage() {
   const params = useParams() as any;
   const router = useRouter();
-  const { addToCart } = useCart();
+  const { addToCart, setIsCartOpen } = useCart();
 
   const categorySlug = params.slug || '';
 
@@ -221,7 +220,6 @@ export default function CategoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isClosingFilters, setIsClosingFilters] = useState(false);
 
@@ -528,9 +526,9 @@ export default function CategoryPage() {
               <div className="h-8 rounded w-1/4 mb-8 animate-pulse" style={{ background: 'var(--ivory-ghost)' }}></div>
               <div className="flex gap-8">
                 <div className="w-64 h-96 rounded-lg animate-pulse" style={{ background: 'var(--bg-surface)' }}></div>
-                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse bg-[var(--bg-surface)]" />
+                <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {[...Array(10)].map((_, i) => (
+                    <div key={i} className="aspect-[2/3] rounded-lg animate-pulse bg-gray-100" />
                   ))}
                 </div>
               </div>
@@ -616,7 +614,7 @@ export default function CategoryPage() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-y-12 gap-x-4 md:gap-6">
                     {products.map((product, index) => (
                       <PremiumProductCard
                         key={product.id}
@@ -674,7 +672,7 @@ export default function CategoryPage() {
         </div>
       </div>
 
-      <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+
 
       {/* Mobile filter drawer (Bottom Sheet) */}
       {isFiltersOpen && (

@@ -4,23 +4,14 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
-import SectionHeader from '@/components/ecommerce/ui/SectionHeader';
 
 const slugify = (v: string) =>
   v.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-');
 
-/**
- * Home "Shop by Category" should show TOP-LEVEL categories (not subcategories).
- * If the API ever returns a flat list, we fall back gracefully.
- */
 const getTopLevelCategories = (items: CatalogCategory[]): CatalogCategory[] => {
   const named = (Array.isArray(items) ? items : []).filter(c => c && c.name);
-
-  // Prefer top-level categories if present
   const top = named.filter(c => (c.parent_id ?? null) === null);
   const base = top.length ? top : named;
-
-  // Sort by product_count desc, then name for stability
   return [...base].sort((a, b) => {
     const da = Number(a.product_count || 0);
     const db = Number(b.product_count || 0);
@@ -28,19 +19,6 @@ const getTopLevelCategories = (items: CatalogCategory[]): CatalogCategory[] => {
     return String(a.name || '').localeCompare(String(b.name || ''));
   });
 };
-
-const PALETTE = [
-  ['#f8f9fa', '#e9ecef'],
-  ['#f1f3f5', '#dee2e6'],
-  ['#e9ecef', '#ced4da'],
-  ['#f8f9fa', '#e9ecef'],
-  ['#f1f3f5', '#dee2e6'],
-  ['#e9ecef', '#ced4da'],
-  ['#f8f9fa', '#e9ecef'],
-  ['#f1f3f5', '#dee2e6'],
-  ['#e9ecef', '#ced4da'],
-  ['#f8f9fa', '#e9ecef'],
-];
 
 interface OurCategoriesProps {
   categories?: CatalogCategory[];
@@ -51,7 +29,6 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
   const router = useRouter();
   const [categories, setCategories] = React.useState<CatalogCategory[]>(categoriesProp || []);
   const [isFetching, setIsFetching] = React.useState<boolean>(!categoriesProp);
-  const [isExpanded, setIsExpanded] = React.useState(false);
 
   React.useEffect(() => {
     if (categoriesProp) { setCategories(categoriesProp); setIsFetching(false); }
@@ -69,23 +46,20 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
   }, [categoriesProp]);
 
   const allDisplay = getTopLevelCategories(categories || []);
-  const initialLimit = 4;
-  const display = isExpanded ? allDisplay : allDisplay.slice(0, initialLimit);
 
   if (loading || isFetching) {
     return (
-      <section className="bg-white py-12 sm:py-20">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 space-y-3">
-            <div className="h-4 w-32 bg-gray-100 rounded-full animate-pulse" />
-            <div className="h-10 w-64 bg-gray-100 rounded-lg animate-pulse" />
+      <section style={{ background: '#ffffff', padding: '48px 0' }}>
+        <div className="ec-container">
+          {/* Header skeleton */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
+            <div style={{ height: '24px', width: '180px', background: '#f0f0f0', borderRadius: '4px' }} />
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-[340/540] rounded-2xl bg-gray-50 mb-4" />
-                <div className="h-4 bg-gray-50 rounded-full w-3/4 mx-auto" />
-              </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{ aspectRatio: '3/4', background: '#f5f5f5', borderRadius: '4px', animation: 'pulse 1.5s ease-in-out infinite' }} />
             ))}
           </div>
         </div>
@@ -96,71 +70,100 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
   if (allDisplay.length === 0) return null;
 
   return (
-    <section className="bg-[var(--bg-depth)] py-16 sm:py-24">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12">
-          <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-[var(--cyan)] mb-4 block" style={{ fontFamily: "'DM Mono', monospace" }}>
-            Discovery
-          </span>
-          <h2 className="text-4xl sm:text-5xl font-medium text-[var(--text-primary)] tracking-tight"
-            style={{ fontFamily: "'Cormorant Garamond', serif", lineHeight: 1 }}>
-            Explore Collections
+    <section style={{ background: '#ffffff', padding: '48px 0' }}>
+      <div className="ec-container">
+        {/* Section header — reference style */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
+          <div style={{ height: '1px', flex: 1, maxWidth: '80px', background: '#111111' }} />
+          <h2 style={{
+            fontFamily: "'Jost', sans-serif",
+            fontSize: '18px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.15em',
+            color: '#111111',
+            margin: 0,
+          }}>
+            FEATURED CATEGORIES
           </h2>
-          <p className="mt-4 text-[var(--text-secondary)] max-w-lg text-[15px] leading-relaxed">
-            Curated essentials handcrafted for quality, longevity, and everyday style.
-          </p>
+          <div style={{ height: '1px', flex: 1, maxWidth: '80px', background: '#111111' }} />
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+        {/* 4-col grid matching reference */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 md:gap-3">
           {allDisplay.map((cat, i) => {
             const imgSrc = toAbsoluteAssetUrl(cat.image || cat.image_url || '');
-            const [from, to] = PALETTE[i % PALETTE.length];
 
             return (
               <button
                 key={cat.id}
                 onClick={() => router.push(`/e-commerce/${encodeURIComponent(cat.slug || slugify(cat.name))}`)}
-                className="group relative flex flex-col items-center w-full"
                 type="button"
+                style={{
+                  position: 'relative',
+                  overflow: 'hidden',
+                  aspectRatio: '3/4',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  background: '#e8e8e8',
+                  display: 'block',
+                  width: '100%',
+                }}
+                onMouseEnter={e => {
+                  const img = (e.currentTarget as HTMLElement).querySelector('img');
+                  if (img) img.style.transform = 'scale(1.06)';
+                }}
+                onMouseLeave={e => {
+                  const img = (e.currentTarget as HTMLElement).querySelector('img');
+                  if (img) img.style.transform = 'scale(1)';
+                }}
               >
-                <div
-                  className="relative w-full overflow-hidden rounded-[var(--radius-lg)] bg-[var(--bg-surface)] border border-[var(--border-default)] transition-all duration-700 group-hover:shadow-2xl group-hover:border-[var(--border-strong)]"
-                  style={{ aspectRatio: '340/500' }}
-                >
-                  {imgSrc ? (
-                    <img
-                      src={imgSrc}
-                      alt={cat.name}
-                      className="absolute inset-0 h-full w-full object-cover mix-blend-multiply transition-transform duration-1000 group-hover:scale-110"
-                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div
-                      className="absolute inset-0 opacity-10"
-                      style={{ background: `linear-gradient(160deg, ${from} 0%, ${to} 100%)` }}
-                    />
-                  )}
-
-                  {/* Subtle warm hover overlay */}
-                  <div className="absolute inset-0 bg-[rgba(28,24,18,0)] transition-colors duration-500 group-hover:bg-[rgba(28,24,18,0.06)]" />
-
-                  {/* Category Label at bottom */}
-                  <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex flex-col items-start text-left">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2"
-                      style={{ fontFamily: "'DM Mono', monospace" }}>
-                      {cat.product_count || 0} Pieces
-                    </span>
-                    <h3 className="text-xl sm:text-2xl font-medium text-[var(--text-primary)] leading-tight"
-                      style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-                      {cat.name}
-                    </h3>
-                    
-                    {/* CTA Chip */}
-                    <div className="mt-6 px-4 py-2 bg-[var(--bg-root)] text-[var(--text-primary)] rounded-[var(--radius-sm)] text-[10px] font-bold uppercase tracking-widest opacity-0 translate-y-2 transition-all duration-500 group-hover:opacity-100 group-hover:translate-y-0"
-                         style={{ fontFamily: "'DM Mono', monospace" }}>
-                      Shop Collection
-                    </div>
+                {imgSrc ? (
+                  <img
+                    src={imgSrc}
+                    alt={cat.name}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'top',
+                      transition: 'transform 0.6s ease',
+                    }}
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                  />
+                ) : (
+                  <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: `hsl(${(i * 40) % 360}, 12%, 88%)`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <span style={{ fontFamily: "'Jost', sans-serif", fontSize: '48px', fontWeight: 700, color: 'rgba(0,0,0,0.15)' }}>{cat.name.charAt(0)}</span>
                   </div>
+                )}
+
+                {/* Dark gradient overlay */}
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.10) 50%, transparent 100%)' }} />
+
+                {/* Category label at bottom */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 12px', textAlign: 'left' }}>
+                  <h3 style={{
+                    fontFamily: "'Jost', sans-serif",
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: '#ffffff',
+                    margin: 0,
+                    textShadow: '0 1px 4px rgba(0,0,0,0.4)',
+                  }}>
+                    {cat.name}
+                  </h3>
                 </div>
               </button>
             );

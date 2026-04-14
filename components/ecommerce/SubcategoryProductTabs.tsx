@@ -281,20 +281,21 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
   /* ── skeleton ── */
   if (loadingCats) {
     return (
-      <section className="bg-white py-12">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-6 space-y-2">
-            <div className="h-3 w-32 bg-[var(--ivory-ghost)] rounded-full animate-pulse" />
-            <div className="h-8 w-56 bg-[var(--ivory-ghost)] rounded-lg animate-pulse" />
+      <section style={{ background: '#ffffff', padding: '48px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        <div className="ec-container">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
+            <div style={{ height: '24px', width: '180px', background: '#f0f0f0', borderRadius: '4px' }} />
+            <div style={{ height: '1px', width: '48px', background: '#e0e0e0' }} />
           </div>
-          <div className="flex gap-4 mb-8 overflow-hidden">
-            {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-10 w-24 bg-[var(--bg-surface)] rounded-full flex-shrink-0 animate-pulse" />)}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', overflowX: 'auto' }}>
+            {[1, 2, 3, 4, 5].map(i => <div key={i} style={{ height: '36px', width: '80px', background: '#f0f0f0', borderRadius: '4px', flexShrink: 0 }} />)}
           </div>
-          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="aspect-[4/5] rounded-2xl bg-[var(--bg-surface)] mb-4" />
-                <div className="h-4 bg-[var(--bg-surface)] rounded-full w-3/4" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i}>
+                <div style={{ aspectRatio: '3/4', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
+                <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '75%' }} />
               </div>
             ))}
           </div>
@@ -307,79 +308,74 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
 
   /* ── main ── */
   return (
-    <section className="bg-[var(--bg-root)] py-12 sm:py-20 border-t border-[var(--border-default)]">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+    <section style={{ background: '#ffffff', padding: '48px 0', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 16px' }} className="sm:px-6 lg:px-8">
 
-        {/* Header */}
-        <div className="mb-10">
-          <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-[var(--text-muted)] mb-2 block">
-            {eyebrow ?? 'Collections'}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-light text-[var(--text-primary)] tracking-tight"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-            {title ?? (parentLabel ? `Shop ${parentLabel}` : 'Shop All')}
+        {/* Section header — reference style */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ height: '1px', flex: 1, maxWidth: '80px', background: '#111111' }} />
+          <h2 style={{
+            fontFamily: "'Jost', sans-serif",
+            fontSize: '18px',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.15em',
+            color: '#111111',
+            margin: 0,
+          }}>
+            {title ?? (parentLabel ? parentLabel.toUpperCase() : eyebrow?.toUpperCase() ?? 'NEW AND POPULAR')}
           </h2>
-          {subtitle && (
-            <p className="mt-2 text-[var(--text-secondary)] max-w-lg text-sm sm:text-base">
-              {subtitle}
-            </p>
-          )}
+          <div style={{ height: '1px', flex: 1, maxWidth: '80px', background: '#111111' }} />
         </div>
 
-        {/* Scrollable text-based sub-category slider */}
-        <div className="relative mb-8 -mx-4 px-4 sm:mx-0 sm:px-0">
+        {/* Scrollable pill tabs — reference style */}
+        <div style={{ marginBottom: '24px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <div
             ref={tabsContainerRef}
-            className="flex items-center gap-8 overflow-x-auto pb-4 scrollbar-hide no-scrollbar scroll-smooth"
-            style={{
-              scrollSnapType: 'x mandatory',
-              position: 'relative'
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '4px', flexWrap: 'nowrap' }}
           >
-            {/* Sub-category Tabs */}
             {tabs.map((cat) => (
               <button
                 key={cat.id}
                 ref={el => { tabRefs.current[cat.id] = el; }}
                 onClick={() => setActiveId(cat.id)}
-                className={`text-sm sm:text-base font-medium whitespace-nowrap px-4 py-2 rounded-[var(--radius-sm)] transition-all duration-300 ${activeId === cat.id
-                  ? 'text-[var(--cyan)] bg-[var(--cyan-pale)]'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--ivory-ghost)]'
-                  }`}
                 style={{
                   fontFamily: "'Jost', sans-serif",
-                  scrollSnapAlign: 'start'
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  whiteSpace: 'nowrap',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  border: activeId === cat.id ? '1.5px solid #111111' : '1.5px solid rgba(0,0,0,0.15)',
+                  background: activeId === cat.id ? '#111111' : '#ffffff',
+                  color: activeId === cat.id ? '#ffffff' : '#555555',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0,
                 }}
               >
                 {cat.name}
               </button>
             ))}
-
-
           </div>
         </div>
 
         {/* Product grid */}
-        <div className="min-h-[600px]">
+        <div style={{ minHeight: '400px' }}>
           {activeTab?.loading ? (
-            <div className="grid grid-cols-2 gap-6 sm:gap-8 md:grid-cols-3 lg:grid-cols-4 animate-pulse">
-              {Array.from({ length: productsPerTab }).map((_, i) => (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
+              {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i}>
-                  <div className="aspect-[3/4] rounded-[24px] bg-gray-50 mb-5" />
-                  <div className="px-1 space-y-3">
-                    <div className="h-2 bg-gray-50 rounded-full w-1/3" />
-                    <div className="h-4 bg-gray-50 rounded-md w-full" />
-                    <div className="h-4 bg-gray-50 rounded-md w-2/3" />
-                    <div className="pt-2 border-t border-gray-50 flex justify-between">
-                      <div className="h-5 bg-gray-50 rounded-md w-1/3" />
-                      <div className="h-6 w-6 rounded-full bg-gray-50" />
-                    </div>
-                  </div>
+                  <div style={{ aspectRatio: '3/4', background: '#f5f5f5', borderRadius: '4px', marginBottom: '8px' }} />
+                  <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '75%', marginBottom: '6px' }} />
+                  <div style={{ height: '14px', background: '#f5f5f5', borderRadius: '4px', width: '40%' }} />
                 </div>
               ))}
             </div>
           ) : activeTab?.products.length ? (
-            <div className="grid grid-cols-2 gap-6 sm:gap-8 md:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 md:gap-6">
               {activeTab.products.map((p, index) => (
                 <PremiumProductCard
                   key={`${activeKey}-${p.id}`}
@@ -394,20 +390,35 @@ const SubcategoryProductTabs: React.FC<SubcategoryProductTabsProps> = ({
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center bg-[var(--bg-surface)] rounded-3xl border border-dashed border-[var(--border-default)]">
-              <p className="text-[var(--text-muted)] font-medium">No products found in this collection</p>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', textAlign: 'center', background: '#f8f8f8', borderRadius: '8px', border: '1px dashed rgba(0,0,0,0.15)' }}>
+              <p style={{ color: '#999999', fontSize: '14px' }}>No products found in this collection</p>
             </div>
           )}
         </div>
 
         {/* View All Button */}
         {activeTab?.category && activeTab.products.length > 0 && (
-          <div className="mt-12 flex justify-center">
+          <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
             <button
               onClick={() => router.push(`/e-commerce/${encodeURIComponent(catSlug(activeTab.category))}`)}
-              className="px-10 py-4 bg-[var(--text-primary)] text-[var(--bg-root)] text-xs font-bold uppercase tracking-widest rounded-full hover:opacity-90 transition-all active:scale-95"
+              style={{
+                padding: '12px 32px',
+                background: '#ffffff',
+                color: '#111111',
+                border: '1.5px solid #111111',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: 700,
+                fontFamily: "'Jost', sans-serif",
+                textTransform: 'uppercase',
+                letterSpacing: '0.10em',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#111111'; (e.currentTarget as HTMLElement).style.color = '#ffffff'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#ffffff'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
             >
-              View Full {activeTab.category.name} Collection
+              View All {activeTab.category.name}
             </button>
           </div>
         )}

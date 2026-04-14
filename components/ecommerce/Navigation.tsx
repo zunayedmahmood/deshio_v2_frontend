@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { ShoppingCart, Search, User, ChevronDown, LogOut, Heart, Package, Menu, X, Grid3X3 } from 'lucide-react';
+import { ShoppingCart, Search, User, ChevronDown, LogOut, Heart, Package, Menu, X, Home, Sparkles } from 'lucide-react';
 import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 import cartService from '@/services/cartService';
@@ -27,14 +27,12 @@ const Navbar = () => {
   const { customer, isAuthenticated, logout } = useCustomerAuth();
   const { setIsCartOpen } = useCart();
 
-
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [showUser, setShowUser] = useState(false);
   const [showCats, setShowCats] = useState(false);
-  const [mobileActiveCat, setMobileActiveCat] = useState<number | null>(null);
   const [expandedCats, setExpandedCats] = useState<Set<number>>(new Set());
   const [scrolled, setScrolled] = useState(false);
 
@@ -97,7 +95,7 @@ const Navbar = () => {
     setTimeout(() => {
       setMobileOpen(false);
       setIsClosing(false);
-    }, 450);
+    }, 350);
   };
 
   const handleLogout = async () => {
@@ -107,108 +105,176 @@ const Navbar = () => {
 
   const isActive = (href: string) => pathname === href;
 
+  // Mobile bottom tab check
+  const isHomePage = pathname === '/e-commerce';
+  const isSearchPage = pathname === '/e-commerce/search';
+  const isNewArrival = pathname.includes('/e-commerce/products') || pathname.includes('/e-commerce/new');
+  const isAccountPage = pathname.includes('/e-commerce/my-account') || pathname.includes('/e-commerce/login');
+
   return (
     <>
-
-      {/* ── Main navbar ─────────────────────────────────────────────── */}
+      {/* ── Main navbar (desktop + mobile top bar) ─────────────────── */}
       <nav
-        className={`ec-nav sticky top-0 z-50 transition-all duration-300 ${scrolled ? 'shadow-[var(--shadow-lifted)] border-b-transparent' : 'border-b-[var(--border-default)]'}`}
+        style={{
+          background: '#ffffff',
+          borderBottom: '1px solid rgba(0,0,0,0.1)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          boxShadow: scrolled ? '0 2px 12px rgba(0,0,0,0.08)' : 'none',
+          transition: 'box-shadow 0.3s ease',
+        }}
       >
         <div className="ec-container">
-          <div className="flex h-16 items-center justify-between gap-6 sm:h-[68px]">
+          <div style={{ display: 'flex', height: '56px', alignItems: 'center', justifyContent: 'space-between' }}>
 
             {/* ── Logo ── */}
-            <Link href="/e-commerce" className="flex-shrink-0 flex items-center gap-3">
+            <Link href="/e-commerce" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
               <img
                 src="/logo.png"
                 alt="Errum"
-                className="h-8 w-auto object-contain"
+                style={{ height: '32px', width: 'auto', objectFit: 'contain' }}
               />
-              <div
-                className="flex items-center text-[var(--text-primary)]"
-                style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '24px', fontWeight: 600, letterSpacing: '0.08em' }}
-              >
-                <span className="text-[var(--cyan)]">ERRUM</span>
-              </div>
+              <span style={{
+                fontFamily: "'Jost', sans-serif",
+                fontSize: '20px',
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                color: '#111111',
+              }}>
+                ERRUM
+              </span>
             </Link>
 
             {/* ── Desktop nav links ── */}
-            <div className="hidden lg:flex items-center gap-8">
-              <Link href="/e-commerce" className={`ec-nav-link ${isActive('/e-commerce') ? 'ec-nav-link-active' : ''}`}>
+            <div style={{ display: 'none' }} className="lg:flex items-center gap-8">
+              <Link href="/e-commerce" style={{
+                fontFamily: "'Jost', sans-serif",
+                fontSize: '13px',
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: isActive('/e-commerce') ? '#111111' : '#555555',
+                textDecoration: 'none',
+                transition: 'color 0.2s',
+              }}>
                 Home
               </Link>
 
               {/* Categories mega-dropdown */}
-              <div className="relative" ref={catsRef}>
+              <div style={{ position: 'relative' }} ref={catsRef}>
                 <button
                   onClick={() => setShowCats(v => !v)}
-                  className={`ec-nav-link flex items-center gap-1 ${showCats ? 'ec-nav-link-active' : ''}`}
+                  style={{
+                    fontFamily: "'Jost', sans-serif",
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: showCats ? '#111111' : '#555555',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
                 >
                   Categories
-                  <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${showCats ? 'rotate-180' : ''}`} />
+                  <ChevronDown style={{ width: '12px', height: '12px', transform: showCats ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </button>
 
                 {showCats && categories.length > 0 && (
-                  <div className="absolute left-1/2 top-full mt-4 -translate-x-1/2 w-[1000px] rounded-[var(--radius-xl)] border border-[var(--border-strong)] bg-[var(--bg-lifted)] shadow-[var(--shadow-lifted)] overflow-hidden">
-                    {/* Dropdown header */}
-                    <div className="border-b border-[var(--border-default)] px-8 py-5 flex items-center justify-between bg-[var(--bg-surface)]">
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: '12px', fontWeight: 700, letterSpacing: '0.22em', color: 'var(--text-muted)' }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '100%',
+                    marginTop: '8px',
+                    transform: 'translateX(-50%)',
+                    width: '800px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(0,0,0,0.12)',
+                    background: '#ffffff',
+                    boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
+                    overflow: 'hidden',
+                    zIndex: 100,
+                  }}>
+                    <div style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8f8f8' }}>
+                      <span style={{ fontFamily: "'Jost', sans-serif", fontSize: '11px', fontWeight: 700, letterSpacing: '0.18em', color: '#999999', textTransform: 'uppercase' }}>
                         ALL CATEGORIES
                       </span>
                       <Link
                         href="/e-commerce/categories"
-                        className="text-[13px] text-[var(--cyan)] hover:text-[var(--cyan-bright)] transition-colors font-bold uppercase tracking-widest"
+                        style={{ fontSize: '12px', color: '#111111', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', textDecoration: 'none' }}
                         onClick={() => setShowCats(false)}
                       >
                         Explore all →
                       </Link>
                     </div>
 
-                    {/* Category grid */}
-                    <div className="p-8 grid grid-cols-3 gap-x-8 gap-y-6 max-h-[600px] overflow-y-auto ec-scrollbar">
+                    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px 24px', maxHeight: '480px', overflowY: 'auto' }}>
                       {categories.map(cat => (
-                        <div key={cat.id} className="group/item">
+                        <div key={cat.id}>
                           <Link
                             href={`/e-commerce/${encodeURIComponent(catSlug(cat))}`}
                             onClick={() => setShowCats(false)}
-                            className="flex items-center gap-5 rounded-2xl px-4 py-4 text-[var(--text-primary)] hover:bg-[var(--cyan-pale)] transition-all"
-                            style={{ background: 'transparent' }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
+                              borderRadius: '6px',
+                              padding: '10px 12px',
+                              color: '#111111',
+                              textDecoration: 'none',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
-                            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl text-[16px] font-bold text-[var(--cyan)] border border-[var(--border-default)] bg-[var(--bg-depth)] group-hover/item:border-[var(--cyan-border)]"
-                              style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              background: '#f0f0f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontFamily: "'Jost', sans-serif",
+                              fontSize: '14px',
+                              fontWeight: 700,
+                              color: '#111111',
+                              flexShrink: 0,
+                            }}>
                               {cat.name.charAt(0)}
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-[16.5px] font-bold text-[var(--text-primary)] truncate transition-colors group-hover/item:text-[var(--cyan)]">{cat.name}</p>
+                            <div>
+                              <p style={{ fontSize: '14px', fontWeight: 600, color: '#111111', margin: 0 }}>{cat.name}</p>
                               {cat.children && cat.children.length > 0 && (
-                                <p className="text-[11.5px] text-[var(--text-muted)] mt-1 tracking-wide font-medium uppercase">{cat.children.length} collections</p>
+                                <p style={{ fontSize: '11px', color: '#999999', margin: '2px 0 0 0' }}>{cat.children.length} collections</p>
                               )}
                             </div>
                           </Link>
 
-                          {/* Sub-category pills under each parent - all shown with toggle */}
                           {cat.children && cat.children.length > 0 && (
-                            <div className="pl-[72px] pb-4 flex flex-col gap-2">
+                            <div style={{ paddingLeft: '60px', paddingBottom: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                               {(expandedCats.has(cat.id) ? cat.children : cat.children.slice(0, 4)).map(child => (
                                 <Link
                                   key={child.id}
                                   href={`/e-commerce/${encodeURIComponent(catSlug(child))}`}
                                   onClick={() => setShowCats(false)}
-                                  className="text-[15.5px] font-medium text-[var(--text-primary)] hover:text-[var(--text-primary)] py-0.5 transition-colors relative flex items-center"
+                                  style={{ fontSize: '13px', color: '#555555', textDecoration: 'none', padding: '2px 0' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = '#111111')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = '#555555')}
                                 >
-                                  <span className="w-1.5 h-px bg-[var(--border-strong)] mr-3 opacity-40"></span>
                                   {child.name}
                                 </Link>
                               ))}
                               {cat.children.length > 4 && (
                                 <button
                                   onClick={e => { e.stopPropagation(); setExpandedCats(prev => { const s = new Set(prev); s.has(cat.id) ? s.delete(cat.id) : s.add(cat.id); return s; }); }}
-                                  className="text-[11px] font-bold text-left transition-colors mt-1 pl-3 uppercase tracking-widest"
-                                  style={{ color: 'var(--gold-light)' }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--gold)')}
-                                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--gold-light)')}
+                                  style={{ fontSize: '11px', fontWeight: 700, color: '#111111', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '2px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}
                                 >
-                                  {expandedCats.has(cat.id) ? '↑ Show fewer' : `+ ${cat.children.length - 4} collections`}
+                                  {expandedCats.has(cat.id) ? '↑ Show fewer' : `+ ${cat.children.length - 4} more`}
                                 </button>
                               )}
                             </div>
@@ -220,56 +286,63 @@ const Navbar = () => {
                 )}
               </div>
 
-              <Link href="/e-commerce/about" className={`ec-nav-link ${isActive('/e-commerce/about') ? 'ec-nav-link-active' : ''}`}>About</Link>
-              <Link href="/e-commerce/contact" className={`ec-nav-link ${isActive('/e-commerce/contact') ? 'ec-nav-link-active' : ''}`}>Contact</Link>
+              <Link href="/e-commerce/about" style={{ fontFamily: "'Jost', sans-serif", fontSize: '13px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: isActive('/e-commerce/about') ? '#111111' : '#555555', textDecoration: 'none' }}>About</Link>
+              <Link href="/e-commerce/contact" style={{ fontFamily: "'Jost', sans-serif", fontSize: '13px', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: isActive('/e-commerce/contact') ? '#111111' : '#555555', textDecoration: 'none' }}>Contact</Link>
             </div>
 
-            {/* ── Right icons ── */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            {/* ── Right icons (desktop) ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
 
               {/* Search */}
               <Link
                 href="/e-commerce/search"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
+                style={{ display: 'flex', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#555555', textDecoration: 'none', transition: 'background 0.15s, color 0.15s' }}
                 aria-label="Search"
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0f0f0'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
               >
-                <Search className="h-4 w-4" />
+                <Search style={{ width: '18px', height: '18px' }} />
               </Link>
 
-              {/* Account */}
+              {/* Account — desktop only */}
               {isAuthenticated ? (
-                <div className="relative hidden sm:block" ref={userRef}>
+                <div style={{ position: 'relative', display: 'none' }} className="sm:block" ref={userRef}>
                   <button
                     onClick={() => setShowUser(v => !v)}
-                    className="flex h-9 items-center gap-2 rounded-full px-3 text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
+                    style={{ display: 'flex', height: '38px', alignItems: 'center', gap: '6px', borderRadius: '999px', padding: '0 12px', color: '#555555', background: 'none', border: 'none', cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0f0f0'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
                   >
-                    <User className="h-4 w-4" />
-                    <span className="text-[12px] font-medium hidden md:block">{customer?.name?.split(' ')[0]}</span>
-                    <ChevronDown className={`h-3 w-3 transition-transform ${showUser ? 'rotate-180' : ''}`} />
+                    <User style={{ width: '18px', height: '18px' }} />
+                    <span style={{ fontSize: '12px', fontWeight: 600 }} className="hidden md:block">{customer?.name?.split(' ')[0]}</span>
+                    <ChevronDown style={{ width: '12px', height: '12px', transform: showUser ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                   </button>
                   {showUser && (
-                    <div className="absolute right-0 top-full mt-2 w-52 rounded-[var(--radius-lg)] border border-[var(--border-strong)] bg-[var(--bg-lifted)] py-2 shadow-[var(--shadow-lifted)]">
-                      <div className="px-4 py-3 border-b border-[var(--border-default)]">
-                        <p className="text-[13px] font-semibold text-[var(--text-primary)]">{customer?.name}</p>
-                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">{customer?.email}</p>
+                    <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '8px', width: '200px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.12)', background: '#ffffff', boxShadow: '0 8px 32px rgba(0,0,0,0.10)', overflow: 'hidden', zIndex: 100 }}>
+                      <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+                        <p style={{ fontSize: '13px', fontWeight: 600, margin: 0, color: '#111111' }}>{customer?.name}</p>
+                        <p style={{ fontSize: '11px', color: '#999999', margin: '2px 0 0 0' }}>{customer?.email}</p>
                       </div>
                       {[
-                        { href: '/e-commerce/my-account', icon: User, label: 'My Account' },
-                        { href: '/e-commerce/orders', icon: Package, label: 'My Orders' },
-                        { href: '/e-commerce/wishlist', icon: Heart, label: 'Wishlist' },
-                      ].map(({ href, icon: Icon, label }) => (
+                        { href: '/e-commerce/my-account', label: 'My Account' },
+                        { href: '/e-commerce/orders', label: 'My Orders' },
+                        { href: '/e-commerce/wishlist', label: 'Wishlist' },
+                      ].map(({ href, label }) => (
                         <Link key={href} href={href} onClick={() => setShowUser(false)}
-                          className="flex items-center gap-3 px-4 py-2.5 text-[13px] text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
+                          style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', fontSize: '13px', color: '#555555', textDecoration: 'none', transition: 'background 0.15s, color 0.15s' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
                         >
-                          <Icon className="h-3.5 w-3.5" />
                           {label}
                         </Link>
                       ))}
-                      <div className="mx-4 my-1 border-t border-[var(--border-default)]" />
+                      <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }} />
                       <button onClick={handleLogout}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-[13px] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all text-left"
+                        style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '8px', padding: '10px 16px', fontSize: '13px', color: '#999999', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 0.15s', textAlign: 'left' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#111111')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#999999')}
                       >
-                        <LogOut className="h-3.5 w-3.5" />
+                        <LogOut style={{ width: '14px', height: '14px' }} />
                         Sign out
                       </button>
                     </div>
@@ -277,10 +350,13 @@ const Navbar = () => {
                 </div>
               ) : (
                 <Link href="/e-commerce/login"
-                  className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
+                  style={{ display: 'none', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#555555', textDecoration: 'none', transition: 'background 0.15s, color 0.15s' }}
+                  className="sm:flex"
                   aria-label="Login"
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0f0f0'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
                 >
-                  <User className="h-4 w-4" />
+                  <User style={{ width: '18px', height: '18px' }} />
                 </Link>
               )}
 
@@ -288,189 +364,264 @@ const Navbar = () => {
               <button
                 onClick={() => setIsCartOpen(true)}
                 aria-label="Cart"
-                className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all"
+                style={{ position: 'relative', display: 'flex', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#555555', background: 'none', border: 'none', cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f0f0f0'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
               >
-                <ShoppingCart className="h-4 w-4" />
+                <ShoppingCart style={{ width: '18px', height: '18px' }} />
                 {cartCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--cyan)] px-0.5 text-[9px] font-bold text-[var(--text-on-accent)]">
+                  <span style={{
+                    position: 'absolute',
+                    top: '-2px',
+                    right: '-2px',
+                    display: 'flex',
+                    height: '18px',
+                    minWidth: '18px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '999px',
+                    background: '#111111',
+                    color: '#ffffff',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '0 4px',
+                  }}>
                     {cartCount > 99 ? '99+' : cartCount}
                   </span>
                 )}
               </button>
 
-
-              {/* Mobile menu button */}
+              {/* Mobile menu button — visible < lg */}
               <button
                 onClick={() => (mobileOpen ? closeMobileMenu() : setMobileOpen(true))}
-                className="lg:hidden flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:text-[var(--cyan)] hover:bg-[var(--cyan-pale)] transition-all ml-1"
+                style={{ display: 'flex', width: '38px', height: '38px', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#555555', background: 'none', border: 'none', cursor: 'pointer' }}
+                className="lg:hidden"
                 aria-label="Menu"
               >
-                {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                {mobileOpen ? <X style={{ width: '18px', height: '18px' }} /> : <Menu style={{ width: '18px', height: '18px' }} />}
               </button>
             </div>
           </div>
         </div>
 
-        {/* ── Mobile menu Drawer ── */}
+        {/* ── Mobile Drawer ── */}
         {mobileOpen && (
           <>
             {/* Backdrop */}
             <div
-              className={`lg:hidden fixed inset-0 z-[1000] bg-black/40 backdrop-blur-sm ${isClosing ? 'ec-anim-backdrop-out' : 'ec-anim-backdrop'}`}
+              className={`lg:hidden fixed inset-0 z-[1000] bg-black/30 ${isClosing ? 'ec-anim-backdrop-out' : 'ec-anim-backdrop'}`}
               onClick={closeMobileMenu}
             />
 
             {/* Side Drawer */}
-            <div className={`lg:hidden fixed top-0 right-0 bottom-0 z-[1001] w-[85%] max-w-[400px] bg-[var(--bg-root)] shadow-[-20px_0_80px_rgba(0,0,0,0.12)] flex flex-col border-l border-[var(--border-default)] ${isClosing ? 'ec-anim-slide-out-right' : 'ec-anim-slide-in-right'}`}>
+            <div className={`lg:hidden fixed top-0 left-0 bottom-0 z-[1001] w-[80%] max-w-[340px] bg-white shadow-[20px_0_80px_rgba(0,0,0,0.15)] flex flex-col border-r border-[rgba(0,0,0,0.08)] ${isClosing ? 'ec-anim-slide-out-right' : 'ec-anim-slide-in-right'}`}
+              style={{ transform: isClosing ? 'translateX(-100%)' : 'translateX(0)' }}>
               {/* Drawer Header */}
-              <div className="flex h-16 items-center justify-between px-6 border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
-                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 600, letterSpacing: '0.05em', color: 'var(--text-primary)' }}>
-                  MENU
+              <div style={{ display: 'flex', height: '56px', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+                <span style={{ fontFamily: "'Jost', sans-serif", fontSize: '16px', fontWeight: 800, letterSpacing: '0.05em', color: '#111111' }}>
+                  ERRUM
                 </span>
                 <button
                   onClick={closeMobileMenu}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all bg-[var(--bg-depth)] border border-[var(--border-default)]"
+                  style={{ display: 'flex', width: '36px', height: '36px', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', color: '#999999', background: '#f5f5f5', border: 'none', cursor: 'pointer' }}
                 >
-                  <X className="h-4 w-4" />
+                  <X style={{ width: '16px', height: '16px' }} />
                 </button>
               </div>
 
               {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto ec-scrollbar px-6 py-8 space-y-8">
+              <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
 
                 {/* Auth section */}
-                <div className="ec-anim-fade-up ec-delay-1">
-                  {isAuthenticated ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-4 p-4 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] shadow-sm">
-                        <div className="h-12 w-12 rounded-full bg-[var(--cyan-pale)] flex items-center justify-center border border-[var(--cyan-border)] shadow-sm">
-                          <User className="h-5 w-5 text-[var(--cyan)]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[14px] font-bold text-[var(--text-primary)] truncate">{customer?.name}</p>
-                          <p className="text-[11px] text-[var(--text-muted)] truncate">{customer?.email}</p>
-                        </div>
+                {isAuthenticated ? (
+                  <div style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '8px', background: '#f5f5f5', border: '1px solid rgba(0,0,0,0.08)', marginBottom: '8px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#e8e8e8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <User style={{ width: '18px', height: '18px', color: '#555555' }} />
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { href: '/e-commerce/my-account', label: 'Profile' },
-                          { href: '/e-commerce/orders', label: 'Orders' },
-                          { href: '/e-commerce/wishlist', label: 'Saved' },
-                        ].map(({ href, label }) => (
-                          <Link key={href} href={href}
-                            className="rounded-xl bg-[var(--bg-depth)] py-3 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all border border-[var(--border-default)]"
-                            style={{ fontFamily: "'DM Mono', monospace" }}
-                          >
-                            {label}
-                          </Link>
-                        ))}
+                      <div>
+                        <p style={{ fontSize: '14px', fontWeight: 600, color: '#111111', margin: 0 }}>{customer?.name}</p>
+                        <p style={{ fontSize: '11px', color: '#999999', margin: '2px 0 0 0' }}>{customer?.email}</p>
                       </div>
                     </div>
-                  ) : (
-                    <Link href="/e-commerce/login"
-                      className="group flex items-center justify-between rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-default)] p-5 transition-all hover:border-[var(--cyan-border)] shadow-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-xl bg-[var(--cyan-pale)] flex items-center justify-center border border-[var(--cyan-border)] shadow-sm">
-                          <User className="h-5 w-5 text-[var(--cyan)]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-[var(--text-primary)]">Log In / Sign Up</p>
-                          <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Unlock rewards & track orders</p>
-                        </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {[
+                        { href: '/e-commerce/my-account', label: 'Profile' },
+                        { href: '/e-commerce/orders', label: 'Orders' },
+                        { href: '/e-commerce/wishlist', label: 'Saved' },
+                      ].map(({ href, label }) => (
+                        <Link key={href} href={href} style={{ display: 'block', padding: '10px 4px', textAlign: 'center', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#555555', background: '#f0f0f0', borderRadius: '6px', textDecoration: 'none', border: '1px solid rgba(0,0,0,0.08)' }}>
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <Link href="/e-commerce/login" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '8px', background: '#111111', padding: '16px', marginBottom: '24px', textDecoration: 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <User style={{ width: '18px', height: '18px', color: '#ffffff' }} />
                       </div>
-                      <ChevronDown className="-rotate-90 h-4 w-4 text-[var(--text-muted)] group-hover:text-[var(--cyan)] transition-colors" />
-                    </Link>
-                  )}
-                </div>
+                      <div>
+                        <p style={{ fontSize: '14px', fontWeight: 700, color: '#ffffff', margin: 0 }}>Log In / Sign Up</p>
+                        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', margin: '2px 0 0 0' }}>Track orders & unlock benefits</p>
+                      </div>
+                    </div>
+                    <ChevronDown style={{ width: '16px', height: '16px', color: 'rgba(255,255,255,0.6)', transform: 'rotate(-90deg)' }} />
+                  </Link>
+                )}
 
                 {/* Primary Nav */}
-                <div className="space-y-2 ec-anim-fade-up ec-delay-2">
-                  <p className="text-[10px] font-bold tracking-[0.2em] text-[var(--text-muted)] uppercase mb-4" style={{ fontFamily: "'DM Mono', monospace" }}>Directory</p>
+                <div style={{ marginBottom: '24px' }}>
+                  <p style={{ fontFamily: "'Jost', sans-serif", fontSize: '10px', fontWeight: 700, letterSpacing: '0.2em', color: '#999999', textTransform: 'uppercase', marginBottom: '12px', margin: '0 0 12px 0' }}>Menu</p>
                   {[
-                    { href: '/e-commerce', label: 'Homepage' },
-                    { href: '/e-commerce/products', label: 'The Collection' },
-                    { href: '/e-commerce/about', label: 'Our Promise' },
+                    { href: '/e-commerce', label: 'Home' },
+                    { href: '/e-commerce/products', label: 'New & Popular' },
+                    { href: '/e-commerce/search', label: 'Search' },
+                    { href: '/e-commerce/about', label: 'About' },
                     { href: '/e-commerce/contact', label: 'Contact Us' },
                   ].map(({ href, label }) => (
                     <Link key={href} href={href}
-                      className="flex items-center justify-between py-4 text-[19px] font-medium text-[var(--text-secondary)] hover:text-[var(--cyan)] transition-all border-b border-[var(--border-default)]"
-                      style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 0', fontSize: '16px', fontWeight: 500, color: pathname === href ? '#111111' : '#555555', borderBottom: '1px solid rgba(0,0,0,0.06)', textDecoration: 'none', transition: 'color 0.15s' }}
                     >
                       {label}
-                      <ChevronDown className="-rotate-90 h-3.5 w-3.5 opacity-20" />
+                      <ChevronDown style={{ width: '14px', height: '14px', transform: 'rotate(-90deg)', opacity: 0.3 }} />
                     </Link>
                   ))}
                 </div>
 
                 {/* Categories */}
-                <div className="space-y-4 ec-anim-fade-up ec-delay-3">
-                  <p className="text-[10px] font-bold tracking-[0.2em] text-[var(--text-muted)] uppercase" style={{ fontFamily: "'DM Mono', monospace" }}>Collections</p>
-                  <div className="grid grid-cols-1 gap-1">
-                    {categories.slice(0, 12).map(cat => (
-                      <div key={cat.id} className="space-y-1">
-                        <div className={`flex items-center transition-all rounded-xl ${pathname.includes(catSlug(cat)) ? 'bg-[var(--cyan-pale)]' : 'hover:bg-[var(--bg-depth)]'}`}>
-                          <Link href={`/e-commerce/${encodeURIComponent(catSlug(cat))}`}
-                            className={`flex-1 py-3 pl-4 text-[16px] font-semibold transition-colors ${pathname.includes(catSlug(cat)) ? 'text-[var(--cyan)]' : 'text-[var(--text-secondary)]'}`}
-                          >
-                            {cat.name}
-                          </Link>
-                          {cat.children && cat.children.length > 0 && (
-                            <button
-                              onClick={() => setMobileActiveCat(mobileActiveCat === cat.id ? null : cat.id)}
-                              className="p-4 text-[var(--text-muted)] hover:text-[var(--cyan)] transition-colors"
-                            >
-                              <ChevronDown className={`h-4 w-4 transition-transform ${mobileActiveCat === cat.id ? 'rotate-180' : ''}`} />
-                            </button>
-                          )}
-                        </div>
-                        {mobileActiveCat === cat.id && (
-                          <div className="pl-8 space-y-1 py-2 mb-2">
-                            {cat.children?.map(child => (
-                              <Link key={child.id} href={`/e-commerce/${encodeURIComponent(catSlug(child))}`}
-                                className={`block py-2 text-[14px] transition-colors relative flex items-center ${pathname.includes(catSlug(child)) ? 'text-[var(--cyan)] font-bold' : 'text-[var(--text-muted)]'}`}
-                              >
-                                <span className="w-1.5 h-px bg-[var(--border-default)] mr-3 opacity-40"></span>
-                                {child.name}
-                              </Link>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                <div style={{ marginBottom: '24px' }}>
+                  <p style={{ fontFamily: "'Jost', sans-serif", fontSize: '10px', fontWeight: 700, letterSpacing: '0.2em', color: '#999999', textTransform: 'uppercase', margin: '0 0 12px 0' }}>Collections</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {categories.slice(0, 14).map(cat => (
+                      <Link key={cat.id} href={`/e-commerce/${encodeURIComponent(catSlug(cat))}`}
+                        style={{ display: 'block', padding: '11px 12px', fontSize: '15px', fontWeight: 500, color: '#555555', background: pathname.includes(catSlug(cat)) ? '#f0f0f0' : 'transparent', borderRadius: '6px', textDecoration: 'none', transition: 'background 0.15s, color 0.15s' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5'; (e.currentTarget as HTMLElement).style.color = '#111111'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = pathname.includes(catSlug(cat)) ? '#f0f0f0' : 'transparent'; (e.currentTarget as HTMLElement).style.color = '#555555'; }}
+                      >
+                        {cat.name}
+                      </Link>
                     ))}
-                    <Link href="/e-commerce/categories" className="block text-center mt-4 py-3 rounded-xl border border-[var(--border-default)] text-[12px] text-[var(--cyan)] font-bold uppercase tracking-widest hover:bg-[var(--bg-surface)] transition-all">
+                    <Link href="/e-commerce/categories" style={{ display: 'block', textAlign: 'center', marginTop: '8px', padding: '10px', borderRadius: '6px', border: '1px solid rgba(0,0,0,0.12)', fontSize: '12px', color: '#111111', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', textDecoration: 'none', transition: 'background 0.15s' }}>
                       View all collections
                     </Link>
                   </div>
                 </div>
 
                 {/* Footer block */}
-                <div className="pt-8 mt-4 border-t border-[var(--border-default)] ec-anim-fade-up ec-delay-4">
-                  {isAuthenticated ? (
-                    <button onClick={() => { closeMobileMenu(); handleLogout(); }}
-                      className="flex w-full items-center justify-center gap-3 py-4 rounded-xl bg-[var(--status-danger-pale)] text-[12px] font-bold uppercase tracking-widest text-[var(--status-danger)] hover:bg-[var(--status-danger)] hover:text-white transition-all shadow-sm"
-                      style={{ fontFamily: "'DM Mono', monospace" }}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Sign Out
-                    </button>
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-[11px] text-[var(--text-muted)] italic">
-                        Step into the world of ERRUM
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {isAuthenticated && (
+                  <button onClick={() => { closeMobileMenu(); handleLogout(); }}
+                    style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '14px', borderRadius: '8px', background: '#f5f5f5', border: '1px solid rgba(0,0,0,0.10)', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#555555', cursor: 'pointer', transition: 'all 0.15s' }}
+                  >
+                    <LogOut style={{ width: '16px', height: '16px' }} />
+                    Sign Out
+                  </button>
+                )}
               </div>
             </div>
           </>
         )}
-
       </nav>
+
+      {/* ── Mobile Bottom Tab Bar ─────────────────────────────────── */}
+      <nav
+        className="lg:hidden"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 200,
+          background: '#ffffff',
+          borderTop: '1px solid rgba(0,0,0,0.10)',
+          display: 'flex',
+          alignItems: 'stretch',
+          height: '60px',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
+        }}
+      >
+        {/* Home */}
+        <Link href="/e-commerce"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isHomePage ? '#111111' : '#999999', transition: 'color 0.15s' }}
+        >
+          <Home style={{ width: '20px', height: '20px' }} />
+          <span style={{ fontSize: '10px', fontWeight: isHomePage ? 700 : 500 }}>Home</span>
+        </Link>
+
+        {/* Search */}
+        <Link href="/e-commerce/search"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isSearchPage ? '#111111' : '#999999', transition: 'color 0.15s' }}
+        >
+          <Search style={{ width: '20px', height: '20px' }} />
+          <span style={{ fontSize: '10px', fontWeight: isSearchPage ? 700 : 500 }}>Search</span>
+        </Link>
+
+        {/* New Arrivals / Center */}
+        <Link href="/e-commerce/products"
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: '#111111', transition: 'color 0.15s', position: 'relative' }}
+        >
+          <div style={{
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            background: '#111111',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: '-20px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            flexShrink: 0,
+          }}>
+            <Sparkles style={{ width: '18px', height: '18px', color: '#ffffff' }} />
+          </div>
+          <span style={{ fontSize: '10px', fontWeight: isNewArrival ? 700 : 500, color: isNewArrival ? '#111111' : '#999999' }}>Arrival</span>
+        </Link>
+
+        {/* Cart */}
+        <button
+          onClick={() => setIsCartOpen(true)}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', color: '#999999', position: 'relative', transition: 'color 0.15s' }}
+        >
+          <div style={{ position: 'relative' }}>
+            <ShoppingCart style={{ width: '20px', height: '20px' }} />
+            {cartCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '-6px',
+                right: '-8px',
+                display: 'flex',
+                height: '16px',
+                minWidth: '16px',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '999px',
+                background: '#111111',
+                color: '#ffffff',
+                fontSize: '9px',
+                fontWeight: 700,
+                padding: '0 3px',
+              }}>
+                {cartCount > 99 ? '99+' : cartCount}
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: '10px', fontWeight: 500 }}>Cart</span>
+        </button>
+
+        {/* Account */}
+        <Link href={isAuthenticated ? "/e-commerce/my-account" : "/e-commerce/login"}
+          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isAccountPage ? '#111111' : '#999999', transition: 'color 0.15s' }}
+        >
+          <User style={{ width: '20px', height: '20px' }} />
+          <span style={{ fontSize: '10px', fontWeight: isAccountPage ? 700 : 500 }}>Account</span>
+        </Link>
+      </nav>
+
+      {/* Spacer for mobile bottom bar */}
+      <div className="lg:hidden" style={{ height: '60px' }} />
     </>
   );
 };
 
 export default Navbar;
-
