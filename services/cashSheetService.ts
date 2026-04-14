@@ -45,21 +45,33 @@ export interface CashSheetSummary {
 export interface CashSheetResponse {
   success: boolean;
   month: string;
-  stores: { id: number; name: string }[];
+  stores: { id: number; name: string; is_warehouse?: boolean }[];
   data: CashSheetRow[];
   summary: CashSheetSummary;
 }
 
 // ── Entry types ───────────────────────────────────────────────────────────────
 
+export interface StoreLite {
+  id: number;
+  name: string;
+  is_warehouse?: boolean;
+}
+
+export interface EmployeeLite {
+  id: number;
+  name: string;
+}
+
 export interface BranchCostEntry {
   id: number;
   entry_date: string;
   store_id: number;
-  store?: { id: number; name: string };
+  store?: StoreLite;
   amount: number;
   details: string | null;
-  created_by?: { id: number; name: string } | null;
+  created_by?: EmployeeLite | null;
+  createdBy?: EmployeeLite | null;
   created_at: string;
 }
 
@@ -69,10 +81,11 @@ export interface AdminEntry {
   entry_date: string;
   type: AdminEntryType;
   store_id: number | null;
-  store?: { id: number; name: string } | null;
+  store?: StoreLite | null;
   amount: number;
   details: string | null;
-  created_by?: { id: number; name: string } | null;
+  created_by?: EmployeeLite | null;
+  createdBy?: EmployeeLite | null;
   created_at: string;
 }
 
@@ -83,7 +96,8 @@ export interface OwnerEntry {
   type: OwnerEntryType;
   amount: number;
   details: string | null;
-  created_by?: { id: number; name: string } | null;
+  created_by?: EmployeeLite | null;
+  createdBy?: EmployeeLite | null;
   created_at: string;
 }
 
@@ -95,23 +109,42 @@ export interface DayEntries {
   owner_entries: OwnerEntry[];
 }
 
+// ── Normalizers ───────────────────────────────────────────────────────────────
+
+function normalizeBranchCostEntry(entry: any): BranchCostEntry {
+  return { ...entry, created_by: entry?.created_by ?? entry?.createdBy ?? null };
+}
+
+function normalizeAdminEntry(entry: any): AdminEntry {
+  return { ...entry, created_by: entry?.created_by ?? entry?.createdBy ?? null };
+}
+
+function normalizeOwnerEntry(entry: any): OwnerEntry {
+  return { ...entry, created_by: entry?.created_by ?? entry?.createdBy ?? null };
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 const cashSheetService = {
   async getSheet(month: string): Promise<CashSheetResponse> {
-    const res = await axiosInstance.get('/cash-sheet', { params: { month } });
+    const res = await axiosInstance.get('/cash-sheet', { params: { month, _ts: Date.now() } });
     return res.data;
   },
 
   async getEntries(date: string): Promise<DayEntries> {
-    const res = await axiosInstance.get('/cash-sheet/entries', { params: { date } });
-    return res.data;
+    const res = await axiosInstance.get('/cash-sheet/entries', { params: { date, _ts: Date.now() } });
+    return {
+      ...res.data,
+      branch_costs: (res.data?.branch_costs || []).map(normalizeBranchCostEntry),
+      admin_entries: (res.data?.admin_entries || []).map(normalizeAdminEntry),
+      owner_entries: (res.data?.owner_entries || []).map(normalizeOwnerEntry),
+    };
   },
 
   // Branch cost
   async addBranchCost(payload: { entry_date: string; store_id: number; amount: number; details?: string }): Promise<BranchCostEntry> {
     const res = await axiosInstance.post('/cash-sheet/branch-cost', payload);
-    return res.data.entry;
+    return normalizeBranchCostEntry(res.data.entry);
   },
   async deleteBranchCost(id: number): Promise<void> {
     await axiosInstance.delete(`/cash-sheet/branch-cost/${id}`);
@@ -120,7 +153,7 @@ const cashSheetService = {
   // Admin entry
   async addAdminEntry(payload: { entry_date: string; type: AdminEntryType; store_id?: number | null; amount: number; details?: string }): Promise<AdminEntry> {
     const res = await axiosInstance.post('/cash-sheet/admin', payload);
-    return res.data.entry;
+    return normalizeAdminEntry(res.data.entry);
   },
   async deleteAdminEntry(id: number): Promise<void> {
     await axiosInstance.delete(`/cash-sheet/admin/${id}`);
@@ -129,7 +162,7 @@ const cashSheetService = {
   // Owner entry
   async addOwnerEntry(payload: { entry_date: string; type: OwnerEntryType; amount: number; details?: string }): Promise<OwnerEntry> {
     const res = await axiosInstance.post('/cash-sheet/owner', payload);
-    return res.data.entry;
+    return normalizeOwnerEntry(res.data.entry);
   },
   async deleteOwnerEntry(id: number): Promise<void> {
     await axiosInstance.delete(`/cash-sheet/owner/${id}`);

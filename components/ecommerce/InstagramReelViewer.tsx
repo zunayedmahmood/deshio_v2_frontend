@@ -8,8 +8,8 @@ const REEL_URLS = [
   'https://www.instagram.com/reel/DW6uSbkERA9/',
   'https://www.instagram.com/p/DW6DQUGk-ho/',
   'https://www.instagram.com/reel/DW323H0EboK/',
-  'https://www.instagram.com/p/DWwVRsnEzn8/',
-  'https://www.instagram.com/p/DWnvVqhE6-p/',
+  'https://www.instagram.com/reel/DWtnHXJkSSA/',
+  'https://www.instagram.com/reel/DWmUzxuE5OZ/'
 ];
 
 export default function InstagramReelViewer() {

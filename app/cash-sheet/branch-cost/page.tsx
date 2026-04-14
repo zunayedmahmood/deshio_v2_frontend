@@ -37,10 +37,9 @@ export default function BranchCostPanel() {
 
   useEffect(() => {
     storeService.getAllStores().then((list: Store[]) => {
-      const filtered = list.filter((s: Store) => !s.is_warehouse);
-      setStores(filtered);
+      setStores(list);
       if (!isAdmin && userStoreId) setStoreId(userStoreId);
-      else if (filtered.length > 0) setStoreId(filtered[0].id);
+      else if (list.length > 0) setStoreId(list[0].id);
     }).catch(() => {});
   }, [isAdmin, userStoreId]);
 
@@ -64,13 +63,13 @@ export default function BranchCostPanel() {
     if (!amount || !storeId || !date) return;
     setSaving(true);
     try {
-      const entry = await cashSheetService.addBranchCost({
+      await cashSheetService.addBranchCost({
         entry_date: date,
         store_id: Number(storeId),
         amount: parseFloat(amount),
         details: details || undefined,
       });
-      setEntries(prev => [entry, ...prev]);
+      await loadEntries();
       setAmount('');
       setDetails('');
       showToast('Cost entry added');

@@ -64,12 +64,12 @@ export default function OwnerPanel() {
     if (!amount) return;
     setSaving(true);
     try {
-      const entry = await cashSheetService.addOwnerEntry({
+      await cashSheetService.addOwnerEntry({
         entry_date: date, type,
         amount: parseFloat(amount),
         details: details || undefined,
       });
-      setEntries(prev => [entry, ...prev]);
+      await loadEntries();
       setAmount('');
       setDetails('');
       showToast('Entry added');

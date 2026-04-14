@@ -28,6 +28,12 @@ export default function CartSidebar({ isOpen, onClose }: CartSidebarProps) {
 
   const handleCheckout = () => {
     if (isAnyOverStock) return;
+    
+    // Set all cart items as selected for checkout
+    if (cart.length > 0) {
+      localStorage.setItem('checkout-selected-items', JSON.stringify(cart.map(i => i.id)));
+    }
+    
     router.push('/e-commerce/checkout');
     onClose();
   };

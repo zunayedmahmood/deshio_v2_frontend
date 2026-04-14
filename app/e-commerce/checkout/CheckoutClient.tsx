@@ -127,14 +127,14 @@ export default function CheckoutClient() {
   const refreshCheckoutItems = async () => {
     const selectedIdsStr = localStorage.getItem('checkout-selected-items');
     if (!selectedIdsStr) {
-      router.push('/e-commerce/cart');
+      router.push('/e-commerce');
       return;
     }
 
     try {
       const ids = JSON.parse(selectedIdsStr);
       if (!Array.isArray(ids) || ids.length === 0) {
-        router.push('/e-commerce/cart');
+        router.push('/e-commerce');
         return;
       }
 

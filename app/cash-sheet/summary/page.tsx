@@ -162,7 +162,7 @@ function DayDetailDrawer({ date, onClose }: { date: string; onClose: () => void 
 }
 
 // Summary row card
-function SummaryRow({ row, stores, onClick }: { row: CashSheetRow; stores: {id:number;name:string}[]; onClick: () => void }) {
+function SummaryRow({ row, stores, onClick }: { row: CashSheetRow; stores: {id:number;name:string;is_warehouse?:boolean}[]; onClick: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const isToday = row.date === new Date().toISOString().split('T')[0];
   const hasActivity = row.totals.total_sale > 0 || row.owner.cash_invest > 0 || row.owner.bank_invest > 0 || row.owner.cash_cost > 0 || row.owner.bank_cost > 0;

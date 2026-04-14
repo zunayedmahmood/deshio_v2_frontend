@@ -73,7 +73,7 @@ export default function CashSheetPage() {
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<CashSheetRow[]>([]);
   const [summary, setSummary] = useState<CashSheetSummary | null>(null);
-  const [stores, setStores] = useState<{ id: number; name: string }[]>([]);
+  const [stores, setStores] = useState<{ id: number; name: string; is_warehouse?: boolean }[]>([]);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const isAdmin    = role === 'admin' || role === 'super-admin';

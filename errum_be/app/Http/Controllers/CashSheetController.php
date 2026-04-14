@@ -56,8 +56,10 @@ class CashSheetController extends Controller
         $dateFrom = Carbon::parse($month.'-01')->startOfMonth()->toDateString();
         $dateTo   = Carbon::parse($month.'-01')->endOfMonth()->toDateString();
 
-        $stores   = Store::where('is_active', true)->where('is_warehouse', false)
-                         ->orderBy('id')->get(['id','name']);
+        $stores   = Store::where('is_active', true)
+                         ->orderBy('is_warehouse')
+                         ->orderBy('id')
+                         ->get(['id','name','is_warehouse']);
         $storeIds = $stores->pluck('id')->toArray();
         $dates    = collect(CarbonPeriod::create($dateFrom, $dateTo))->map(fn($d) => $d->toDateString());
 
@@ -166,7 +168,7 @@ class CashSheetController extends Controller
         return response()->json([
             'success' => true,
             'month'   => $month,
-            'stores'  => $stores->map(fn($s) => ['id' => $s->id, 'name' => $s->name]),
+            'stores'  => $stores->map(fn($s) => ['id' => $s->id, 'name' => $s->name, 'is_warehouse' => (bool) $s->is_warehouse]),
             'data'    => $rows,
             'summary' => $this->buildSummary($rows, $stores),
         ]);
@@ -182,12 +184,12 @@ class CashSheetController extends Controller
         return response()->json([
             'success'       => true,
             'date'          => $date,
-            'branch_costs'  => BranchCostEntry::with(['store:id,name','createdBy:id,name'])
-                                ->whereDate('entry_date', $date)->get(),
-            'admin_entries' => AdminEntry::with(['store:id,name','createdBy:id,name'])
-                                ->whereDate('entry_date', $date)->get(),
+            'branch_costs'  => BranchCostEntry::with(['store:id,name,is_warehouse','createdBy:id,name'])
+                                ->whereDate('entry_date', $date)->orderByDesc('created_at')->get(),
+            'admin_entries' => AdminEntry::with(['store:id,name,is_warehouse','createdBy:id,name'])
+                                ->whereDate('entry_date', $date)->orderByDesc('created_at')->get(),
             'owner_entries' => OwnerEntry::with(['createdBy:id,name'])
-                                ->whereDate('entry_date', $date)->get(),
+                                ->whereDate('entry_date', $date)->orderByDesc('created_at')->get(),
         ]);
     }
 
@@ -360,9 +362,18 @@ class CashSheetController extends Controller
     private function loadOwnerEntries(string $from, string $to): array
     {
         $out = [];
-        OwnerEntry::select('type', DB::raw('DATE(entry_date) as day'), DB::raw('SUM(amount) as total'))
-            ->whereBetween('entry_date',[$from,$to])->groupBy('type','day')->get()
-            ->each(fn($r) => $out[$r->day][$r->type] = ($out[$r->day][$r->type] ?? 0) + (float)$r->total);
+
+        DB::table('owner_entries')
+            ->selectRaw('entry_date as day, type, SUM(amount) as total')
+            ->whereDate('entry_date', '>=', $from)
+            ->whereDate('entry_date', '<=', $to)
+            ->groupBy('day', 'type')
+            ->get()
+            ->each(function ($r) use (&$out) {
+                $day = Carbon::parse($r->day)->toDateString();
+                $out[$day][$r->type] = ($out[$day][$r->type] ?? 0) + (float) $r->total;
+            });
+
         return $out;
     }
 

@@ -50,9 +50,8 @@ export default function AdminPanel() {
 
   useEffect(() => {
     storeService.getAllStores().then((list: Store[]) => {
-      const filtered = list.filter((s: Store) => !s.is_warehouse);
-      setStores(filtered);
-      if (filtered.length) setStoreId(filtered[0].id);
+      setStores(list);
+      if (list.length) setStoreId(list[0].id);
     }).catch(() => {});
   }, []);
 
@@ -77,14 +76,14 @@ export default function AdminPanel() {
     if (!amount || (needsStore && !storeId)) return;
     setSaving(true);
     try {
-      const entry = await cashSheetService.addAdminEntry({
+      await cashSheetService.addAdminEntry({
         entry_date: date,
         type,
         store_id: needsStore ? Number(storeId) : null,
         amount: parseFloat(amount),
         details: details || undefined,
       });
-      setEntries(prev => [entry, ...prev]);
+      await loadEntries();
       setAmount('');
       setDetails('');
       showToast('Entry added');
