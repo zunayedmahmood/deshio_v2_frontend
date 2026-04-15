@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import axiosInstance from '@/lib/axios';
 import { toast } from 'react-hot-toast';
 import {
@@ -56,10 +56,61 @@ interface Summary {
   overall_sell_through: number;
 }
 
+interface MatrixBranchColumn {
+  store_id: number;
+  store_name: string;
+}
+
+interface MatrixRow {
+  row_key: string;
+  po_number: string;
+  product_sku: string;
+  product_name: string;
+  total_quantity: number;
+  sold_quantity: number;
+  remaining_quantity: number;
+  velocity_per_day: number;
+  sell_through_pct: number;
+  days_of_stock: number | null;
+  stock_value: number;
+  batch_count: number;
+  received_date: string | null;
+  move_from: string[];
+  move_to: string[];
+  branchStocks: Record<number, { store_name: string; count: number }>;
+  highStockStoreIds: number[];
+  lowStockStoreIds: number[];
+}
+
+interface MatrixPOGroup {
+  po_key: string;
+  po_number: string;
+  vendor_name: string;
+  po_status: string | null;
+  po_order_date: string | null;
+  po_received_date: string | null;
+  po_total_quantity: number;
+  po_sold_quantity: number;
+  po_remaining_quantity: number;
+  po_avg_velocity: number;
+  po_avg_sell_through: number;
+  po_avg_days_of_stock: number | null;
+  po_stock_value: number;
+  rows: MatrixRow[];
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const tk  = (n: number) => `৳${n.toLocaleString('en-BD', { maximumFractionDigits: 0 })}`;
+const tk = (n: number) => `৳${n.toLocaleString('en-BD', { maximumFractionDigits: 0 })}`;
 const pct = (n: number) => `${n.toFixed(1)}%`;
+const safeDate = (value: string | null) => {
+  if (!value) return '—';
+  try {
+    return format(new Date(value), 'dd MMM yyyy');
+  } catch {
+    return '—';
+  }
+};
 
 function SellThroughBar({ value }: { value: number }) {
   const color = value >= 80 ? '#34d399' : value >= 50 ? '#fbbf24' : value >= 20 ? '#fb923c' : '#f87171';
@@ -80,16 +131,105 @@ function DaysChip({ days }: { days: number | null }) {
   return <span className="text-[10px] font-700" style={{ color }}>{days}d left</span>;
 }
 
+
+function buildMatrixBranchStocks(po: POGroup): Record<number, { store_name: string; count: number }> {
+  const branchStocks: Record<number, { store_name: string; count: number }> = {};
+
+  po.batches.forEach((batch) => {
+    if (batch.store_distribution.length > 0) {
+      batch.store_distribution.forEach((dist) => {
+        if (!branchStocks[dist.store_id]) {
+          branchStocks[dist.store_id] = { store_name: dist.store_name, count: 0 };
+        }
+        branchStocks[dist.store_id].count += dist.count;
+      });
+      return;
+    }
+
+    if (!branchStocks[batch.store_id]) {
+      branchStocks[batch.store_id] = { store_name: batch.store_name, count: 0 };
+    }
+    branchStocks[batch.store_id].count += batch.remaining_stock;
+  });
+
+  return branchStocks;
+}
+
+function pickMatrixHighlights(
+  branchStocks: Record<number, { store_name: string; count: number }>,
+  totalRemaining: number,
+): { highStockStoreIds: number[]; lowStockStoreIds: number[] } {
+  const entries = Object.entries(branchStocks).map(([storeId, value]) => ({
+    store_id: Number(storeId),
+    count: value.count,
+  }));
+
+  if (entries.length === 0) {
+    return { highStockStoreIds: [], lowStockStoreIds: [] };
+  }
+
+  const counts = entries.map((entry) => entry.count);
+  const maxCount = Math.max(...counts);
+  const minCount = Math.min(...counts);
+  const avgCount = totalRemaining > 0 ? totalRemaining / entries.length : 0;
+  const spreadThreshold = Math.max(2, Math.ceil(avgCount * 0.35));
+
+  const highStockStoreIds = entries
+    .filter((entry) => entry.count === maxCount && maxCount > Math.max(1, avgCount))
+    .map((entry) => entry.store_id);
+
+  let lowStockStoreIds = entries
+    .filter((entry) => {
+      if (maxCount <= 0) return false;
+      if (entry.count === 0) return true;
+      if (entry.count === minCount && maxCount - entry.count >= spreadThreshold) return true;
+      return avgCount > 0 && entry.count <= Math.floor(avgCount * 0.45) && maxCount - entry.count >= spreadThreshold;
+    })
+    .map((entry) => entry.store_id);
+
+  if (lowStockStoreIds.length === 0 && minCount < maxCount) {
+    lowStockStoreIds = entries.filter((entry) => entry.count === minCount).map((entry) => entry.store_id);
+  }
+
+  return { highStockStoreIds, lowStockStoreIds };
+}
+
+function getMatrixCellStyle(state: 'high' | 'low' | 'normal') {
+  if (state === 'high') {
+    return {
+      background: 'linear-gradient(135deg, rgba(153,27,27,0.92), rgba(220,38,38,0.78))',
+      border: '1px solid rgba(248,113,113,0.38)',
+      color: '#ffffff',
+      boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+    };
+  }
+
+  if (state === 'low') {
+    return {
+      background: 'linear-gradient(135deg, rgba(30,64,175,0.92), rgba(37,99,235,0.78))',
+      border: '1px solid rgba(96,165,250,0.38)',
+      color: '#ffffff',
+      boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+    };
+  }
+
+  return {
+    background: 'rgba(255,255,255,0.03)',
+    border: '1px solid rgba(255,255,255,0.06)',
+    color: 'rgba(255,255,255,0.9)',
+  };
+}
+
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return null;
   const cfg: Record<string, { bg: string; color: string }> = {
-    received:           { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
-    fully_received:     { bg: 'rgba(52,211,153,0.12)',  color: '#34d399' },
+    received: { bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
+    fully_received: { bg: 'rgba(52,211,153,0.12)', color: '#34d399' },
     partially_received: { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' },
-    sent_to_vendor:     { bg: 'rgba(129,140,248,0.12)', color: '#818cf8' },
-    approved:           { bg: 'rgba(99,102,241,0.12)',  color: '#818cf8' },
-    draft:              { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' },
-    cancelled:          { bg: 'rgba(239,68,68,0.12)',   color: '#f87171' },
+    sent_to_vendor: { bg: 'rgba(129,140,248,0.12)', color: '#818cf8' },
+    approved: { bg: 'rgba(99,102,241,0.12)', color: '#818cf8' },
+    draft: { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' },
+    cancelled: { bg: 'rgba(239,68,68,0.12)', color: '#f87171' },
   };
   const c = cfg[status] ?? { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' };
   return (
@@ -103,25 +243,160 @@ function StatusBadge({ status }: { status: string | null }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BatchReportPage() {
-  const [items, setItems]         = useState<ProductGroup[]>([]);
-  const [summary, setSummary]     = useState<Summary | null>(null);
+  const [items, setItems] = useState<ProductGroup[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [total, setTotal]         = useState(0);
-  const [page, setPage]           = useState(1);
-  const [lastPage, setLastPage]   = useState(1);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   // Filters
-  const [search, setSearch]       = useState('');
-  const [sortBy, setSortBy]       = useState('received_date');
-  const [sortDir, setSortDir]     = useState<'desc' | 'asc'>('desc');
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('received_date');
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const perPage = 15;
 
   // Expanded state
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
-  const [expandedPOs, setExpandedPOs]           = useState<Set<string>>(new Set());
-  const [expandedBatches, setExpandedBatches]   = useState<Set<number>>(new Set());
+  const [expandedPOs, setExpandedPOs] = useState<Set<string>>(new Set());
+  const [expandedBatches, setExpandedBatches] = useState<Set<number>>(new Set());
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const matrixData = useMemo(() => {
+    type MatrixPOAccumulator = Omit<MatrixPOGroup, 'po_avg_velocity' | 'po_avg_sell_through' | 'po_avg_days_of_stock'> & {
+      velocity_weighted_sum: number;
+      velocity_weight: number;
+      days_of_stock_samples: number[];
+    };
+
+    const branchMap = new Map<number, string>();
+    const poMap = new Map<string, MatrixPOAccumulator>();
+
+    items.forEach((product) => {
+      product.by_po.forEach((po) => {
+        const branchStocks = buildMatrixBranchStocks(po);
+
+        Object.entries(branchStocks).forEach(([storeId, value]) => {
+          branchMap.set(Number(storeId), value.store_name);
+        });
+
+        const { highStockStoreIds, lowStockStoreIds } = pickMatrixHighlights(branchStocks, po.po_remaining);
+        const velocityWeight = po.batches.reduce((sum, batch) => sum + Math.max(batch.original_qty, 1), 0);
+        const velocityWeightedSum = po.batches.reduce(
+          (sum, batch) => sum + batch.velocity_per_day * Math.max(batch.original_qty, 1),
+          0,
+        );
+        const finiteDays = po.batches
+          .map((batch) => batch.days_of_stock)
+          .filter((value): value is number => value !== null && value < 999);
+        const hasNoSalesDays = po.batches.some((batch) => batch.days_of_stock === 999);
+        const avgVelocity = velocityWeight > 0 ? velocityWeightedSum / velocityWeight : 0;
+        const avgDaysOfStock = finiteDays.length > 0
+          ? Math.round(finiteDays.reduce((sum, value) => sum + value, 0) / finiteDays.length)
+          : hasNoSalesDays
+            ? 999
+            : null;
+
+        const row: MatrixRow = {
+          row_key: `${po.po_number || 'manual'}-${product.product_id}`,
+          po_number: po.po_number || 'Manual/Direct',
+          product_sku: product.product_sku,
+          product_name: product.product_name,
+          total_quantity: po.po_original_qty,
+          sold_quantity: po.po_units_sold,
+          remaining_quantity: po.po_remaining,
+          velocity_per_day: Number(avgVelocity.toFixed(3)),
+          sell_through_pct: po.po_sell_through,
+          days_of_stock: avgDaysOfStock,
+          stock_value: po.po_stock_value,
+          batch_count: po.batches.length,
+          received_date: po.po_received_date ?? po.batches[0]?.batch_created_at ?? null,
+          move_from: highStockStoreIds.map((storeId) => branchStocks[storeId]?.store_name).filter(Boolean) as string[],
+          move_to: lowStockStoreIds.map((storeId) => branchStocks[storeId]?.store_name).filter(Boolean) as string[],
+          branchStocks,
+          highStockStoreIds,
+          lowStockStoreIds,
+        };
+
+        const poKey = String(po.po_id ?? po.po_number ?? `manual-${product.product_id}`);
+        const existing = poMap.get(poKey);
+
+        if (!existing) {
+          poMap.set(poKey, {
+            po_key: poKey,
+            po_number: row.po_number,
+            vendor_name: po.vendor_name || 'Unknown',
+            po_status: po.po_status,
+            po_order_date: po.po_order_date,
+            po_received_date: po.po_received_date,
+            po_total_quantity: row.total_quantity,
+            po_sold_quantity: row.sold_quantity,
+            po_remaining_quantity: row.remaining_quantity,
+            po_stock_value: row.stock_value,
+            rows: [row],
+            velocity_weighted_sum: row.velocity_per_day * Math.max(row.total_quantity, 1),
+            velocity_weight: Math.max(row.total_quantity, 1),
+            days_of_stock_samples: row.days_of_stock !== null && row.days_of_stock < 999 ? [row.days_of_stock] : [],
+          });
+          return;
+        }
+
+        existing.rows.push(row);
+        existing.po_total_quantity += row.total_quantity;
+        existing.po_sold_quantity += row.sold_quantity;
+        existing.po_remaining_quantity += row.remaining_quantity;
+        existing.po_stock_value += row.stock_value;
+        existing.velocity_weighted_sum += row.velocity_per_day * Math.max(row.total_quantity, 1);
+        existing.velocity_weight += Math.max(row.total_quantity, 1);
+        if (row.days_of_stock !== null && row.days_of_stock < 999) {
+          existing.days_of_stock_samples.push(row.days_of_stock);
+        }
+      });
+    });
+
+    const preferredOrder = ['Mirpur', 'Main Store (Mirpur)', 'Jamuna', 'Jamuna Future Park', 'Bashundhara', 'Bashundhara City'];
+    const branches: MatrixBranchColumn[] = Array.from(branchMap.entries())
+      .map(([store_id, store_name]) => ({ store_id, store_name }))
+      .sort((a, b) => {
+        const aIdx = preferredOrder.indexOf(a.store_name);
+        const bIdx = preferredOrder.indexOf(b.store_name);
+        if (aIdx !== -1 || bIdx !== -1) {
+          if (aIdx === -1) return 1;
+          if (bIdx === -1) return -1;
+          return aIdx - bIdx;
+        }
+        return a.store_name.localeCompare(b.store_name);
+      });
+
+    const poGroups: MatrixPOGroup[] = Array.from(poMap.values())
+      .map((group) => ({
+        po_key: group.po_key,
+        po_number: group.po_number,
+        vendor_name: group.vendor_name,
+        po_status: group.po_status,
+        po_order_date: group.po_order_date,
+        po_received_date: group.po_received_date,
+        po_total_quantity: group.po_total_quantity,
+        po_sold_quantity: group.po_sold_quantity,
+        po_remaining_quantity: group.po_remaining_quantity,
+        po_avg_velocity: Number((group.velocity_weight > 0 ? group.velocity_weighted_sum / group.velocity_weight : 0).toFixed(3)),
+        po_avg_sell_through: group.po_total_quantity > 0 ? (group.po_sold_quantity / group.po_total_quantity) * 100 : 0,
+        po_avg_days_of_stock: group.days_of_stock_samples.length > 0
+          ? Math.round(group.days_of_stock_samples.reduce((sum, value) => sum + value, 0) / group.days_of_stock_samples.length)
+          : null,
+        po_stock_value: group.po_stock_value,
+        rows: group.rows.sort((a, b) => a.product_name.localeCompare(b.product_name) || a.product_sku.localeCompare(b.product_sku)),
+      }))
+      .sort((a, b) => {
+        const aDate = a.po_received_date || a.po_order_date || '';
+        const bDate = b.po_received_date || b.po_order_date || '';
+        if (aDate && bDate && aDate !== bDate) return bDate.localeCompare(aDate);
+        return a.po_number.localeCompare(b.po_number);
+      });
+
+    return { poGroups, branches };
+  }, [items]);
 
   const load = useCallback(async (pg = 1) => {
     setIsLoading(true);
@@ -237,11 +512,11 @@ export default function BatchReportPage() {
       {summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {[
-            { label: 'Products',    value: summary.total_products,   color: '#818cf8', bg: 'rgba(99,102,241,0.08)',  border: 'rgba(99,102,241,0.12)' },
-            { label: 'POs',         value: summary.total_pos,        color: '#f0d080', bg: 'rgba(201,168,76,0.08)', border: 'rgba(201,168,76,0.12)' },
-            { label: 'Batches',     value: summary.total_batches,    color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.12)' },
-            { label: 'Units Sold',  value: summary.total_sold,       color: '#fb923c', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.12)' },
-            { label: 'Sell-Through',value: `${summary.overall_sell_through}%`, color: summary.overall_sell_through >= 50 ? '#34d399' : '#f87171', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' },
+            { label: 'Products', value: summary.total_products, color: '#818cf8', bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.12)' },
+            { label: 'POs', value: summary.total_pos, color: '#f0d080', bg: 'rgba(201,168,76,0.08)', border: 'rgba(201,168,76,0.12)' },
+            { label: 'Batches', value: summary.total_batches, color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.12)' },
+            { label: 'Units Sold', value: summary.total_sold, color: '#fb923c', bg: 'rgba(249,115,22,0.08)', border: 'rgba(249,115,22,0.12)' },
+            { label: 'Sell-Through', value: `${summary.overall_sell_through}%`, color: summary.overall_sell_through >= 50 ? '#34d399' : '#f87171', bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.08)' },
           ].map(s => (
             <div key={s.label} className="rounded-xl p-4" style={{ background: s.bg, border: `1px solid ${s.border}` }}>
               <p className="text-[9px] uppercase tracking-widest font-600 mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{s.label}</p>
@@ -253,15 +528,181 @@ export default function BatchReportPage() {
       {summary && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Total Revenue',    value: tk(summary.total_revenue),    color: '#f0d080' },
-            { label: 'Gross Profit',     value: tk(summary.total_profit),     color: '#34d399' },
-            { label: 'Stock Value Left', value: tk(summary.total_stock_value),color: '#818cf8' },
+            { label: 'Total Revenue', value: tk(summary.total_revenue), color: '#f0d080' },
+            { label: 'Gross Profit', value: tk(summary.total_profit), color: '#34d399' },
+            { label: 'Stock Value Left', value: tk(summary.total_stock_value), color: '#818cf8' },
           ].map(s => (
             <div key={s.label} className="bc p-4 flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-widest font-600" style={{ color: 'rgba(255,255,255,0.4)' }}>{s.label}</span>
               <span className="syne text-lg font-800" style={{ color: s.color }}>{s.value}</span>
             </div>
           ))}
+        </div>
+      )}
+
+
+      {/* Rebalancing matrix */}
+      {!isLoading && matrixData.poGroups.length > 0 && (
+        <div className="bc p-4 md:p-5 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h2 className="syne text-lg font-800 text-white">PO-wise Stock <span className="gold">Rebalancing</span> Matrix</h2>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.38)' }}>
+                Grouped purchase-order wise so you can see each PO, its products, branch stock gaps, and quick movement hints in one clean view.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-700 uppercase tracking-widest">
+              <span className="px-2.5 py-1 rounded-full" style={{ background: 'rgba(37,99,235,0.2)', border: '1px solid rgba(96,165,250,0.25)', color: '#bfdbfe' }}>
+                Blue = Need stock
+              </span>
+              <span className="px-2.5 py-1 rounded-full" style={{ background: 'rgba(220,38,38,0.18)', border: '1px solid rgba(248,113,113,0.25)', color: '#fecaca' }}>
+                Red = Has higher stock
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {matrixData.poGroups.map((poGroup) => (
+              <div
+                key={poGroup.po_key}
+                className="rounded-2xl overflow-hidden"
+                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <div className="px-4 md:px-5 py-4 flex flex-col xl:flex-row xl:items-center justify-between gap-4"
+                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.10), rgba(255,255,255,0.02))', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-800" style={{ color: '#ffffff' }}>{poGroup.po_number}</span>
+                      <StatusBadge status={poGroup.po_status} />
+                      {poGroup.vendor_name && poGroup.vendor_name !== 'Unknown' && (
+                        <span className="text-[10px] px-2 py-1 rounded-full"
+                          style={{ background: 'rgba(201,168,76,0.10)', border: '1px solid rgba(201,168,76,0.18)', color: '#f0d080' }}>
+                          {poGroup.vendor_name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                      <span>Order date: {safeDate(poGroup.po_order_date)}</span>
+                      <span>Received: {safeDate(poGroup.po_received_date)}</span>
+                      <span>{poGroup.rows.length} product{poGroup.rows.length !== 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 xl:min-w-[760px]">
+                    {[
+                      { label: 'PO Qty', value: poGroup.po_total_quantity, color: '#ffffff' },
+                      { label: 'Sold', value: poGroup.po_sold_quantity, color: '#f0d080' },
+                      { label: 'Left', value: poGroup.po_remaining_quantity, color: '#818cf8' },
+                      { label: 'Velocity', value: `${poGroup.po_avg_velocity.toFixed(3)}/d`, color: '#34d399' },
+                      { label: 'Sell-through', value: pct(poGroup.po_avg_sell_through), color: '#fb923c' },
+                      { label: 'Stock days', value: poGroup.po_avg_days_of_stock === null ? '—' : poGroup.po_avg_days_of_stock === 999 ? 'No sales' : `${poGroup.po_avg_days_of_stock}d`, color: '#bfdbfe' },
+                    ].map((meta) => (
+                      <div key={meta.label} className="rounded-xl px-3 py-2"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>{meta.label}</p>
+                        <p className="text-sm font-800" style={{ color: meta.color }}>{meta.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto scroll-x">
+                  <table className="min-w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead>
+                      <tr style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        {['PO No', 'Product SKU', 'Product name', 'Total quantity', 'Sold quantity', 'Velocity/day', 'Sell-through', 'Days left', ...matrixData.branches.map((branch) => branch.store_name)].map((heading, index) => (
+                          <th
+                            key={heading}
+                            className={`px-4 py-3 text-left text-[11px] font-800 ${index >= 3 ? 'text-center' : ''}`}
+                            style={{
+                              color: '#ffffff',
+                              borderBottom: '1px solid rgba(255,255,255,0.08)',
+                              minWidth: index === 0 ? 210 : index === 1 ? 140 : index === 2 ? 250 : 120,
+                            }}
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {poGroup.rows.map((row, rowIndex) => (
+                        <tr key={row.row_key} style={{ background: rowIndex % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                          {rowIndex === 0 && (
+                            <td
+                              rowSpan={poGroup.rows.length}
+                              className="px-4 py-4 align-top"
+                              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.04)' }}
+                            >
+                              <div className="space-y-2 min-w-[180px]">
+                                <p className="text-sm font-800 text-white">{poGroup.po_number}</p>
+                                <div className="space-y-1 text-[11px]" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                                  <p>Vendor: <span className="text-white/80">{poGroup.vendor_name || '—'}</span></p>
+                                  <p>Received: <span className="text-white/80">{safeDate(poGroup.po_received_date)}</span></p>
+                                  <p>Stock value: <span className="text-white/80">{tk(poGroup.po_stock_value)}</span></p>
+                                </div>
+                              </div>
+                            </td>
+                          )}
+                          <td className="px-4 py-3 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span className="text-xs font-700" style={{ color: 'rgba(255,255,255,0.88)' }}>{row.product_sku}</span>
+                          </td>
+                          <td className="px-4 py-3 align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <div>
+                              <p className="text-sm font-700 text-white">{row.product_name}</p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full"
+                                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)' }}>
+                                  {row.batch_count} batch{row.batch_count !== 1 ? 'es' : ''}
+                                </span>
+                                <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                                  Recv: {safeDate(row.received_date)}
+                                </span>
+                              </div>
+                              {row.move_from.length > 0 && row.move_to.length > 0 && (
+                                <p className="text-[11px] mt-1.5" style={{ color: 'rgba(255,255,255,0.42)' }}>
+                                  Move from <span style={{ color: '#fecaca' }}>{row.move_from.join(', ')}</span> to <span style={{ color: '#bfdbfe' }}>{row.move_to.join(', ')}</span>
+                                </p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span className="text-sm font-800" style={{ color: '#ffffff' }}>{row.total_quantity}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span className="text-sm font-800" style={{ color: '#f0d080' }}>{row.sold_quantity}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span className="text-sm font-800" style={{ color: '#34d399' }}>{row.velocity_per_day.toFixed(3)}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <span className="text-sm font-800" style={{ color: '#fb923c' }}>{pct(row.sell_through_pct)}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <DaysChip days={row.days_of_stock} />
+                          </td>
+                          {matrixData.branches.map((branch) => {
+                            const count = row.branchStocks[branch.store_id]?.count ?? 0;
+                            const state: 'high' | 'low' | 'normal' = row.highStockStoreIds.includes(branch.store_id)
+                              ? 'high'
+                              : row.lowStockStoreIds.includes(branch.store_id)
+                                ? 'low'
+                                : 'normal';
+                            return (
+                              <td key={`${row.row_key}-${branch.store_id}`} className="px-2 py-2 text-center align-middle" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div className="rounded-xl px-3 py-2 text-sm font-800" style={getMatrixCellStyle(state)}>
+                                  {count}
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -477,14 +918,14 @@ export default function BatchReportPage() {
                                     style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                       {[
-                                        { label: 'Cost Price',    value: tk(batch.cost_price) },
-                                        { label: 'Sell Price',    value: tk(batch.sell_price) },
-                                        { label: 'Stock Value',   value: tk(batch.stock_value) },
-                                        { label: 'Pot. Revenue',  value: tk(batch.potential_revenue) },
-                                        { label: 'Gross Profit',  value: tk(batch.gross_profit), color: '#34d399' },
-                                        { label: 'Orders',        value: batch.order_count },
-                                        { label: 'First Sale',    value: batch.first_sale_date ? format(new Date(batch.first_sale_date), 'dd MMM yy') : '—' },
-                                        { label: 'Last Sale',     value: batch.last_sale_date  ? format(new Date(batch.last_sale_date),  'dd MMM yy') : '—' },
+                                        { label: 'Cost Price', value: tk(batch.cost_price) },
+                                        { label: 'Sell Price', value: tk(batch.sell_price) },
+                                        { label: 'Stock Value', value: tk(batch.stock_value) },
+                                        { label: 'Pot. Revenue', value: tk(batch.potential_revenue) },
+                                        { label: 'Gross Profit', value: tk(batch.gross_profit), color: '#34d399' },
+                                        { label: 'Orders', value: batch.order_count },
+                                        { label: 'First Sale', value: batch.first_sale_date ? format(new Date(batch.first_sale_date), 'dd MMM yy') : '—' },
+                                        { label: 'Last Sale', value: batch.last_sale_date ? format(new Date(batch.last_sale_date), 'dd MMM yy') : '—' },
                                       ].map(m => (
                                         <div key={m.label} className="rounded-lg p-2.5"
                                           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}>

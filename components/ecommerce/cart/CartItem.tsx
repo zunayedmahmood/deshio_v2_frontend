@@ -5,11 +5,13 @@ import { X, Plus, Minus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import cartService from '@/services/cartService';
 import { useCart } from '../../../app/e-commerce/CartContext';
+import { usePromotion } from '@/contexts/PromotionContext';
 
 interface CartItemProps {
   item: {
     id: number;
     productId: number;
+    categoryId?: number;
     name: string;
     image?: string;
     price: string | number;
@@ -31,19 +33,24 @@ const formatBDT = (value: number) => {
 export default function CartItem({ item, onQuantityChange, onRemove, isUpdating: externalIsUpdating }: CartItemProps) {
   const { refreshCart } = useCart();
   const router = useRouter();
+  const { getApplicablePromotion } = usePromotion();
   const [internalIsUpdating, setInternalIsUpdating] = useState(false);
 
   // Use external isUpdating if provided, otherwise use internal
   const isUpdating = externalIsUpdating !== undefined ? externalIsUpdating : internalIsUpdating;
 
   // Safely parse price
-  const price = typeof item?.price === 'string'
+  const originalPrice = typeof item?.price === 'string'
     ? parseFloat(item.price)
     : typeof item?.price === 'number'
       ? item.price
       : 0;
 
-  const itemTotal = price * (item?.quantity || 0);
+  const promo = getApplicablePromotion(item.productId, item.categoryId ?? null);
+  const discountPercent = promo?.discount_value ?? 0;
+  const activePrice = discountPercent > 0 ? Math.max(0, originalPrice - (originalPrice * discountPercent / 100)) : originalPrice;
+
+  const itemTotal = activePrice * (item?.quantity || 0);
 
   // ✅ Handle quantity update with backend
   const handleQuantityChange = async (delta: number) => {
@@ -230,10 +237,15 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
           </div>
 
           {/* Price */}
-          <div className="text-right">
+          <div className="text-right flex flex-col items-end">
             <p className="text-[14px] font-bold text-[var(--gold)]" style={{ fontFamily: "'Jost', sans-serif" }}>
-              {formatBDT(price * item.quantity)}
+              {formatBDT(activePrice * item.quantity)}
             </p>
+            {discountPercent > 0 && originalPrice > 0 && (
+              <p className="text-[12px] line-through text-[var(--text-muted)] opacity-60" style={{ fontFamily: "'Jost', sans-serif" }}>
+                {formatBDT(originalPrice * item.quantity)}
+              </p>
+            )}
           </div>
         </div>
       </div>

@@ -3,10 +3,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import cartService from '@/services/cartService';
 import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
+import { usePromotion } from '@/contexts/PromotionContext';
 
 export type CartSidebarItem = {
   id: number; // cart item id
   productId: number;
+  categoryId?: number;
   name: string;
   price: number;
   image?: string;
@@ -42,6 +44,7 @@ function pickImage(product: any): string | undefined {
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const { getApplicablePromotion } = usePromotion();
   const [cart, setCart] = useState<CartSidebarItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +56,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const mapped: CartSidebarItem[] = (data.cart_items || []).map((ci) => ({
         id: ci.id,
         productId: ci.product_id,
+        categoryId: typeof ci.product?.category === 'object' && ci.product?.category != null ? (ci.product.category as any).id : (typeof ci.product?.category_id === 'number' ? ci.product.category_id : undefined),
         name: ci.product?.name || 'Product',
         price: Number(ci.unit_price || 0),
         image: pickImage(ci.product),
@@ -111,7 +115,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getTotalPrice = () => {
-    return cart.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
+    return cart.reduce((sum, item) => {
+      const promo = getApplicablePromotion(item.productId, item.categoryId ?? null);
+      const originalPrice = Number(item.price) || 0;
+      const discount = promo?.discount_value ?? 0;
+      const activePrice = discount > 0 ? Math.max(0, originalPrice - (originalPrice * discount / 100)) : originalPrice;
+      return sum + activePrice * (Number(item.quantity) || 0);
+    }, 0);
   };
 
   const value = useMemo<CartContextType>(

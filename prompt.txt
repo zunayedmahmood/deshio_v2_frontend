@@ -327,4 +327,8 @@ basically, use the images as inspiration and update our current website to 90% s
 
 this is what we want to keep from the old one: instagram viewer.
 
-some pages like categories, search page, about-us etc are not in here. update all the pages, their components to match this new styling, theme and UI.
+some pages like categoreies, search page, about-us etc are not in here. update all the pages, their components to match this new styling, theme and UI.
+
+wefwefwefwefefwef wedsv
+
+this change was made to push dummy commit.

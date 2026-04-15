@@ -56,7 +56,7 @@ export default function HeroSection() {
   };
 
   return (
-    <section style={{ position: 'relative', overflow: 'hidden', minHeight: '90vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+    <section style={{ position: 'relative', overflow: 'hidden', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
       {/* Background image */}
       <div style={{ position: 'absolute', inset: 0 }}>
         {bgUrl && (

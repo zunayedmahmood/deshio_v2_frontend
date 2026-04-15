@@ -219,9 +219,6 @@ const Navbar = () => {
           <span style={{ fontSize: '13px', fontWeight: isAccountPage ? 800 : 700 }}>Profile</span>
         </Link>
       </nav>
-
-      {/* Spacer for mobile bottom bar */}
-      <div style={{ height: '64px' }} />
     </>
   );
 };

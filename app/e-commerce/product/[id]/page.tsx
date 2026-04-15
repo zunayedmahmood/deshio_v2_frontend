@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 
 import PremiumProductCard from '@/components/ecommerce/ui/PremiumProductCard';
+import { usePromotion } from '@/contexts/PromotionContext';
+
 
 import { useCart } from '@/app/e-commerce/CartContext';
 import Navigation from '@/components/ecommerce/Navigation';
@@ -334,6 +336,7 @@ export default function ProductDetailPage() {
   const productId = params?.id ? parseInt(params.id as string) : null;
 
   const { refreshCart } = useCart();
+  const { getApplicablePromotion } = usePromotion();
 
   // State
   const [product, setProduct] = useState<Product | null>(null);
@@ -893,8 +896,15 @@ export default function ProductDetailPage() {
   // ---------------------------
   const baseName = (product as any).base_name || getBaseProductName(product.name);
 
-  const sellingPrice = Number(selectedVariant.selling_price ?? 0);
+  const originalSellingPrice = Number(selectedVariant.selling_price ?? 0);
   const costPrice = Number((product as any).cost_price ?? 0);
+  
+  const categoryId = getCategoryId(product.category);
+  const salePromo = getApplicablePromotion(selectedVariant.id, categoryId ?? null);
+  const salePercent = salePromo?.discount_value ?? 0;
+  const salePrice = salePromo ? Math.max(0, originalSellingPrice - (originalSellingPrice * salePercent) / 100) : null;
+  const sellingPrice = salePrice ?? originalSellingPrice;
+
   const stockQty = Number(selectedVariant.stock_quantity ?? 0);
   // available_inventory = total - reserved. Falls back to stockQty if backend doesn't send it.
   const availableInventory = Number(selectedVariant.available_inventory ?? stockQty);
@@ -906,8 +916,9 @@ export default function ProductDetailPage() {
 
   const primaryImage = safeImages[selectedImageIndex]?.url || safeImages[0]?.url;
 
-  const discountPercent =
-    costPrice > sellingPrice && costPrice > 0
+  const discountPercent = salePromo
+    ? salePercent
+    : costPrice > sellingPrice && costPrice > 0
       ? Math.round(((costPrice - sellingPrice) / costPrice) * 100)
       : 0;
 
@@ -972,9 +983,9 @@ export default function ProductDetailPage() {
                   <span className="text-3xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Jost', sans-serif" }}>
                     {formatBDT(sellingPrice)}
                   </span>
-                  {costPrice > sellingPrice && sellingPrice > 0 && (
+                  {(costPrice > sellingPrice || salePromo) && originalSellingPrice > 0 && (
                     <span className="text-xl line-through text-[var(--text-muted)] opacity-60" style={{ fontFamily: "'Jost', sans-serif" }}>
-                      {formatBDT(costPrice)}
+                      {formatBDT(salePromo ? originalSellingPrice : Math.max(costPrice, originalSellingPrice))}
                     </span>
                   )}
                 </div>

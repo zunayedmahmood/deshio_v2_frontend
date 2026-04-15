@@ -8,12 +8,15 @@ import Navigation from '@/components/ecommerce/Navigation';
 import SSLCommerzPayment from '@/components/ecommerce/SSLCommerzPayment';
 import checkoutService, { Address, OrderItem, PaymentMethod } from '@/services/checkoutService';
 import cartService from '@/services/cartService';
+import cartService from '@/services/cartService';
 import guestCheckoutService, { GuestPaymentMethod } from '@/services/guestCheckoutService';
 import campaignService, { CouponValidationResult, CouponErrorCode } from '@/services/campaignService';
+import { usePromotion } from '@/contexts/PromotionContext';
 
 export default function CheckoutClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { getApplicablePromotion } = usePromotion();
 
   // State
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
@@ -150,6 +153,7 @@ export default function CheckoutClient() {
       const transformedItems = items.map(item => ({
         id: item.id,
         product_id: item.product_id,
+        category_id: typeof item.product?.category === 'object' && item.product?.category != null ? (item.product.category as any).id : (typeof item.product?.category_id === 'number' ? item.product.category_id : undefined),
         name: item.product.name,
         images: item.product.images || [],
         sku: item.product.sku ?? '',
@@ -300,15 +304,19 @@ export default function CheckoutClient() {
 
   // Calculate totals
   const orderItems: OrderItem[] = selectedItems.map(item => {
-    const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
-    const totalPrice = typeof item.total_price === 'string' ? parseFloat(item.total_price) : item.total_price;
-
+    const originalUnitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
+    const promo = getApplicablePromotion(item.product_id, item.category_id ?? null);
+    const discountPercent = promo?.discount_value ?? 0;
+    const unitPrice = discountPercent > 0 ? Math.max(0, originalUnitPrice - (originalUnitPrice * discountPercent / 100)) : originalUnitPrice;
+    const totalPrice = unitPrice * item.quantity;
+    
     return {
       product_id: item.product_id,
       product_name: item.name,
       quantity: item.quantity,
       price: unitPrice,
       total: totalPrice,
+      original_price: originalUnitPrice, // Add this for UI strike-through
       product_image: item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || (item.images?.[0] as any)?.url || '/placeholder-product.png',
       sku: item.sku || '',
     };
@@ -1026,56 +1034,66 @@ export default function CheckoutClient() {
                 <h2 className="text-xl font-medium text-[var(--text-primary)] mb-6" style={{ fontFamily: "'Cormorant Garamond', serif" }}>Order Summary</h2>
 
                 <div className="space-y-4 max-h-[40vh] overflow-auto pr-1">
-                  {selectedItems.map((item) => (
-                    <div key={item.id} className="flex items-start gap-4 py-2 border-b border-[var(--border-default)] last:border-0">
-                      <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={item.image || item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || '/placeholder-product.png'}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between gap-2">
-                          <p className="text-[13px] font-medium text-[var(--text-primary)] leading-tight" style={{ fontFamily: "'Jost', sans-serif" }}>{item.name}</p>
-                          <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="text-[var(--text-muted)] hover:text-[var(--status-danger)] transition-colors p-1"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                  {selectedItems.map((item: any) => {
+                    const originalUnitPrice = Number(item.unit_price || 0);
+                    const promo = getApplicablePromotion(item.product_id, item.category_id ?? null);
+                    const discountPercent = promo?.discount_value ?? 0;
+                    const activeUnitPrice = discountPercent > 0 ? Math.max(0, originalUnitPrice - (originalUnitPrice * discountPercent / 100)) : originalUnitPrice;
+
+                    return (
+                      <div key={item.id} className="flex items-start gap-4 py-2 border-b border-[var(--border-default)] last:border-0">
+                        <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.image || item.images?.find((i: any) => i?.is_primary)?.image_url || (item.images?.[0] as any)?.image_url || '/placeholder-product.png'}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
                         </div>
-                        <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight" style={{ fontFamily: "'DM Mono', monospace" }}>
-                          ৳{Number(item.unit_price || 0).toLocaleString()}
-                        </p>
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center rounded-lg bg-[var(--bg-depth)] border border-[var(--border-default)]">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between gap-2">
+                            <p className="text-[13px] font-medium text-[var(--text-primary)] leading-tight" style={{ fontFamily: "'Jost', sans-serif" }}>{item.name}</p>
                             <button
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                              disabled={item.quantity <= 1}
-                              className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="text-[var(--text-muted)] hover:text-[var(--status-danger)] transition-colors p-1"
                             >
-                              -
-                            </button>
-                            <span className="w-6 text-center text-[11px] font-bold text-[var(--text-primary)]" style={{ fontFamily: "'DM Mono', monospace" }}>
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                              disabled={item.quantity >= (item.available_inventory ?? 999)}
-                              className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
-                            >
-                              +
+                              <Trash2 size={12} />
                             </button>
                           </div>
-                          <span className="text-[13px] font-bold text-[var(--text-primary)]">
-                            ৳{(item.quantity * Number(item.unit_price || 0)).toLocaleString()}
-                          </span>
+                          <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight flex gap-2 items-center" style={{ fontFamily: "'DM Mono', monospace" }}>
+                            <span>৳{activeUnitPrice.toLocaleString()}</span>
+                            {discountPercent > 0 && originalUnitPrice > 0 && (
+                              <span className="line-through opacity-60">৳{originalUnitPrice.toLocaleString()}</span>
+                            )}
+                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center rounded-lg bg-[var(--bg-depth)] border border-[var(--border-default)]">
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                                className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center text-[11px] font-bold text-[var(--text-primary)]" style={{ fontFamily: "'DM Mono', monospace" }}>
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                disabled={item.quantity >= (item.available_inventory ?? 999)}
+                                className="w-6 h-6 flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-20 transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <span className="text-[13px] font-bold text-[var(--text-primary)]">
+                              ৳{(item.quantity * activeUnitPrice).toLocaleString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Coupon Input */}
@@ -1755,7 +1773,10 @@ export default function CheckoutClient() {
                   <div className="p-6 pt-0">
                     <div className="space-y-4">
                       {selectedItems.map((item: any) => {
-                        const unitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
+                        const originalUnitPrice = Number(item.unit_price || 0);
+                        const promo = getApplicablePromotion(item.product_id, item.category_id ?? null);
+                        const discountPercent = promo?.discount_value ?? 0;
+                        const unitPrice = discountPercent > 0 ? Math.max(0, originalUnitPrice - (originalUnitPrice * discountPercent / 100)) : originalUnitPrice;
                         return (
                           <div key={item.id} className="flex gap-4 items-start py-2 border-b border-[var(--border-default)] last:border-0">
                             <div className="w-16 h-16 rounded-[var(--radius-md)] overflow-hidden bg-[var(--bg-surface-2)] flex-shrink-0 border border-[var(--border-default)]">
@@ -1775,8 +1796,11 @@ export default function CheckoutClient() {
                                   <Trash2 size={12} />
                                 </button>
                               </div>
-                              <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight" style={{ fontFamily: "'DM Mono', monospace" }}>
-                                ৳{unitPrice.toLocaleString()}
+                              <p className="text-[11px] text-[var(--text-muted)] mt-1 uppercase tracking-tight flex gap-2 items-center" style={{ fontFamily: "'DM Mono', monospace" }}>
+                                <span>৳{unitPrice.toLocaleString()}</span>
+                                {discountPercent > 0 && originalUnitPrice > 0 && (
+                                  <span className="line-through opacity-60">৳{originalUnitPrice.toLocaleString()}</span>
+                                )}
                               </p>
                               <div className="flex items-center justify-between mt-2">
                                 <div className="flex items-center rounded-lg bg-[var(--bg-depth)] border border-[var(--border-default)]">
