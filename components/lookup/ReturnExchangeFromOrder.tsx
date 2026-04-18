@@ -35,12 +35,6 @@ export default function ReturnExchangeFromOrder({ order, onInitiateReturn, onIni
           <ArrowRightLeft className="w-3.5 h-3.5" />
           Request Exchange
         </button>
-        <a
-          href="/returns"
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
-        >
-          View All Returns →
-        </a>
       </div>
     </div>
   );

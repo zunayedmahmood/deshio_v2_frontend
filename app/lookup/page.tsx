@@ -21,6 +21,7 @@ import productReturnService, { type CreateReturnRequest } from '@/services/produ
 import refundService, { type CreateRefundRequest } from '@/services/refundService';
 import { connectQZ, getDefaultPrinter } from '@/lib/qz-tray';
 import BatchPrinter from "@/components/BatchPrinter";
+import axiosInstance from '@/lib/axios';
 import {
   LABEL_WIDTH_MM as SHARED_LABEL_WIDTH_MM,
   LABEL_HEIGHT_MM as SHARED_LABEL_HEIGHT_MM,
@@ -936,7 +937,7 @@ export default function LookupPage() {
 
   // -----------------------
   // QZ single barcode print helper (reprint)
-    // -----------------------
+  // -----------------------
   // QZ single barcode print helper (reprint) - same config as BatchPrinter
   // -----------------------
   const printSingleBarcodeLabel = async (params: { barcode: string; productName?: string; price?: string | number }) => {
@@ -952,14 +953,14 @@ export default function LookupPage() {
       try {
         const def = await qz.printers.getDefault();
         if (def && String(def).trim()) printer = String(def);
-      } catch (_e) {}
+      } catch (_e) { }
 
       if (!printer) {
         try {
           const list = await qz.printers.find();
           if (Array.isArray(list) && list.length && list[0]) printer = String(list[0]);
           else if (typeof list === 'string' && list.trim()) printer = list;
-        } catch (_e) {}
+        } catch (_e) { }
       }
 
       if (!printer) {
@@ -969,7 +970,7 @@ export default function LookupPage() {
             const name = details[0]?.name || details[0];
             if (name) printer = String(name);
           }
-        } catch (_e) {}
+        } catch (_e) { }
       }
 
       if (!printer) throw new Error('No printer found. Set a default printer and try again.');
@@ -1119,8 +1120,8 @@ export default function LookupPage() {
     setError('');
 
     try {
-      const res: any = await orderService.getAll({ 
-        search: clean.replace(/^#/, ''), 
+      const res: any = await orderService.getAll({
+        search: clean.replace(/^#/, ''),
         per_page: 50,
         skipStoreScope: true
       });
@@ -1540,7 +1541,7 @@ export default function LookupPage() {
     return bd;
   };
 
-  
+
   const extractPurchaseOrderIdFromBarcode = (data: any): number | null => {
     const tryParse = (v: any) => {
       if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -1909,7 +1910,7 @@ export default function LookupPage() {
 
       // Step 3: Create new order for replacement products
       const newOrderTotal = exchangeData.replacementProducts.reduce(
-        (sum: number, p: any) => sum + (p.unit_price * p.quantity), 
+        (sum: number, p: any) => sum + (p.unit_price * p.quantity),
         0
       );
 
@@ -1925,19 +1926,38 @@ export default function LookupPage() {
           barcode: p.barcode,
           barcode_id: p.barcode_id,
         })),
-        payment: {
-          payment_method_id: 1, // Cash
-          amount: newOrderTotal,
-          payment_type: 'full' as const,
-        },
         notes: `Exchange from order #${selectedOrderForAction.order_number} | Return: #${returnNumber}`,
       };
 
       const newOrder = await orderService.create(newOrderData);
+
+      // STEP 4a: Link the return and the new order for accounting
+      try {
+        await axiosInstance.post(`/returns/${returnId}/exchange`, {
+          new_order_id: newOrder.id,
+          notes: `Automatic link from lookup exchange. Original: #${selectedOrderForAction.order_number}`
+        });
+      } catch (linkErr) {
+        console.warn('⚠️ Link failed (non-critical):', linkErr);
+      }
+
+      // STEP 4b: Settle the payment using backend-calculated total
+      const rawTotal = String(newOrder.total_amount).replace(/[^0-9.]/g, '');
+      const backendTotal = parseFloat(rawTotal) || 0;
+      
+      await axiosInstance.post(`/orders/${newOrder.id}/payments/simple`, {
+        payment_method_id: 1, // Cash
+        amount: backendTotal,
+        payment_type: 'full',
+        auto_complete: true,
+        notes: `Exchange settlement | Source: Return #${returnNumber}`,
+      });
+
       await orderService.complete(newOrder.id);
 
-      alert(`✅ Exchange processed successfully!\n\nReturn: #${returnNumber}\nNew Order: #${newOrder.order_number}`);
+      alert(`✅ Exchange successfully processed!\n\nReturn: #${returnNumber}\nNew Order: #${newOrder.order_number}\nStatus: PAID`);
       setShowExchangeModal(false);
+      setSelectedOrderForAction(null);
       if (activeTab === 'order' && orderNumber) {
         handleSearchOrder();
       }
@@ -2249,44 +2269,40 @@ export default function LookupPage() {
                   <div className="flex gap-1 flex-wrap">
                     <button
                       onClick={() => switchTab('customer')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                        activeTab === 'customer'
+                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${activeTab === 'customer'
                           ? 'bg-black dark:bg-white text-white dark:text-black'
                           : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       Customer Lookup
                     </button>
 
                     <button
                       onClick={() => switchTab('order')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                        activeTab === 'order'
+                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${activeTab === 'order'
                           ? 'bg-black dark:bg-white text-white dark:text-black'
                           : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       Order Lookup
                     </button>
 
                     <button
                       onClick={() => switchTab('barcode')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                        activeTab === 'barcode'
+                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${activeTab === 'barcode'
                           ? 'bg-black dark:bg-white text-white dark:text-black'
                           : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       Barcode History
                     </button>
 
                     <button
                       onClick={() => switchTab('batch')}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                        activeTab === 'batch'
+                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${activeTab === 'batch'
                           ? 'bg-black dark:bg-white text-white dark:text-black'
                           : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-                      }`}
+                        }`}
                     >
                       Batch History
                     </button>
@@ -2341,9 +2357,8 @@ export default function LookupPage() {
                               <button
                                 key={s.id}
                                 onClick={() => handleSelectSuggestion(s)}
-                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${
-                                  index !== suggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
-                                }`}
+                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${index !== suggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex-1 min-w-0">
@@ -2549,9 +2564,8 @@ export default function LookupPage() {
                               <button
                                 key={s.id}
                                 onClick={() => handleSelectOrderSuggestion(s)}
-                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${
-                                  index !== orderSuggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
-                                }`}
+                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${index !== orderSuggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex-1 min-w-0">
@@ -2758,26 +2772,26 @@ export default function LookupPage() {
                               const finalImage = barcodeProductImageUrl || fallbackFromHistory;
 
                               return finalImage ? (
-                              <button
-                                type="button"
-                                onClick={() => openBarcodeImagePreview(finalImage)}
-                                className="group relative"
-                                title="Click to preview image"
-                              >
-                                <img
-                                  src={finalImage}
-                                  alt={barcodeData?.product?.name || 'Product image'}
-                                  className="w-12 h-12 rounded border border-gray-200 dark:border-gray-700 object-cover"
-                                  loading="lazy"
-                                />
-                                <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px] text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                  View
-                                </span>
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openBarcodeImagePreview(finalImage)}
+                                  className="group relative"
+                                  title="Click to preview image"
+                                >
+                                  <img
+                                    src={finalImage}
+                                    alt={barcodeData?.product?.name || 'Product image'}
+                                    className="w-12 h-12 rounded border border-gray-200 dark:border-gray-700 object-cover"
+                                    loading="lazy"
+                                  />
+                                  <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px] text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    View
+                                  </span>
+                                </button>
                               ) : (
-                              <div className="w-12 h-12 rounded border border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center text-[9px] text-gray-400 dark:text-gray-500">
-                                No image
-                              </div>
+                                <div className="w-12 h-12 rounded border border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center text-[9px] text-gray-400 dark:text-gray-500">
+                                  No image
+                                </div>
                               );
                             })()}
                             <span className="text-[10px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300">
@@ -2968,8 +2982,8 @@ export default function LookupPage() {
                                   <span className="font-semibold">
                                     {(barcodePO?.item_details?.unit_sell_price ?? barcodePO?.itemDetails?.unit_sell_price ?? barcodePO?.itemDetails?.unitSellPrice) != null
                                       ? formatCurrency(
-                                          barcodePO?.item_details?.unit_sell_price ?? barcodePO?.itemDetails?.unit_sell_price ?? barcodePO?.itemDetails?.unitSellPrice
-                                        )
+                                        barcodePO?.item_details?.unit_sell_price ?? barcodePO?.itemDetails?.unit_sell_price ?? barcodePO?.itemDetails?.unitSellPrice
+                                      )
                                       : '—'}
                                   </span>
                                 </p>
@@ -3180,9 +3194,8 @@ export default function LookupPage() {
                               <button
                                 key={b.id}
                                 onClick={() => handleSelectBatchSuggestion(b)}
-                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${
-                                  index !== batchSuggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
-                                }`}
+                                className={`w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left ${index !== batchSuggestions.length - 1 ? 'border-b border-gray-100 dark:border-gray-800' : ''
+                                  }`}
                               >
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex-1 min-w-0">
@@ -3278,9 +3291,9 @@ export default function LookupPage() {
                             productId: batchData.batch.product.id,
                             quantity: Number(
                               (batchData.batch as any).quantity ??
-                                batchData.batch.original_quantity ??
-                                batchData.summary?.total_units ??
-                                0
+                              batchData.batch.original_quantity ??
+                              batchData.summary?.total_units ??
+                              0
                             ),
                             costPrice: Number(prices.cost ?? 0),
                             sellingPrice: Number(prices.sell ?? 0),
