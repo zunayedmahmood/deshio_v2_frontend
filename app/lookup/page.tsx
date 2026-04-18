@@ -1941,13 +1941,10 @@ export default function LookupPage() {
         console.warn('⚠️ Link failed (non-critical):', linkErr);
       }
 
-      // STEP 4b: Settle the payment using backend-calculated total
-      const rawTotal = String(newOrder.total_amount).replace(/[^0-9.]/g, '');
-      const backendTotal = parseFloat(rawTotal) || 0;
-      
+      // STEP 4b: Settle the payment using the subtotal as the amount paid
       await axiosInstance.post(`/orders/${newOrder.id}/payments/simple`, {
         payment_method_id: 1, // Cash
-        amount: backendTotal,
+        amount: newOrderTotal, // Modified to use subtotal
         payment_type: 'full',
         auto_complete: true,
         notes: `Exchange settlement | Source: Return #${returnNumber}`,
