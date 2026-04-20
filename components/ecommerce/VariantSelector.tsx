@@ -66,43 +66,53 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
   selectedVariant,
   onVariantChange,
 }) => {
+  // Group variants by type (e.g., Size, Color) if they are clearly separable
+  // For now, following the screenshot's "SHOE SIZE" pattern.
+  const activeLabel = formatVariantLabelForCard(selectedVariant);
+  const isSizeVariant = /^\d+/.test(activeLabel) || activeLabel.includes('US') || activeLabel.includes('EU');
+
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <div className="flex justify-between items-baseline mb-4">
-          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[var(--text-muted)]"
-            style={{ fontFamily: "'DM Mono', monospace" }}>
-            Select Option
-          </p>
-          <span className="text-[10px] font-medium text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-[var(--radius-sm)]">
-            {variants.length} variations
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11px] font-bold tracking-widest text-gray-900 uppercase">
+            {isSizeVariant ? 'Select Size' : 'Select Option'}:
+          </span>
+          <span className="text-[11px] font-medium text-gray-500 uppercase">
+            {activeLabel}
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap gap-3">
           {variants.map((v) => {
             const isSelected = selectedVariant.id === v.id;
             const isAvailable = v.in_stock && (v.available_inventory ?? 0) > 0;
             const label = formatVariantLabelForCard(v);
+            
+            // Extract a compact label (e.g., just the number if it's a size)
+            const displayLabel = isSizeVariant ? (label.match(/\d+/) || [label])[0] : label;
 
             return (
               <button
                 key={v.id}
                 onClick={() => onVariantChange(v)}
-                className={`min-h-[44px] min-w-[70px] px-5 rounded-xl text-xs font-bold transition-all border flex items-center justify-center relative overflow-hidden ${
+                className={`group relative flex items-center justify-center transition-all duration-200 ${
+                  isSizeVariant 
+                    ? 'w-12 h-12 rounded-full border text-sm font-medium' 
+                    : 'px-6 py-2.5 rounded-full border text-[11px] font-bold uppercase tracking-wider'
+                } ${
                   isSelected
-                    ? 'bg-[var(--cyan-pale)] border-[var(--cyan)] text-[var(--cyan)] shadow-[0_4px_12px_rgba(34,211,238,0.1)] z-10'
+                    ? 'bg-gray-900 border-gray-900 text-white shadow-md'
                     : isAvailable
-                      ? 'bg-[var(--bg-surface-2)] border-[var(--border-default)] text-[var(--text-primary)] hover:border-[var(--cyan)] hover:text-[var(--cyan)]'
-                      : 'bg-[var(--bg-surface)] border-[var(--border-default)] text-[var(--text-muted)] opacity-35 cursor-not-allowed'
+                      ? 'bg-white border-gray-200 text-gray-900 hover:border-gray-900'
+                      : 'bg-white border-gray-100 text-gray-300 cursor-not-allowed'
                 }`}
-                style={{ fontFamily: "'Jost', sans-serif" }}
               >
-                <span className="relative z-20 whitespace-nowrap">{label}</span>
-
+                <span className="relative z-10">{displayLabel}</span>
+                
                 {!isAvailable && (
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                    <div className="absolute top-1/2 left-0 w-[150%] h-[1px] bg-[var(--text-muted)] -rotate-45 -translate-x-1/4" />
+                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+                    <div className="w-[120%] h-[1px] bg-gray-200 -rotate-45" />
                   </div>
                 )}
               </button>

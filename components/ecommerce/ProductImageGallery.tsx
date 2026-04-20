@@ -77,20 +77,25 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
   };
 
   return (
-    <div className="flex flex-col-reverse md:flex-row gap-6">
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6">
       {/* Vertical Thumbnails (Desktop) */}
       {safeImages.length > 1 && (
-        <div className="flex flex-row md:flex-col gap-3 w-full md:w-20 flex-shrink-0 overflow-x-auto no-scrollbar pb-2 md:pb-0">
+        <div className="hidden md:flex md:flex-col gap-3 w-16 lg:w-20 flex-shrink-0">
           {safeImages.map((img, index) => (
             <button
               key={img.id || index}
               onMouseEnter={() => scrollToImage(index)}
               onClick={() => scrollToImage(index)}
-              className={`relative overflow-hidden rounded-xl bg-[var(--bg-surface)] border-2 transition-all duration-200 flex-shrink-0 w-16 md:w-full ${activeIndex === index ? 'border-[var(--cyan)]' : 'border-transparent hover:border-[var(--border-strong)]'
-                }`}
+              className={`relative overflow-hidden rounded-md bg-white border transition-all duration-200 ${
+                activeIndex === index ? 'border-gray-900 ring-1 ring-gray-900' : 'border-gray-200 hover:border-gray-400'
+              }`}
               style={{ aspectRatio: '1/1' }}
             >
-              <img src={img.url} alt={`${productName} view ${index + 1}`} className="w-full h-full object-cover p-1" />
+              <img 
+                src={img.url} 
+                alt={`${productName} thumbnail ${index + 1}`} 
+                className="w-full h-full object-cover" 
+              />
             </button>
           ))}
         </div>
@@ -102,73 +107,89 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar md:overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-surface-2)]"
-          style={{ aspectRatio: '600/850' }}
+          className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar md:overflow-hidden rounded-lg md:rounded-2xl border border-gray-100 bg-gray-50/50"
+          style={{ aspectRatio: '4/5' }}
         >
           <div className="flex h-full md:block">
             {safeImages.map((img, index) => (
               <div
                 key={img.id || index}
-                className={`snap-start flex-shrink-0 w-full h-full md:absolute md:inset-0 transition-opacity duration-300 ${index === activeIndex ? 'md:opacity-100 z-10' : 'md:opacity-0 z-0'
-                  }`}
+                className={`snap-start flex-shrink-0 w-full h-full md:absolute md:inset-0 transition-opacity duration-500 ${
+                  index === activeIndex ? 'md:opacity-100 z-10' : 'md:opacity-0 z-0'
+                }`}
               >
                 <img
                   src={img.url}
                   alt={`${productName} view ${index + 1}`}
-                  className="w-full h-full object-contain p-4 sm:p-8 transition-transform duration-300 md:group-hover:scale-105"
+                  className="w-full h-full object-contain p-2 sm:p-4 transition-transform duration-500"
                 />
               </div>
             ))}
           </div>
 
           {/* Status Badges */}
-          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 flex flex-col gap-2 z-20">
+          <div className="absolute top-4 left-4 flex flex-col gap-2 z-20">
             {!inStock && (
-              <span className="bg-red-500 text-white px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold tracking-widest uppercase shadow-lg">
+              <span className="bg-black text-white px-3 py-1 rounded-sm text-[8px] font-bold tracking-widest uppercase shadow-sm">
                 Out of Stock
               </span>
             )}
             {discountPercent > 0 && (
-              <span className="ec-badge-urgent px-3 py-1 text-[10px] font-bold tracking-widest uppercase">
+              <span className="bg-[#b83228] text-white px-3 py-1 rounded-sm text-[8px] font-bold tracking-widest uppercase">
                 {discountPercent}% OFF
               </span>
             )}
           </div>
 
-          {/* Mobile Carousel Dots */}
+          {/* Mobile Thumbnail Strip (at the bottom) */}
           {safeImages.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 md:hidden z-30">
-              {safeImages.map((_, i) => (
-                <div 
-                  key={i} 
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === activeIndex ? 'w-6 bg-[var(--cyan)]' : 'w-1.5 bg-[var(--border-strong)]'
+            <div className="flex md:hidden gap-2 px-4 py-3 overflow-x-auto no-scrollbar snap-x z-30">
+              {safeImages.map((img, index) => (
+                <button
+                  key={img.id || index}
+                  onClick={() => scrollToImage(index)}
+                  className={`w-12 h-12 flex-shrink-0 rounded-md overflow-hidden border-2 snap-start transition-all ${
+                    activeIndex === index ? 'border-gray-900' : 'border-transparent'
                   }`}
-                />
+                >
+                  <img src={img.url} className="w-full h-full object-cover" alt="" />
+                </button>
               ))}
             </div>
           )}
 
-          {/* Navigation Arrows (Desktop) */}
+          {/* Navigation Arrows (Desktop - Minimalist) */}
           {safeImages.length > 1 && (
-            <div className="absolute inset-y-0 left-0 right-0 hidden sm:flex items-center justify-between px-6 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
+            <div className="absolute inset-y-0 left-0 right-0 hidden md:flex items-center justify-between px-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-30">
               <button
                 onClick={(e) => { e.stopPropagation(); prevImage(); }}
-                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-[var(--bg-lifted)] border border-[var(--border-default)] shadow-xl text-[var(--text-primary)] hover:bg-[var(--cyan)] hover:text-[var(--text-on-accent)] transition-all"
+                className="pointer-events-auto h-10 w-10 flex items-center justify-center rounded-full bg-white/80 border border-gray-100 shadow-sm text-gray-900 hover:bg-white transition-all"
               >
-                <ChevronLeft size={24} />
+                <ChevronLeft size={20} />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); nextImage(); }}
-                className="pointer-events-auto h-12 w-12 flex items-center justify-center rounded-full bg-[var(--bg-lifted)] border border-[var(--border-default)] shadow-xl text-[var(--text-primary)] hover:bg-[var(--cyan)] hover:text-[var(--text-on-accent)] transition-all"
+                className="pointer-events-auto h-10 w-10 flex items-center justify-center rounded-full bg-white/80 border border-gray-100 shadow-sm text-gray-900 hover:bg-white transition-all"
               >
-                <ChevronRight size={24} />
+                <ChevronRight size={20} />
               </button>
             </div>
           )}
-
-
         </div>
+
+        {/* Desktop Progress/Dots (Minimal) */}
+        {safeImages.length > 1 && (
+          <div className="hidden md:flex justify-center gap-2 mt-4">
+            {safeImages.map((_, i) => (
+              <div 
+                key={i} 
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  i === activeIndex ? 'w-8 bg-gray-900' : 'w-2 bg-gray-200'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
