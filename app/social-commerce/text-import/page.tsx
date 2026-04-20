@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import axios from '@/lib/axios';
 import { fireToast } from '@/lib/globalToast';
 import productService from '@/services/productService';
+import catalogService from '@/services/catalogService';
 import {
   FileText,
   ScanText,
@@ -247,6 +248,94 @@ function parseSkuInput(input: string) {
   return Array.from(counts.entries()).map(([sku, quantity]) => ({ sku, quantity }));
 }
 
+
+function parseMoney(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value).replace(/[^\d.-]/g, '');
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function extractCustomFieldPrice(customFields: any): number {
+  if (!Array.isArray(customFields)) return 0;
+
+  for (const field of customFields) {
+    const title = String(field?.field_title || field?.title || '').trim().toLowerCase();
+    if (!title) continue;
+    if (title === 'price' || title === 'selling price' || title === 'sale price') {
+      const value = field?.value ?? field?.raw_value ?? field?.rawValue;
+      const parsed = parseMoney(value);
+      if (parsed > 0) return parsed;
+    }
+  }
+
+  return 0;
+}
+
+function extractBatchPrice(batches: any): number {
+  if (!Array.isArray(batches)) return 0;
+  const prices = batches
+    .map((batch) => parseMoney(batch?.sell_price ?? batch?.selling_price ?? batch?.price))
+    .filter((price) => price > 0);
+  if (!prices.length) return 0;
+  return Math.min(...prices);
+}
+
+function extractProductUnitPrice(product: any): number {
+  const directCandidates = [
+    product?.selling_price,
+    product?.price,
+    product?.base_price,
+    product?.sale_price,
+    product?.min_price,
+    product?.max_price,
+    product?.main_variant?.selling_price,
+    product?.main_variant?.price,
+    product?.main_variant?.sale_price,
+    product?.main_variant?.base_price,
+    product?.attributes?.Price,
+    product?.attributes?.price,
+    product?.batch_prices?.sell_price,
+    product?.batch_prices?.selling_price,
+  ];
+
+  for (const candidate of directCandidates) {
+    const parsed = parseMoney(candidate);
+    if (parsed > 0) return parsed;
+  }
+
+  const customFieldPrice = extractCustomFieldPrice(product?.custom_fields);
+  if (customFieldPrice > 0) return customFieldPrice;
+
+  const batchPrice = extractBatchPrice(product?.batches);
+  if (batchPrice > 0) return batchPrice;
+
+  const variantPrices = (Array.isArray(product?.variants) ? product.variants : [])
+    .map((variant: any) => extractProductUnitPrice({ ...variant, variants: [] }))
+    .filter((price: number) => price > 0);
+  if (variantPrices.length) return Math.min(...variantPrices);
+
+  return 0;
+}
+
+function findCatalogSkuMatch(groups: any[], requestedSku: string) {
+  const normalizedRequested = String(requestedSku || '').trim().toLowerCase();
+
+  for (const group of groups || []) {
+    const candidates = [group?.main_variant, ...(Array.isArray(group?.variants) ? group.variants : [])].filter(Boolean);
+    const exact = candidates.find((candidate: any) => String(candidate?.sku || '').trim().toLowerCase() === normalizedRequested);
+    if (exact) return exact;
+  }
+
+  for (const group of groups || []) {
+    const candidates = [group?.main_variant, ...(Array.isArray(group?.variants) ? group.variants : [])].filter(Boolean);
+    if (candidates.length) return candidates[0];
+  }
+
+  return null;
+}
+
 function allocateDiscounts(items: ResolvedItem[], totalDiscount: number) {
   const safeDiscount = Math.max(0, Number(totalDiscount) || 0);
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
@@ -343,32 +432,70 @@ export default function SocialTextImportPage() {
       const missing: string[] = [];
 
       for (const entry of parsedSkus) {
-        const response = await productService.getAll({ search: entry.sku, per_page: 50 });
-        const products = Array.isArray(response?.data) ? response.data : [];
-        const match = products.find((product) => String(product.sku || '').trim() === entry.sku)
-          || products.find((product) => String(product.sku || '').trim().toLowerCase() === entry.sku.toLowerCase())
-          || products[0];
+        let match: any = null;
+
+        try {
+          const catalogResponse = await catalogService.searchProducts({
+            q: entry.sku,
+            per_page: 50,
+            group_by_sku: true,
+          });
+
+          const groupedProducts = Array.isArray(catalogResponse?.grouped_products)
+            ? catalogResponse.grouped_products
+            : [];
+
+          match = findCatalogSkuMatch(groupedProducts, entry.sku);
+
+          if (!match) {
+            const flatProducts = Array.isArray(catalogResponse?.products) ? catalogResponse.products : [];
+            match = flatProducts.find((product: any) => String(product?.sku || '').trim() === entry.sku)
+              || flatProducts.find((product: any) => String(product?.sku || '').trim().toLowerCase() === entry.sku.toLowerCase())
+              || flatProducts[0]
+              || null;
+          }
+        } catch (catalogError) {
+          console.warn('Catalog search failed, falling back to productService:', catalogError);
+        }
+
+        if (!match) {
+          const response = await productService.getAll({ search: entry.sku, per_page: 50 });
+          const products = Array.isArray(response?.data) ? response.data : [];
+          match = products.find((product) => String(product.sku || '').trim() === entry.sku)
+            || products.find((product) => String(product.sku || '').trim().toLowerCase() === entry.sku.toLowerCase())
+            || products[0]
+            || null;
+        }
 
         if (!match) {
           missing.push(entry.sku);
           continue;
         }
 
+        const extractedPrice = extractProductUnitPrice(match);
+
         found.push({
           sku: entry.sku,
           quantity: entry.quantity,
-          productId: Number(match.id),
-          name: String(match.name || 'Unknown product'),
-          unitPrice: Number(match.selling_price || match.base_price || 0),
-          matchedSku: String(match.sku || entry.sku),
+          productId: Number(match.id || match.main_variant?.id || 0),
+          name: String(match.name || match.display_name || match.main_variant?.name || 'Unknown product'),
+          unitPrice: extractedPrice,
+          matchedSku: String(match.sku || match.main_variant?.sku || entry.sku),
         });
       }
 
       setResolvedItems(found);
       setMissingSkus(missing);
 
+      const zeroPriceSkus = found.filter((item) => item.unitPrice <= 0).map((item) => item.sku);
+
       if (missing.length) {
         fireToast(`Resolved ${found.length} SKU(s). Missing: ${missing.join(', ')}`, 'error');
+        return;
+      }
+
+      if (zeroPriceSkus.length) {
+        fireToast(`Resolved ${found.length} SKU(s), but price could not be detected for: ${zeroPriceSkus.join(', ')}`, 'error');
         return;
       }
 
