@@ -1343,7 +1343,7 @@ export default function PurchaseOrdersPage() {
                         )}
 
                         <div className="min-w-0">
-                          <p className="text-base font-bold text-gray-900 dark:text-gray-100 truncate">{item.product_name}</p>
+                          <p className="text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">{item.product_name}</p>
                           <AccessControl roles={['super-admin', 'admin']}>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                               Qty: {item.quantity_ordered} × ৳{formatCurrency(item.unit_cost)}
@@ -1552,7 +1552,7 @@ export default function PurchaseOrdersPage() {
                                     </button>
                                     {/* info */}
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-base font-bold text-gray-900 dark:text-white truncate">{group.baseName}</p>
+                                      <p className="text-xl font-semibold text-gray-900 dark:text-white truncate">{group.baseName}</p>
                                       <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-[11px] text-gray-400 font-mono">SKU: {group.sku.startsWith('__') ? '—' : group.sku}</span>
                                         {isMulti && (
@@ -1596,7 +1596,7 @@ export default function PurchaseOrdersPage() {
                                               className="w-7 h-7 flex-shrink-0 rounded overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700">
                                               {img ? <img src={img} alt={suffix} className="w-full h-full object-cover" onError={(e) => { if (!e.currentTarget.src.includes('/placeholder-product.png')) e.currentTarget.src = '/placeholder-product.png'; }} /> : <Package className="w-3.5 h-3.5 text-gray-400 m-auto mt-1.5" />}
                                             </button>
-                                            <span className="flex-1 text-lg font-extrabold text-blue-700 dark:text-blue-300 truncate">{suffix}</span>
+                                            <span className="flex-1 text-2xl font-semibold text-blue-700 dark:text-blue-300 truncate">{suffix}</span>
                                             <button type="button" onClick={() => appendProductToEdit(p)} disabled={added}
                                               className={`flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md ${added ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
                                               {added ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
@@ -1710,7 +1710,7 @@ export default function PurchaseOrdersPage() {
                                   <img src={pickPOItemImage(it)!} alt={it.product_label} className="w-full h-full object-cover" />
                                 </button>
                               )}
-                              <span className="text-base font-bold text-gray-900 dark:text-white truncate">{it.product_label}</span>
+                              <span className="text-xl font-semibold text-gray-900 dark:text-white truncate">{it.product_label}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2">
@@ -1777,7 +1777,7 @@ export default function PurchaseOrdersPage() {
                                   <img src={pickPOItemImage(it)!} alt={it.product_label} className="w-full h-full object-cover" />
                                 </button>
                               )}
-                              <span className="text-base font-bold text-gray-900 dark:text-white truncate">{it.product_label}</span>
+                              <span className="text-xl font-semibold text-gray-900 dark:text-white truncate">{it.product_label}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2">
