@@ -47,6 +47,7 @@ export const PAGE_ACCESS: Record<string, RoleSlug[]> = {
   '/social-commerce': ['super-admin', 'admin', 'online-moderator'],
   '/social-commerce/package': ['super-admin', 'admin', 'branch-manager', 'pos-salesman'],
   '/social-commerce/amount-details': ['super-admin', 'admin', 'online-moderator'],
+  '/social-commerce/text-import': ['super-admin', 'admin', 'online-moderator'],
   '/orders': ['super-admin', 'admin', 'branch-manager', 'online-moderator'],
   '/preorders': ['super-admin', 'admin', 'branch-manager', 'online-moderator'],
   '/returns': ['super-admin', 'admin', 'branch-manager', 'online-moderator', 'pos-salesman'],
