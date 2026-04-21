@@ -108,7 +108,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
           ref={scrollContainerRef}
           onScroll={handleScroll}
           className="relative overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar md:overflow-hidden rounded-lg md:rounded-2xl border-none bg-transparent"
-          style={{ aspectRatio: '4/5', maxWidth: '85%' }}
+          style={{ aspectRatio: '4/5', maxWidth: '100%' }}
         >
           <div className="flex h-full md:block">
             {safeImages.map((img, index) => (
@@ -141,22 +141,6 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
             )}
           </div>
 
-          {/* Mobile Thumbnail Strip (at the bottom) */}
-          {safeImages.length > 1 && (
-            <div className="flex md:hidden gap-2 px-4 py-3 overflow-x-auto no-scrollbar snap-x z-30">
-              {safeImages.map((img, index) => (
-                <button
-                  key={img.id || index}
-                  onClick={() => scrollToImage(index)}
-                  className={`w-12 h-12 flex-shrink-0 rounded-md overflow-hidden border-2 snap-start transition-all ${
-                    activeIndex === index ? 'border-gray-900' : 'border-transparent'
-                  }`}
-                >
-                  <img src={img.url} className="w-full h-full object-cover" alt="" />
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Navigation Arrows (Desktop - Minimalist) */}
           {safeImages.length > 1 && (
@@ -176,6 +160,23 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
             </div>
           )}
         </div>
+
+        {/* Mobile Thumbnail Strip (now below and wrapping) */}
+        {safeImages.length > 1 && (
+          <div className="flex md:hidden flex-wrap gap-2 py-4 z-30 justify-start">
+            {safeImages.map((img, index) => (
+              <button
+                key={img.id || index}
+                onClick={() => scrollToImage(index)}
+                className={`w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 rounded-md overflow-hidden border-2 transition-all ${
+                  activeIndex === index ? 'border-gray-900' : 'border-gray-200'
+                }`}
+              >
+                <img src={img.url} className="w-full h-full object-cover" alt="" />
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Desktop Progress/Dots (Minimal) */}
         {safeImages.length > 1 && (
