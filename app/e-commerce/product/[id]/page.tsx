@@ -1004,7 +1004,7 @@ export default function ProductDetailPage() {
           />
 
           {/* ── Buy Column ── */}
-          <div className="lg:sticky lg:top-24 space-y-4">
+          <div className="lg:sticky lg:top-24 space-y-4 font-[var(--font-poppins)]">
             <div className="space-y-4">
               {/* Product Info */}
               <div className="space-y-4">
@@ -1018,16 +1018,16 @@ export default function ProductDetailPage() {
                   </button>
                 </div>
 
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight leading-tight uppercase">
+                <h1 className="text-3xl sm:text-4xl font-semibold text-gray-900 tracking-tight leading-tight uppercase font-[var(--font-poppins)]">
                   {baseName}
                 </h1>
 
                 <div className="flex items-baseline gap-4 pt-2">
-                  <span className="text-2xl font-bold text-gray-900">
+                  <span className="text-3xl font-semibold text-gray-900 font-[var(--font-libre)]">
                     {formatBDT(sellingPrice)}
                   </span>
                   {(costPrice > sellingPrice || salePromo) && originalSellingPrice > 0 && (
-                    <span className="text-lg line-through text-gray-400 font-medium">
+                    <span className="text-xl line-through text-gray-400 font-semibold font-[var(--font-libre)]">
                       {formatBDT(salePromo ? originalSellingPrice : Math.max(costPrice, originalSellingPrice))}
                     </span>
                   )}

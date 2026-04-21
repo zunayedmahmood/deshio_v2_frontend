@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Jost:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Jost:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;1,300&family=Poppins:wght@400;600;700&family=Libre+Baskerville:wght@400;700&display=swap");
 
 /* stylelint-disable-next-line */
 @variant dark (&:where(.dark, .dark *));
@@ -166,6 +166,10 @@ body {
     --transition-fast: 100ms var(--ease-smooth);
     --transition-base: 220ms var(--ease-smooth);
     --transition-slow: 380ms var(--ease-smooth);
+    
+    /* --- Custom Fonts --- */
+    --font-poppins: "Poppins", sans-serif;
+    --font-libre: "Libre Baskerville", serif;
   }
 
   .ec-root {
