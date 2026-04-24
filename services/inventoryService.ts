@@ -140,6 +140,7 @@ export interface StockAgingResponse {
 export interface GlobalInventoryParams {
   product_id?: number;
   store_id?: number;
+  category_id?: number;
   low_stock?: boolean;
   skipStoreScope?: boolean;
 }

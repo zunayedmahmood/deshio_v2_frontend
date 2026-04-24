@@ -65,6 +65,21 @@ function ViewInventoryPageContent() {
   const [groupedProducts, setGroupedProducts] = useState<GroupedProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(50);
+  const [viewMode, setViewMode] = useState<'all' | 'category'>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+
+  const getFlatCategories = (cats: Category[]) => {
+    const flat: Category[] = [];
+    cats.filter(c => !c.parent_id).forEach(parent => {
+      flat.push(parent);
+      cats.filter(c => c.parent_id === parent.id).forEach(child => {
+        flat.push(child);
+      });
+    });
+    return flat;
+  };
+
+  const flatCategories = useMemo(() => getFlatCategories(categories), [categories]);
 
   // product meta + image caches (loaded lazily for visible items)
   const [productMetaById, setProductMetaById] = useState<Record<number, any>>({});
@@ -124,9 +139,9 @@ function ViewInventoryPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    fetchInventory();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, selectedCategoryId]);
 
   // --- Same approach as GalleryPage: normalize image paths to absolute URLs ---
   const getBaseUrl = () => {
@@ -475,13 +490,16 @@ function ViewInventoryPageContent() {
     });
   };
 
-  const fetchInitialData = async () => {
+  const fetchInventory = async () => {
     try {
       setLoading(true);
 
       const [categoriesResponse, inventoryResponse] = await Promise.all([
         categoryService.getCategories(),
-        inventoryService.getGlobalInventory({ skipStoreScope: true }),
+        inventoryService.getGlobalInventory({ 
+          skipStoreScope: true,
+          category_id: viewMode === 'category' ? (selectedCategoryId || undefined) : undefined
+        }),
       ]);
 
       const categoriesData = (categoriesResponse as any)?.data?.data || (categoriesResponse as any)?.data || [];
@@ -672,7 +690,46 @@ function ViewInventoryPageContent() {
                   View all products and their stock levels across outlets
                 </p>
               </div>
-              <ExportInventoryButton categories={categories} allStores={allStores} />
+              <ExportInventoryButton 
+                categories={categories} 
+                allStores={allStores} 
+                selectedCategoryId={viewMode === 'category' ? selectedCategoryId : null}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+                <label className="text-xs font-bold text-gray-500 uppercase px-1">View Mode</label>
+                <select
+                  value={viewMode}
+                  onChange={(e) => {
+                    setViewMode(e.target.value as 'all' | 'category');
+                    if (e.target.value === 'all') setSelectedCategoryId(null);
+                  }}
+                  className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                >
+                  <option value="all">Current Stock (All Products)</option>
+                  <option value="category">Category-wise Stock</option>
+                </select>
+              </div>
+
+              {viewMode === 'category' && (
+                <div className="flex flex-col gap-1.5 flex-1 min-w-[250px]">
+                  <label className="text-xs font-bold text-gray-500 uppercase px-1">Select Category</label>
+                  <select
+                    value={selectedCategoryId || ''}
+                    onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-emerald-500 transition-all outline-none"
+                  >
+                    <option value="">-- All Categories --</option>
+                    {flatCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.parent_id ? '　' : ''}{cat.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
@@ -721,7 +778,7 @@ function ViewInventoryPageContent() {
                           <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Variation</th>
                           
                           {allStores.map(store => (
-                            <th key={store.id} className="p-3 text-center font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap min-w-[120px] border-r border-gray-200 dark:border-gray-700">
+                            <th key={store.id} className="p-3 text-center font-bold text-gray-700 dark:text-gray-300 whitespace-normal break-words max-w-[100px] leading-tight border-r border-gray-200 dark:border-gray-700">
                               {store.name}
                             </th>
                           ))}
@@ -752,7 +809,7 @@ function ViewInventoryPageContent() {
                                     <td rowSpan={rowSpan} className="p-3 font-bold text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 z-10 border-r border-gray-200 dark:border-gray-700 align-top">
                                       {group.sku}
                                     </td>
-                                    <td rowSpan={rowSpan} className="p-3 text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700 align-top">
+                                    <td rowSpan={rowSpan} className="p-3 text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700 align-top whitespace-normal break-words max-w-[200px] leading-tight">
                                       {group.productName}
                                     </td>
                                     <td rowSpan={rowSpan} className="p-3 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 align-top">

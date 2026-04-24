@@ -8,9 +8,10 @@ import inventoryService from '@/services/inventoryService';
 interface ExportInventoryButtonProps {
   categories: any[];
   allStores: { id: number; name: string }[];
+  selectedCategoryId?: number | null;
 }
 
-export default function ExportInventoryButton({ categories, allStores }: ExportInventoryButtonProps) {
+export default function ExportInventoryButton({ categories, allStores, selectedCategoryId }: ExportInventoryButtonProps) {
   const [exporting, setExporting] = useState(false);
 
   const getCategoryPaths = (categoryId: number | undefined, cats: any[]) => {
@@ -33,7 +34,10 @@ export default function ExportInventoryButton({ categories, allStores }: ExportI
       setExporting(true);
       
       // Fetch ALL data
-      const response = await inventoryService.getGlobalInventory({ skipStoreScope: true });
+      const response = await inventoryService.getGlobalInventory({ 
+        skipStoreScope: true,
+        category_id: selectedCategoryId || undefined
+      });
       const items = response.data || [];
 
       // Group by SKU

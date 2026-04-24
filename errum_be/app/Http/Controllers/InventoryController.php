@@ -20,12 +20,27 @@ class InventoryController extends Controller
     public function getGlobalInventory(Request $request)
     {
         try {
-            $query = ProductBatch::with(['product', 'store'])
+            $query = ProductBatch::whereHas('product', function($q) {
+                    $q->where('is_archived', false);
+                })
+                ->with(['product', 'store'])
                 ->where('quantity', '>', 0);
 
             // Filter by product
             if ($request->has('product_id')) {
                 $query->where('product_id', $request->product_id);
+            }
+
+            // Filter by category
+            if ($request->has('category_id')) {
+                $categoryId = $request->category_id;
+                $category = \App\Models\Category::find($categoryId);
+                if ($category) {
+                    $categoryIds = $category->descendants()->pluck('id')->push($category->id)->toArray();
+                    $query->whereHas('product', function($q) use ($categoryIds) {
+                        $q->whereIn('category_id', $categoryIds);
+                    });
+                }
             }
 
             // Filter by store
@@ -105,7 +120,7 @@ class InventoryController extends Controller
             $search = $request->search;
 
             // Search products by name or SKU
-            $products = Product::query();
+            $products = Product::where('is_archived', false);
             $this->whereAnyLike($products, ['name', 'sku'], $search);
             $products = $products->with(['productBatches' => function ($query) {
                     $query->where('quantity', '>', 0)->with('store');
