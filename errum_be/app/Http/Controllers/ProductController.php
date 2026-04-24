@@ -106,8 +106,95 @@ class ProductController extends Controller
         // Sorting
         $sortBy = $request->get('sort_by', 'created_at');
         $sortDirection = $request->get('sort_direction', 'desc');
+        $perPage = $request->get('per_page', 15);
         
         $allowedSortFields = ['name', 'sku', 'created_at', 'updated_at', 'price'];
+
+        // Handle Grouping by SKU
+        if ($request->boolean('group_by_sku', true)) {
+            // Step 1: Get the list of SKUs that match the filters
+            // We use a subquery approach to ensure pagination works on groups, not individual products
+            $filteredSkuQuery = clone $query;
+            
+            // If sorting by price, we need to join batches to the subquery
+            if ($sortBy === 'price') {
+                $filteredSkuQuery->addSelect([
+                    'min_price' => \App\Models\ProductBatch::select('sell_price')
+                        ->whereColumn('product_id', 'products.id')
+                        ->where('is_active', true)
+                        ->where('availability', true)
+                        ->orderBy('sell_price', 'asc')
+                        ->limit(1)
+                ]);
+            }
+
+            // Create a sub-select to get unique SKUs and their representative (latest created product)
+            $subQuery = DB::table('products')
+                ->whereIn('id', function($q) use ($filteredSkuQuery) {
+                    $q->select('id')->fromSub($filteredSkuQuery, 'sq');
+                })
+                ->select('sku', DB::raw('MAX(id) as representative_id'))
+                ->groupBy('sku');
+
+            // Apply sorting to the groups
+            if ($sortBy === 'name') {
+                // For name, we pick the MAX name in the group (usually consistent)
+                $subQuery->addSelect(DB::raw('MAX(name) as sort_name'))->orderBy('sort_name', $sortDirection);
+            } elseif ($sortBy === 'sku') {
+                $subQuery->orderBy('sku', $sortDirection);
+            } elseif ($sortBy === 'price') {
+                // This is slightly complex, ideally we sort by the MIN price within the SKU group
+                $subQuery->addSelect(DB::raw('(SELECT MIN(sell_price) FROM product_batches WHERE product_id IN (SELECT id FROM products p2 WHERE p2.sku = products.sku)) as min_group_price'))
+                         ->orderBy('min_group_price', $sortDirection);
+            } else {
+                // Default to created_at
+                $subQuery->addSelect(DB::raw('MAX(created_at) as latest_created'))->orderBy('latest_created', $sortDirection);
+            }
+
+            $pagedGroups = $subQuery->paginate($perPage);
+            $representativeIds = collect($pagedGroups->items())->pluck('representative_id')->filter()->values();
+            $skus = collect($pagedGroups->items())->pluck('sku')->filter()->values();
+
+            // Load full models for the representatives
+            $products = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
+                $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+            }])
+            ->whereIn('id', $representativeIds)
+            ->get();
+
+            // Sort products to match the pagedGroups order
+            $products = $products->sortBy(function($product) use ($representativeIds) {
+                return $representativeIds->search($product->id);
+            })->values();
+
+            // Load variants for these SKUs
+            $allVariants = Product::with(['productFields.field', 'images' => function($q) {
+                $q->where('is_active', true)->orderBy('is_primary', 'desc')->orderBy('sort_order');
+            }])
+            ->whereIn('sku', $skus)
+            ->whereNotIn('id', $representativeIds)
+            ->where('is_archived', false) // Only active variants by default
+            ->get()
+            ->groupBy('sku');
+
+            foreach ($products as $product) {
+                $product->variants = $allVariants->get($product->sku, collect());
+                $product->has_variants = $product->variants->isNotEmpty();
+                $product->variants_count = $product->variants->count() + 1;
+                $product->custom_fields = $this->formatCustomFields($product);
+                
+                foreach ($product->variants as $variant) {
+                    $variant->custom_fields = $this->formatCustomFields($variant);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $pagedGroups->setCollection($products)
+            ]);
+        }
+
+        // --- Flat (non-grouped) fallback logic ---
         
         if ($sortBy === 'price') {
             $query->addSelect([
@@ -122,11 +209,14 @@ class ProductController extends Controller
             $query->orderBy($sortBy, $sortDirection);
         }
 
-        $products = $query->paginate($request->get('per_page', 15));
+        $products = $query->paginate($perPage);
 
         // Transform to include formatted custom fields
         foreach ($products as $product) {
             $product->custom_fields = $this->formatCustomFields($product);
+            $product->has_variants = false;
+            $product->variants = [];
+            $product->variants_count = 1;
         }
 
         return response()->json([

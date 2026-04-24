@@ -243,15 +243,16 @@ export default function ProductPage() {
       // Proposal 5: use advanced search when query is ≥ 2 chars
       if (debouncedSearchQuery.trim().length >= 2) {
         try {
-          response = await productService.advancedSearch({
-            query: debouncedSearchQuery.trim(),
-            category_id: selectedCategory ? Number(selectedCategory) : undefined,
-            vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
-            per_page: SERVER_PAGE_SIZE,
-            page: pageToLoad,
-            enable_fuzzy: true,
-            in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
-          });
+            response = await productService.advancedSearch({
+              query: debouncedSearchQuery.trim(),
+              category_id: selectedCategory ? Number(selectedCategory) : undefined,
+              vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
+              per_page: SERVER_PAGE_SIZE,
+              page: pageToLoad,
+              enable_fuzzy: true,
+              group_by_sku: true,
+              in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
+            });
         } catch {
           // Advanced search unavailable — fall back to standard endpoint
           response = await productService.getAll({

@@ -280,22 +280,52 @@ class ProductSearchController extends Controller
         // Step 4: Calculate relevance scores and sort
         $scoredResults = $this->scoreAndRankResults($results, $searchTerms);
 
+        // Step 4.5: Group by SKU if requested
+        if ($validated['group_by_sku'] ?? false) {
+            $groupedResults = $scoredResults->groupBy('sku')->map(function($group) {
+                // Pick the representative (highest score)
+                $representative = $group->sortByDesc('search_score')->first();
+                
+                // Attach others as variants (ensure variants have custom_fields formatted if needed by frontend)
+                $representative->variants = $group->reject(function($p) use ($representative) {
+                    return $p->id === $representative->id;
+                })->values();
+                
+                $representative->has_variants = $representative->variants->isNotEmpty();
+                $representative->variants_count = $representative->variants->count() + 1;
+                
+                return $representative;
+            })->values();
+            
+            // Re-sort grouped results by the representative's score
+            $scoredResults = $groupedResults->sortByDesc('search_score')->values();
+        }
+
         // Step 5: Paginate results
-        $perPage = $validated['per_page'] ?? 15;
-        $page = $request->input('page', 1);
+        $perPage = (int) ($validated['per_page'] ?? 15);
+        $page = (int) $request->input('page', 1);
         $paginatedResults = $this->paginateResults($scoredResults, $perPage, $page);
+        
+        $totalResults = count($scoredResults);
+        $lastPage = (int) ceil($totalResults / $perPage);
 
         return response()->json([
             'success' => true,
-            'query' => $query,
-            'search_terms' => $searchTerms,
-            'total_results' => count($scoredResults),
-            'data' => $paginatedResults,
-            'search_metadata' => [
-                'fuzzy_enabled' => $enableFuzzy,
-                'fuzzy_threshold' => $fuzzyThreshold,
-                'search_fields' => $searchFields,
-            ],
+            'data' => [
+                'data' => $paginatedResults,
+                'total' => $totalResults,
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'query' => $query,
+                'search_terms' => $searchTerms,
+                'search_metadata' => [
+                    'fuzzy_enabled' => $enableFuzzy,
+                    'fuzzy_threshold' => $fuzzyThreshold,
+                    'search_fields' => $searchFields,
+                    'grouped_by_sku' => $validated['group_by_sku'] ?? false,
+                ],
+            ]
         ]);
     }
 
