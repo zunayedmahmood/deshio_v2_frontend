@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { FileSpreadsheet, Loader2 } from 'lucide-react';
-import inventoryService, { GlobalInventoryItem } from '@/services/inventoryService';
+import * as XLSX from 'xlsx';
+import inventoryService from '@/services/inventoryService';
 
 interface ExportInventoryButtonProps {
   categories: any[];
@@ -60,101 +61,101 @@ export default function ExportInventoryButton({ categories, allStores }: ExportI
 
       const groups = Array.from(skuMap.values());
 
-      // Generate HTML Table for Excel
-      let html = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-          <meta charset="utf-8">
-          <!--[if gte mso 9]>
-          <xml>
-            <x:ExcelWorkbook>
-              <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                  <x:Name>Inventory Report</x:Name>
-                  <x:WorksheetOptions>
-                    <x:DisplayGridlines/>
-                  </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-              </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-          </xml>
-          <![endif]-->
-          <style>
-            table { border-collapse: collapse; }
-            th { background-color: #f3f4f6; font-weight: bold; border: 1px solid #d1d5db; padding: 8px; text-align: left; }
-            td { border: 1px solid #d1d5db; padding: 8px; vertical-align: top; }
-            .text-center { text-align: center; }
-            .bg-blue { background-color: #eff6ff; }
-            .bg-emerald { background-color: #ecfdf5; }
-            .font-bold { font-weight: bold; }
-          </style>
-        </head>
-        <body>
-          <table>
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th>Subcategory</th>
-                <th>Variation</th>
-                ${allStores.map(s => `<th>${s.name}</th>`).join('')}
-                <th>Available</th>
-                <th>Physical</th>
-                <th>Reserved</th>
-                <th>SKU Total</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
+      // Prepare data for XLSX
+      // We'll build a flat representation but since it's Excel, 
+      // the user wants merged cells. xlsx supports cell merging.
+      
+      const headerRow = [
+        'SKU', 'Product Name', 'Category', 'Subcategory', 'Variation',
+        ...allStores.map(s => s.name),
+        'Available', 'Physical', 'Reserved', 'SKU Total'
+      ];
+
+      const dataRows: any[][] = [];
+      const merges: { s: { r: number, c: number }, e: { r: number, c: number } }[] = [];
+
+      let currentRow = 1; // 1-based for header
 
       groups.forEach(group => {
+        const variationsCount = group.variations.length;
+        
         group.variations.forEach((v, vIdx) => {
           const { category, subcategory } = getCategoryPaths(v.category_id, categories);
-          const rowSpan = group.variations.length;
+          
+          // Enhanced Variation Suffix Logic (Fallback to name diff)
+          const suffix = v.variation_suffix || 
+                        (v.product_name && v.base_name ? v.product_name.replace(v.base_name, '').trim() : '') || 
+                        'Default';
 
-          html += `<tr>`;
-          if (vIdx === 0) {
-            html += `
-              <td rowspan="${rowSpan}">${group.sku}</td>
-              <td rowspan="${rowSpan}">${group.productName}</td>
-              <td rowspan="${rowSpan}">${category}</td>
-              <td rowspan="${rowSpan}">${subcategory}</td>
-            `;
-          }
+          const rowData = [
+            vIdx === 0 ? group.sku : '',
+            vIdx === 0 ? group.productName : '',
+            vIdx === 0 ? category : '',
+            vIdx === 0 ? subcategory : '',
+            suffix
+          ];
 
-          html += `<td>${v.variation_suffix || 'Default'}</td>`;
-
-          // Store columns
+          // Store values
           allStores.forEach(store => {
             const storeStock = v.stores.find((s: any) => s.store_id === store.id);
-            html += `<td class="text-center">${storeStock ? storeStock.quantity : '-'}</td>`;
+            rowData.push(storeStock ? storeStock.quantity : 0);
           });
 
-          html += `
-            <td class="text-center bg-blue">${v.available_quantity || 0}</td>
-            <td class="text-center">${v.total_quantity || 0}</td>
-            <td class="text-center">${v.reserved_quantity || 0}</td>
-          `;
+          rowData.push(
+            v.available_quantity || 0,
+            v.total_quantity || 0,
+            v.reserved_quantity || 0,
+            vIdx === 0 ? group.totalStock : ''
+          );
 
-          if (vIdx === 0) {
-            html += `<td rowspan="${rowSpan}" class="text-center bg-emerald font-bold">${group.totalStock}</td>`;
+          dataRows.push(rowData);
+
+          // Add merging for the first 4 columns and the last column
+          if (vIdx === 0 && variationsCount > 1) {
+            const startRow = currentRow;
+            const endRow = currentRow + variationsCount - 1;
+            
+            // SKU, Name, Category, Subcategory
+            for (let c = 0; c < 4; c++) {
+              merges.push({ s: { r: startRow, c }, e: { r: endRow, c } });
+            }
+            // SKU Total (last column)
+            const totalColIdx = headerRow.length - 1;
+            merges.push({ s: { r: startRow, c: totalColIdx }, e: { r: endRow, c: totalColIdx } });
           }
-
-          html += `</tr>`;
+          
+          currentRow++;
         });
       });
 
-      html += `
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `;
+      // Create workbook and worksheet
+      const ws = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+      
+      // Apply merges
+      ws['!merges'] = merges;
 
-      // Download
-      const fileName = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xls`;
-      const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+      // Set column widths (optional but helpful)
+      ws['!cols'] = [
+        { wch: 15 }, // SKU
+        { wch: 35 }, // Name
+        { wch: 20 }, // Category
+        { wch: 20 }, // Subcategory
+        { wch: 15 }, // Variation
+        ...allStores.map(() => ({ wch: 10 })),
+        { wch: 12 }, // Available
+        { wch: 12 }, // Physical
+        { wch: 12 }, // Reserved
+        { wch: 12 }, // SKU Total
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Inventory Report');
+
+      // Write and Download
+      const xlsxBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([xlsxBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -181,7 +182,7 @@ export default function ExportInventoryButton({ categories, allStores }: ExportI
       ) : (
         <FileSpreadsheet className="w-5 h-5" />
       )}
-      {exporting ? 'Processing All Data...' : 'Print / Export Excel'}
+      {exporting ? 'Processing All Data...' : 'Print / Export XLSX'}
     </button>
   );
 }
