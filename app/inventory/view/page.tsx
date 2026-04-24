@@ -11,6 +11,7 @@ import productService from '@/services/productService';
 import categoryService from '@/services/groupInventory';
 import productImageService from '@/services/productImageService';
 import defectiveProductService, { type DefectiveProduct } from '@/services/defectiveProductService';
+import ExportInventoryButton from '@/components/inventory/ExportInventoryButton';
 
 interface Category {
   id: number;
@@ -662,13 +663,16 @@ function ViewInventoryPageContent() {
           />
 
           <main className="flex-1 overflow-auto p-6">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Inventory Overview
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                View all products and their stock levels across outlets
-              </p>
+            <div className="flex justify-between items-start mb-6 text-base">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  Inventory Overview
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400">
+                  View all products and their stock levels across outlets
+                </p>
+              </div>
+              <ExportInventoryButton categories={categories} allStores={allStores} />
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
@@ -707,36 +711,33 @@ function ViewInventoryPageContent() {
               ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
                   <div className="overflow-x-auto max-h-[calc(100vh-320px)] scrollbar-thin">
-                    <table className="w-full border-collapse border border-gray-200 dark:border-gray-700 text-xl font-medium">
+                    <table className="w-full border-collapse border border-gray-200 dark:border-gray-700 text-base font-medium">
                       <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-20">
                         <tr className="border-b border-gray-200 dark:border-gray-700">
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300 sticky left-0 bg-gray-50 dark:bg-gray-900 z-30 border-r border-gray-200 dark:border-gray-700">SKU</th>
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300 min-w-[250px] border-r border-gray-200 dark:border-gray-700">Product Name</th>
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Category</th>
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Subcategory</th>
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Variation</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 sticky left-0 bg-gray-50 dark:bg-gray-900 z-30 border-r border-gray-200 dark:border-gray-700">SKU</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 min-w-[250px] border-r border-gray-200 dark:border-gray-700">Product Name</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Category</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Subcategory</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Variation</th>
                           
                           {allStores.map(store => (
-                            <th key={store.id} className="p-4 text-center font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap min-w-[120px] border-r border-gray-200 dark:border-gray-700">
+                            <th key={store.id} className="p-3 text-center font-bold text-gray-700 dark:text-gray-300 whitespace-nowrap min-w-[120px] border-r border-gray-200 dark:border-gray-700">
                               {store.name}
                             </th>
                           ))}
                           
-                          <th className="p-4 text-center font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/10 border-r border-gray-200 dark:border-gray-700">Available</th>
-                          <th className="p-4 text-center font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Physical</th>
-                          <th className="p-4 text-center font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Reserved</th>
-                          <th className="p-4 text-center font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10 border-r border-gray-200 dark:border-gray-700">SKU Total</th>
-                          <th className="p-4 text-left font-bold text-gray-700 dark:text-gray-300">Defective or Used</th>
+                          <th className="p-3 text-center font-bold text-blue-700 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/20 border-r border-gray-200 dark:border-gray-700">Available</th>
+                          <th className="p-3 text-center font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Physical</th>
+                          <th className="p-3 text-center font-bold text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">Reserved</th>
+                          <th className="p-3 text-center font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50/50 dark:bg-emerald-900/20 border-r border-gray-200 dark:border-gray-700">SKU Total</th>
+                          <th className="p-3 text-left font-bold text-gray-700 dark:text-gray-300">Defective or Used</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-800">
                         {visibleProducts.map((group) => (
                           group.variations.map((variation, vIdx) => {
                             const pid = variation.productId;
-                            // Prefer category_id from the variation object (backend provided)
                             const { category, subcategory } = getCategoryPaths(variation.category_id, categories);
-                            
-                            // Prefer variation_suffix from the variation object
                             const suffix = variation.variation_suffix || getVariationSuffix(pid);
                             const extra = extraMap?.get(pid);
                             const rowSpan = group.variations.length;
@@ -748,22 +749,22 @@ function ViewInventoryPageContent() {
                               >
                                 {vIdx === 0 && (
                                   <>
-                                    <td rowSpan={rowSpan} className="p-4 font-mono text-gray-600 dark:text-gray-400 sticky left-0 bg-white dark:bg-gray-800 z-10 border-r border-gray-200 dark:border-gray-700 align-top">
+                                    <td rowSpan={rowSpan} className="p-3 font-bold text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-gray-800 z-10 border-r border-gray-200 dark:border-gray-700 align-top">
                                       {group.sku}
                                     </td>
-                                    <td rowSpan={rowSpan} className="p-4 font-bold text-gray-900 dark:text-white leading-tight border-r border-gray-200 dark:border-gray-700 align-top">
+                                    <td rowSpan={rowSpan} className="p-3 text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700 align-top">
                                       {group.productName}
                                     </td>
-                                    <td rowSpan={rowSpan} className="p-4 text-gray-600 dark:text-gray-400 whitespace-nowrap border-r border-gray-200 dark:border-gray-700 align-top">
+                                    <td rowSpan={rowSpan} className="p-3 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 align-top">
                                       {category}
                                     </td>
-                                    <td rowSpan={rowSpan} className="p-4 text-gray-600 dark:text-gray-400 whitespace-nowrap border-r border-gray-200 dark:border-gray-700 align-top">
+                                    <td rowSpan={rowSpan} className="p-3 text-gray-600 dark:text-gray-400 border-r border-gray-200 dark:border-gray-700 align-top">
                                       {subcategory}
                                     </td>
                                   </>
                                 )}
                                 
-                                <td className="p-4 border-r border-gray-200 dark:border-gray-700">
+                                <td className="p-3 border-r border-gray-200 dark:border-gray-700">
                                   <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold">
                                     {suffix}
                                   </span>
@@ -772,7 +773,7 @@ function ViewInventoryPageContent() {
                                 {allStores.map(store => {
                                   const storeStock = variation.stores.find(s => s.store_id === store.id);
                                   return (
-                                    <td key={store.id} className="p-4 text-center border-r border-gray-200 dark:border-gray-700">
+                                    <td key={store.id} className="p-3 text-center border-r border-gray-200 dark:border-gray-700">
                                       {storeStock ? (
                                         <span className="font-bold text-gray-900 dark:text-white">{storeStock.quantity}</span>
                                       ) : (
@@ -782,32 +783,32 @@ function ViewInventoryPageContent() {
                                   );
                                 })}
 
-                                <td className="p-4 text-center bg-blue-50/20 dark:bg-blue-900/5 border-r border-gray-200 dark:border-gray-700">
+                                <td className="p-3 text-center bg-blue-50/20 dark:bg-blue-900/5 border-r border-gray-200 dark:border-gray-700">
                                   <span className="font-bold text-blue-600 dark:text-blue-400">
                                     {variation.availableQuantity}
                                   </span>
                                 </td>
-                                <td className="p-4 text-center font-bold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
+                                <td className="p-3 text-center font-bold text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">
                                   {variation.quantity}
                                 </td>
-                                <td className="p-4 text-center text-amber-600 dark:text-amber-500 border-r border-gray-200 dark:border-gray-700">
+                                <td className="p-3 text-center text-amber-600 dark:text-amber-500 border-r border-gray-200 dark:border-gray-700">
                                   {variation.reservedQuantity > 0 ? variation.reservedQuantity : '-'}
                                 </td>
 
                                 {vIdx === 0 && (
-                                  <td rowSpan={rowSpan} className="p-4 text-center bg-emerald-50/20 dark:bg-emerald-900/5 border-r border-gray-200 dark:border-gray-700 align-middle">
+                                  <td rowSpan={rowSpan} className="p-3 text-center bg-emerald-50/20 dark:bg-emerald-900/5 border-r border-gray-200 dark:border-gray-700 align-middle">
                                     <span className="font-black text-emerald-600 dark:text-emerald-400">{group.totalStock}</span>
                                   </td>
                                 )}
 
-                                <td className="p-4 border-r border-gray-200 dark:border-gray-700">
+                                <td className="p-3 border-r border-gray-200 dark:border-gray-700">
                                   {extra ? (
                                     <div className="flex flex-col gap-1 min-w-[100px]">
                                       {extra.defective > 0 && (
-                                        <span className="text-sm font-black text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded uppercase">Def: {extra.defective}</span>
+                                        <span className="text-xs font-black text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded uppercase">Def: {extra.defective}</span>
                                       )}
                                       {extra.used > 0 && (
-                                        <span className="text-sm font-black text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded uppercase">Used: {extra.used}</span>
+                                        <span className="text-xs font-black text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-2 py-0.5 rounded uppercase">Used: {extra.used}</span>
                                       )}
                                     </div>
                                   ) : '-'}
