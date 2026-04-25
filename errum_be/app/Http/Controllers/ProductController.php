@@ -151,9 +151,14 @@ class ProductController extends Controller
                 $subQuery->addSelect(DB::raw('MAX(created_at) as latest_created'))->orderBy('latest_created', $sortDirection);
             }
 
-            $pagedGroups = $subQuery->paginate($perPage);
-            $representativeIds = collect($pagedGroups->items())->pluck('representative_id')->filter()->values();
-            $skus = collect($pagedGroups->items())->pluck('sku')->filter()->values();
+            $pagedGroups = $request->boolean('no_pagination') ? $subQuery->get() : $subQuery->paginate($perPage);
+            
+            $items = ($pagedGroups instanceof \Illuminate\Pagination\LengthAwarePaginator) 
+                ? $pagedGroups->items() 
+                : $pagedGroups->all();
+
+            $representativeIds = collect($items)->pluck('representative_id')->filter()->values();
+            $skus = collect($items)->pluck('sku')->filter()->values();
 
             // Load full models for the representatives
             $products = Product::with(['category', 'vendor', 'productFields.field', 'images' => function($q) {
@@ -162,7 +167,7 @@ class ProductController extends Controller
             ->whereIn('id', $representativeIds)
             ->get();
 
-            // Sort products to match the pagedGroups order
+            // Sort products to match the items order
             $products = $products->sortBy(function($product) use ($representativeIds) {
                 return $representativeIds->search($product->id);
             })->values();
@@ -188,9 +193,21 @@ class ProductController extends Controller
                 }
             }
 
+            if ($pagedGroups instanceof \Illuminate\Pagination\LengthAwarePaginator) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $pagedGroups->setCollection($products)
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $pagedGroups->setCollection($products)
+                'data' => [
+                    'data' => $products,
+                    'total' => $products->count(),
+                    'current_page' => 1,
+                    'last_page' => 1
+                ]
             ]);
         }
 

@@ -11,12 +11,6 @@ import productService, { Product as FullProduct } from '@/services/productServic
 import batchService, { Batch } from '@/services/batchService';
 import GroupedAllBarcodesPrinter, { BatchBarcodeSource } from '@/components/GroupedAllBarcodesPrinter';
 
-type ProductPick = {
-  id: number;
-  name: string;
-  sku?: string;
-};
-
 type UpdateRow = {
   batch_id: number;
   batch_number: string | null;
@@ -33,11 +27,11 @@ export default function BatchPriceUpdatePage() {
   // Product search/select
   const [search, setSearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [products, setProducts] = useState<ProductPick[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<ProductPick | null>(null);
+  const [products, setProducts] = useState<FullProduct[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<FullProduct | null>(null);
 
   // Variations with same SKU (so you can apply price to multiple variations without backend changes)
-  const [skuGroupProducts, setSkuGroupProducts] = useState<ProductPick[]>([]);
+  const [skuGroupProducts, setSkuGroupProducts] = useState<FullProduct[]>([]);
   const [selectedVariationIds, setSelectedVariationIds] = useState<number[]>([]);
 
   // Batches
@@ -75,18 +69,13 @@ export default function BatchPriceUpdatePage() {
 
         const res = await productService.getAll({
           search: q,
-          per_page: 10,
+          group_by_sku: true,
+          no_pagination: true,
         });
 
-        // productService already normalizes to array
+        // Backend now returns grouped structure
         const list = (res?.data || []) as FullProduct[];
-        const mapped: ProductPick[] = list.map((p) => ({
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-        }));
-
-        setProducts(mapped);
+        setProducts(list);
       } catch (e: any) {
         setError(e?.message || 'Failed to search products.');
       } finally {
@@ -151,11 +140,15 @@ export default function BatchPriceUpdatePage() {
       }
 
       try {
-        const res = await productService.getAll({ search: sku, per_page: 200 });
+        const res = await productService.getAll({ 
+          search: sku, 
+          no_pagination: true,
+          is_archived: false
+        });
         const list = (res?.data || []) as FullProduct[];
         const exact = list
           .filter((p) => String(p.sku || '').trim() === sku)
-          .map((p) => ({ id: p.id, name: p.name, sku: p.sku } as ProductPick));
+          .map((p) => p as FullProduct);
 
         setSkuGroupProducts(exact);
         setSelectedVariationIds(exact.map((p) => p.id)); // default: select all, user can uncheck
@@ -233,10 +226,9 @@ export default function BatchPriceUpdatePage() {
   const selectAllVariations = () => setSelectedVariationIds(skuGroupProducts.map((p) => p.id));
   const selectNoVariations = () => setSelectedVariationIds([]);
 
-  const onSelectProduct = (p: ProductPick) => {
+  const onSelectProduct = (p: FullProduct | ProductPick) => {
     setSelectedProduct(p);
-    setProducts([]);
-    setSearch(`${p.name}${p.sku ? ` (${p.sku})` : ''}`);
+    // Don't clear search results automatically as user might want to pick other variants
   };
 
   const onApply = async () => {
@@ -357,21 +349,75 @@ export default function BatchPriceUpdatePage() {
                   {isSearching && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
                 </div>
 
-                {/* Search Results */}
+                {/* Grouped Search Results Box */}
                 {products.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    {products.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => onSelectProduct(p)}
-                        className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-                      >
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{p.name}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          ID: {p.id} {p.sku ? `• SKU: ${p.sku}` : ''}
+                  <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="max-h-[450px] overflow-y-auto">
+                      {products.map((group) => (
+                        <div key={group.sku} className="border-b last:border-b-0 border-gray-100 dark:border-gray-700">
+                          {/* SKU Group Header */}
+                          <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 px-4 py-2.5 text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center justify-between border-b border-gray-100 dark:border-gray-700">
+                            <span className="uppercase tracking-wider">{group.base_name || group.name}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] bg-gray-200 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono opacity-80">SKU: {group.sku}</span>
+                                <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded">{group.variants_count} variatons</span>
+                            </div>
+                          </div>
+                          
+                          {/* Variations List */}
+                          <div className="divide-y divide-gray-50 dark:divide-gray-800">
+                            {[group, ...(group.variants || [])].map((p) => (
+                              <button
+                                key={p.id}
+                                onClick={() => onSelectProduct(p)}
+                                className={`w-full text-left px-6 py-3 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all flex items-center justify-between gap-4 group ${
+                                  selectedProduct?.id === p.id ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''
+                                }`}
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`font-medium transition-colors ${selectedProduct?.id === p.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                                        {p.name}
+                                    </div>
+                                    {p.id === group.id && (
+                                        <span className="text-[10px] text-gray-400 border border-gray-200 dark:border-gray-700 px-1 rounded">Representative</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
+                                    <span>ID: {p.id}</span>
+                                    <span>•</span>
+                                    <span>Price: {p.selling_price || 'N/A'}</span>
+                                  </div>
+                                </div>
+                                
+                                <div className={`h-5 w-5 rounded-full border flex items-center justify-center transition-all ${
+                                    selectedProduct?.id === p.id 
+                                    ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                    : 'border-gray-300 dark:border-gray-600 group-hover:border-emerald-500'
+                                }`}>
+                                    {selectedProduct?.id === p.id && <Check className="h-3 w-3" />}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      </button>
-                    ))}
+                      ))}
+                    </div>
+                    
+                    {/* Clear Button at bottom of scroll box if needed, or just let users scroll */}
+                    <div className="bg-gray-50 dark:bg-gray-900/50 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <span>{products.length} SKU groups found</span>
+                        <button 
+                            onClick={() => {
+                                setProducts([]);
+                                setSearch('');
+                                setSelectedProduct(null);
+                            }}
+                            className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 font-medium"
+                        >
+                            Clear Results
+                        </button>
+                    </div>
                   </div>
                 )}
 

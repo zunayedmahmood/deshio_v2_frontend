@@ -14,11 +14,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 
 export default function CategoryPageWrapper() {
-  const { hasAnyPermission, hasPermission, permissionsResolved } = useAuth();
-  const canView = hasAnyPermission(['categories.view', 'categories.create', 'categories.edit', 'categories.delete']);
-  const canCreate = hasPermission('categories.create');
-  const canEdit = hasPermission('categories.edit');
-  const canDelete = hasPermission('categories.delete');
+  const { hasAnyPermission, hasPermission, permissionsResolved, isRole } = useAuth();
+  
+  // Role-based access control (canonical Errum V2 pattern)
+  const isPowerUser = isRole(['super-admin', 'admin']);
+  const isModerator = isRole('online-moderator');
+  
+  const canView = isPowerUser || isModerator || hasAnyPermission(['categories.view', 'categories.create', 'categories.edit', 'categories.delete']);
+  const canCreate = isPowerUser || isModerator || hasPermission('categories.create');
+  const canEdit = isPowerUser || isModerator || hasPermission('categories.edit');
+  const canDelete = isPowerUser || hasPermission('categories.delete'); // Note: Moderator EXCLUDED here
+  
   const { darkMode, setDarkMode } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
