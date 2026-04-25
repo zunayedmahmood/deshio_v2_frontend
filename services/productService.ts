@@ -16,6 +16,8 @@ export interface Product {
   /** Gallery-safe images (SKU-core fallback merged with variant image) */
   display_images?: ProductImage[];
   variants?: any[]; // Product variants
+  has_variants?: boolean;
+  variants_count?: number;
   category?: {
     id: number;
     title: string;
@@ -128,6 +130,8 @@ function transformProduct(product: any): Product {
     images: product.images,
     display_images: product.display_images,
     variants: product.variants,
+    has_variants: product.has_variants,
+    variants_count: product.variants_count,
     category: product.category,
     vendor: product.vendor,
     selling_price: product.selling_price || product.base_price,

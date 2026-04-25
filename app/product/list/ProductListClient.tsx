@@ -443,7 +443,7 @@ export default function ProductPage() {
     if (products.length === 0) return [];
 
     // Detect grouped response: any product has the `has_variants` field
-    const isGrouped = products.some(p => typeof (p as any).has_variants === 'boolean');
+    const isGrouped = products.some(p => (p as any).has_variants !== undefined);
 
     if (isGrouped) {
       return products.map((product) => {
