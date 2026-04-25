@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Search as SearchIcon, X } from 'lucide-react';
@@ -60,10 +61,12 @@ export default function HeroSection() {
       {/* Background image */}
       <div style={{ position: 'absolute', inset: 0 }}>
         {bgUrl && (
-          <img
+          <Image
             src={bgUrl}
             alt="Hero background"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
+            fill
+            className="object-cover object-center"
+            priority
             onError={() => setBgUrl('')}
           />
         )}

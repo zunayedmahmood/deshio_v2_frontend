@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
+import Image from 'next/image';
 import { X, Plus, Minus, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import cartService from '@/services/cartService';
@@ -30,7 +31,7 @@ const formatBDT = (value: number) => {
   return `৳${value.toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export default function CartItem({ item, onQuantityChange, onRemove, isUpdating: externalIsUpdating }: CartItemProps) {
+const CartItem = memo(function CartItem({ item, onQuantityChange, onRemove, isUpdating: externalIsUpdating }: CartItemProps) {
   const { refreshCart } = useCart();
   const router = useRouter();
   const { getApplicablePromotion } = usePromotion();
@@ -155,10 +156,12 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
         className="relative w-20 h-20 flex-shrink-0 cursor-pointer overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border-default)]"
         onClick={handleNavigateToProduct}
       >
-        <img
+        <Image
           src={item.image || '/placeholder-product.png'}
           alt={item.name}
-          className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+          fill
+          sizes="(max-width: 768px) 80px, 80px"
+          className="object-cover hover:scale-110 transition-transform duration-500"
         />
       </div>
 
@@ -251,4 +254,6 @@ export default function CartItem({ item, onQuantityChange, onRemove, isUpdating:
       </div>
     </div>
   );
-}
+});
+
+export default CartItem;

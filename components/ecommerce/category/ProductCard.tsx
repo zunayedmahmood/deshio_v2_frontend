@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import { useRouter } from "next/navigation";
 import { Heart, Eye } from "lucide-react";
+import Image from "next/image";
 
 interface ProductCardProps {
   product: any;
   onCartOpen?: () => void; // Opens cart sidebar
 }
 
-export default function ProductCard({ product, onCartOpen }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, onCartOpen }: ProductCardProps) {
   const router = useRouter(); const [isHovered, setIsHovered] = useState(false); const navigateToProduct = (productId: string | number) => {
     router.push(`/e-commerce/product/${productId}`);
   };
@@ -33,11 +34,17 @@ export default function ProductCard({ product, onCartOpen }: ProductCardProps) {
         onClick={() => navigateToProduct(product.variations[0].id)}
         className="relative aspect-square overflow-hidden bg-neutral-50 cursor-pointer"
       >
-        <img
-          src={product.image}
-          alt={product.baseName}
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-        />
+        {product.image ? (
+          <Image
+            src={product.image}
+            alt={product.baseName || "Product image"}
+            fill
+            sizes="(max-width: 768px) 50vw, 25vw"
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full bg-neutral-200" />
+        )}
 
         {/* Subtle top gradient for premium feel */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition" />
@@ -97,4 +104,6 @@ export default function ProductCard({ product, onCartOpen }: ProductCardProps) {
       </div>
     </div>
   );
-}
+});
+
+export default ProductCard;

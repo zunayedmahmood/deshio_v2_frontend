@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -18,7 +18,7 @@ interface ProductImageGalleryProps {
   inStock?: boolean;
 }
 
-const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
+const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
   images,
   productName,
   discountPercent = 0,
@@ -91,10 +91,12 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
               }`}
               style={{ aspectRatio: '1/1' }}
             >
-              <img 
+              <Image 
                 src={img.url} 
-                alt={`${productName} thumbnail ${index + 1}`} 
-                className="w-full h-full object-cover" 
+                alt={`${productName} thumbnail ${index + 1}`}
+                fill
+                sizes="80px"
+                className="object-cover" 
               />
             </button>
           ))}
@@ -118,10 +120,13 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
                   index === activeIndex ? 'md:opacity-100 z-10' : 'md:opacity-0 z-0'
                 }`}
               >
-                <img
+                <Image
                   src={img.url}
                   alt={`${productName} view ${index + 1}`}
-                  className="w-full h-full object-contain transition-transform duration-500"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-contain transition-transform duration-500 bg-white"
+                  priority={index === 0}
                 />
               </div>
             ))}
@@ -172,7 +177,7 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
                   activeIndex === index ? 'border-gray-900' : 'border-gray-200'
                 }`}
               >
-                <img src={img.url} className="w-full h-full object-cover" alt="" />
+                <Image src={img.url} fill sizes="64px" className="object-cover" alt="" />
               </button>
             ))}
           </div>
@@ -194,6 +199,6 @@ const ProductImageGallery: React.FC<ProductImageGalleryProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default ProductImageGallery;

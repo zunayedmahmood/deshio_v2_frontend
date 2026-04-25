@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import catalogService, { CatalogCategory } from '@/services/catalogService';
 import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
@@ -25,7 +26,7 @@ interface OurCategoriesProps {
   loading?: boolean;
 }
 
-const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesProp, loading = false }) => {
+const OurCategories: React.FC<OurCategoriesProps> = memo(({ categories: categoriesProp, loading = false }) => {
   const router = useRouter();
   const [categories, setCategories] = React.useState<CatalogCategory[]>(categoriesProp || []);
   const [isFetching, setIsFetching] = React.useState<boolean>(!categoriesProp);
@@ -120,14 +121,12 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
                 }}
               >
                 {imgSrc ? (
-                  <img
+                  <Image
                     src={imgSrc}
                     alt={cat.name}
+                    fill
+                    sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 25vw"
                     style={{
-                      position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
                       objectFit: 'cover',
                       objectPosition: 'top',
                       transition: 'transform 0.6s ease',
@@ -172,6 +171,6 @@ const OurCategories: React.FC<OurCategoriesProps> = ({ categories: categoriesPro
       </div>
     </section>
   );
-};
+});
 
 export default OurCategories;

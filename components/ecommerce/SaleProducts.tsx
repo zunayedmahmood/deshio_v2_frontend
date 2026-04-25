@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
+import Image from 'next/image';
 import { ShoppingCart, Heart, Star, ArrowRight, Eye } from 'lucide-react';
 
-export default function SaleProducts() {
+const SaleProducts = memo(function SaleProducts() {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   const products = [
@@ -65,12 +66,14 @@ export default function SaleProducts() {
             >
               {/* Product Image */}
               <div className="relative aspect-[3/4] overflow-hidden bg-gray-100">
-                <img
+                <Image
                   src={product.image}
                   alt={product.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  fill
+                  sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 25vw"
+                  className="object-cover group-hover:scale-110 transition-transform duration-500"
                   onError={(e) => {
-                    e.currentTarget.style.display = 'none';
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
                   }}
                 />
 
@@ -125,4 +128,6 @@ export default function SaleProducts() {
       </div>
     </section>
   );
-}
+});
+
+export default SaleProducts;

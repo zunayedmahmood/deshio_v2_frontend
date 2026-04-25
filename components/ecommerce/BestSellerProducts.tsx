@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
+import Image from 'next/image';
 import { ShoppingCart, Heart, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/app/e-commerce/CartContext';
@@ -38,7 +39,7 @@ interface ProductWithStats {
   variations: Array<Product & { price: number }>; // Raw number for calculations
 }
 
-export default function BestSellerProducts() {
+const BestSellerProducts = memo(function BestSellerProducts() {
   const router = useRouter();
   const { addToCart } = useCart();
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
@@ -235,12 +236,14 @@ export default function BestSellerProducts() {
                     onClick={() => navigateToProduct(product.variations[0].id)}
                     className="relative aspect-square overflow-hidden bg-gray-50 cursor-pointer"
                   >
-                    <img
-                      src={product.image}
+                    <Image
+                      src={product.image || '/images/placeholder-product.jpg'}
                       alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      fill
+                      sizes="(max-width: 768px) 50vw, (max-width: 1024px) 25vw, 25vw"
+                      className="object-cover group-hover:scale-110 transition-transform duration-500"
                       onError={(e) => {
-                        e.currentTarget.src =
+                        (e.currentTarget as HTMLImageElement).src =
                           'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="400"%3E%3Crect fill="%23f3f4f6" width="300" height="400"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="16"%3E' +
                           encodeURIComponent(product.name) +
                           '%3C/text%3E%3C/svg%3E';
@@ -324,4 +327,6 @@ export default function BestSellerProducts() {
       <CartSidebar isOpen={isCartOpen} onClose={handleCloseCart} />
     </>
   );
-}
+});
+
+export default BestSellerProducts;

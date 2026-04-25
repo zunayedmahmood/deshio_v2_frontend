@@ -17,7 +17,7 @@ interface PremiumProductCardProps {
   animDelay?: number;
 }
 
-const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
+const PremiumProductCard: React.FC<PremiumProductCardProps> = React.memo(({
   product, imageErrored = false, onImageError, onOpen, onAddToCart, compact = false, animDelay = 0,
 }) => {
   const { getApplicablePromotion } = usePromotion();
@@ -88,6 +88,7 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
           src={imageUrl}
           alt={product.display_name || product.base_name || product.name}
           fill
+          sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
           className={`object-cover object-top transition-all duration-500`}
           style={{ transform: isHovered && secondaryImage ? 'opacity: 0' : 'opacity: 1' }}
           onLoad={() => setIsLoaded(true)}
@@ -100,6 +101,7 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
             src={secondaryImage}
             alt={`${product.name} - alternate view`}
             fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="object-cover object-top"
             style={{ position: 'absolute', inset: 0 }}
           />
@@ -207,6 +209,6 @@ const PremiumProductCard: React.FC<PremiumProductCardProps> = ({
       </div>
     </article>
   );
-};
+});
 
 export default PremiumProductCard;
