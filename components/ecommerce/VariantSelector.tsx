@@ -12,53 +12,16 @@ interface VariantSelectorProps {
 }
 
 const formatVariantLabelForCard = (v: ProductVariant) => {
-  // Use variation_suffix as the primary source of truth as it's more stable
+  // Use variation_suffix as the primary source of truth
   let source = v.variation_suffix || v.name || '';
 
-  // Basic cleanup: remove brackets and leading/trailing dashes
-  let clean = source.replace(/^\[|\]$/g, '').trim();
-  while (clean.startsWith('-')) clean = clean.substring(1);
-  while (clean.endsWith('-')) clean = clean.substring(0, clean.length - 1);
-
-  const parts = clean.split(/[-/]/).map(p => p.trim()).filter(p => {
-    const lp = p.toLowerCase();
-    return lp !== 'na' && lp !== 'not applicable' && lp !== 'none' && lp !== '';
-  });
-
-  // Specific conversion for "US X / EU Y" patterns
-  // Pattern: detects "us" followed by a number, and another numeric part for EU
-  let usIndex = -1;
-  let usVal = '';
-  let euVal = '';
-
-  for (let i = 0; i < parts.length; i++) {
-    const low = parts[i].toLowerCase();
-    if (low === 'us' && i + 1 < parts.length && !isNaN(Number(parts[i + 1]))) {
-      usIndex = i;
-      usVal = parts[i + 1];
-      break;
-    }
+  // Strip only leading dashes as requested
+  let clean = source.trim();
+  while (clean.startsWith('-')) {
+    clean = clean.substring(1).trim();
   }
-
-  if (usIndex !== -1) {
-    // We found a US size value. Look for another numeric part to assume as EU
-    for (let i = 0; i < parts.length; i++) {
-      if (i !== usIndex && i !== (usIndex + 1) && !isNaN(Number(parts[i]))) {
-        euVal = parts[i];
-        break;
-      }
-    }
-
-    if (usVal && euVal) {
-      // Reconstruct the remaining parts (e.g. Color)
-      const others = parts.filter((_, i) => i !== usIndex && i !== (usIndex + 1) && parts[i] !== euVal);
-      const sizeStr = `US ${usVal} / EU ${euVal}`;
-      return others.length > 0 ? `${sizeStr} - ${others.join(' - ')}` : sizeStr;
-    }
-  }
-
-  // Fallback: standard hyphenation for other patterns
-  return parts.join(' - ') || 'Standard';
+  
+  return clean || 'Standard';
 };
 
 const VariantSelector: React.FC<VariantSelectorProps> = ({
@@ -66,53 +29,52 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
   selectedVariant,
   onVariantChange,
 }) => {
-  // Group variants by type (e.g., Size, Color) if they are clearly separable
-  // For now, following the screenshot's "SHOE SIZE" pattern.
   const activeLabel = formatVariantLabelForCard(selectedVariant);
-  const isSizeVariant = /^\d+/.test(activeLabel) || activeLabel.includes('US') || activeLabel.includes('EU');
+  
+  // Check if variants are primarily numeric sizes to adjust label
+  const isSizeSet = variants.some(v => {
+    const l = formatVariantLabelForCard(v).toLowerCase();
+    return /\d/.test(l) || l.includes('us') || l.includes('eu') || l.includes('uk');
+  });
 
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex flex-wrap items-center gap-2 mb-1">
           <span className="text-[10px] font-bold tracking-widest text-gray-900 uppercase">
-            {isSizeVariant ? 'Select Size' : 'Select Option'}:
+            {isSizeSet ? 'Select Size' : 'Select Option'}:
           </span>
-          <span className="text-[10px] font-medium text-gray-500 uppercase">
+          <span className="text-[10px] font-semibold text-[#b83228] uppercase tracking-wider">
             {activeLabel}
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           {variants.map((v) => {
             const isSelected = selectedVariant.id === v.id;
             const isAvailable = v.in_stock && (v.available_inventory ?? 0) > 0;
             const label = formatVariantLabelForCard(v);
             
-            // Extract a compact label (e.g., just the number if it's a size)
-            const displayLabel = isSizeVariant ? (label.match(/\d+/) || [label])[0] : label;
+            // Show full label as requested, no more stripping
+            const displayLabel = label;
 
             return (
               <button
                 key={v.id}
                 onClick={() => onVariantChange(v)}
-                className={`group relative flex items-center justify-center transition-all duration-200 ${
-                  isSizeVariant 
-                    ? 'w-10 h-10 rounded-full border text-[13px] font-medium' 
-                    : 'px-5 py-2 rounded-full border text-[10px] font-bold uppercase tracking-wider'
-                } ${
+                className={`group relative flex items-center justify-center h-11 min-w-[44px] px-4 rounded-lg border text-[11px] font-bold uppercase tracking-wider transition-all duration-300 active:scale-95 whitespace-nowrap flex-shrink-0 ${
                   isSelected
-                    ? 'bg-gray-900 border-gray-900 text-white shadow-sm'
+                    ? 'bg-black border-black text-white shadow-md'
                     : isAvailable
-                      ? 'bg-white border-gray-200 text-gray-900 hover:border-gray-900'
-                      : 'bg-white border-gray-100 text-gray-300 cursor-not-allowed'
+                      ? 'bg-white border-gray-200 text-gray-900 hover:border-black'
+                      : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed'
                 }`}
               >
                 <span className="relative z-10">{displayLabel}</span>
                 
                 {!isAvailable && (
-                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
-                    <div className="w-[120%] h-[1px] bg-gray-200 -rotate-45" />
+                  <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none opacity-50">
+                    <div className="w-[150%] h-[1px] bg-current -rotate-45" />
                   </div>
                 )}
               </button>

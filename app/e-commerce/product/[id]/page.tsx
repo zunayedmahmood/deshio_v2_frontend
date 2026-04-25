@@ -175,7 +175,10 @@ const parseVariationSuffix = (suffix?: string | null): { color?: string; size?: 
   if (!raw) return {};
 
   const marketPairsFromRaw = parseMarketSizePairs(raw);
-  const trimmed = raw.startsWith('-') ? raw.slice(1) : raw;
+  let trimmed = raw;
+  while (trimmed.startsWith('-')) {
+    trimmed = trimmed.substring(1).trim();
+  }
   const tokens = trimmed.split('-').map((t) => normalizeVariantText(t)).filter(Boolean);
   if (!tokens.length) {
     const sizeOnly = normalizeSizeDescriptor(raw);
@@ -289,15 +292,21 @@ const getVariationDisplayLabel = (variant: ProductVariant, index: number): strin
   const explicit = normalizeVariantText(variant.option_label || '');
   if (explicit) return explicit;
 
+  // Use the suffix if available, as it's the most reliable source for "40 (US 7)" etc.
+  if (variant.variation_suffix) {
+    let clean = normalizeVariantText(variant.variation_suffix);
+    while (clean.startsWith('-')) {
+      clean = clean.substring(1).trim();
+    }
+    if (clean) return clean;
+  }
+
   const parts = [normalizeVariantText(variant.color || ''), normalizeVariantText(variant.size || '')]
     .filter(Boolean);
 
   if (parts.length > 0) {
     return parts.join(' / ');
   }
-
-  const fromSuffix = parseVariationSuffix(variant.variation_suffix).label;
-  if (fromSuffix) return normalizeVariantText(fromSuffix);
 
   if (variant.sku) return `SKU ${variant.sku}`;
   return `Option ${index + 1}`;
