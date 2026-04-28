@@ -240,51 +240,20 @@ export default function ProductPage() {
         apiSortDir = 'desc';
       }
 
-      // Proposal 5: use advanced search when query is ≥ 2 chars
-      if (debouncedSearchQuery.trim().length >= 2) {
-        try {
-          response = await productService.advancedSearch({
-            query: debouncedSearchQuery.trim(),
-            category_id: selectedCategory ? Number(selectedCategory) : undefined,
-            vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
-            per_page: SERVER_PAGE_SIZE,
-            page: pageToLoad,
-            enable_fuzzy: true,
-            group_by_sku: true,
-            in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
-          });
-        } catch {
-          // Advanced search unavailable — fall back to standard endpoint
-          response = await productService.getAll({
-            page: pageToLoad,
-            per_page: SERVER_PAGE_SIZE,
-            search: debouncedSearchQuery || undefined,
-            category_id: selectedCategory ? Number(selectedCategory) : undefined,
-            vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
-            group_by_sku: true,
-            min_price: minPrice ? Number(minPrice) : undefined,
-            max_price: maxPrice ? Number(maxPrice) : undefined,
-            in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
-            sort_by: apiSortBy,
-            sort_direction: apiSortDir,
-          });
-        }
-      } else {
-        // Proposal 1 + 2: grouped endpoint with optional server-side price filter
-        response = await productService.getAll({
-          page: pageToLoad,
-          per_page: SERVER_PAGE_SIZE,
-          search: debouncedSearchQuery || undefined,
-          category_id: selectedCategory ? Number(selectedCategory) : undefined,
-          vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
-          group_by_sku: true,
-          min_price: minPrice ? Number(minPrice) : undefined,
-          max_price: maxPrice ? Number(maxPrice) : undefined,
-          in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
-          sort_by: apiSortBy,
-          sort_direction: apiSortDir,
-        });
-      }
+      // Fetch using the standard endpoint with optional server-side price and search filters
+      response = await productService.getAll({
+        page: pageToLoad,
+        per_page: SERVER_PAGE_SIZE,
+        search: debouncedSearchQuery || undefined,
+        category_id: selectedCategory ? Number(selectedCategory) : undefined,
+        vendor_id: selectedVendor ? Number(selectedVendor) : undefined,
+        group_by_sku: true,
+        min_price: minPrice ? Number(minPrice) : undefined,
+        max_price: maxPrice ? Number(maxPrice) : undefined,
+        in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
+        sort_by: apiSortBy,
+        sort_direction: apiSortDir,
+      });
 
       const nextProducts = Array.isArray(response.data) ? response.data : [];
       const nextLastPage = Math.max(1, Number(response.last_page || 1));
