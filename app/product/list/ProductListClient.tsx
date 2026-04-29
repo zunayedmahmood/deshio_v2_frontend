@@ -558,7 +558,7 @@ export default function ProductPage() {
 
   const handleDelete = async (id: number) => {
     if (!canDeleteProducts) {
-      setToast({ message: \"You don't have permission to delete products\", type: 'warning' });
+      setToast({ message: "You don't have permission to delete products", type: 'warning' });
       return;
     }
     try {
@@ -606,7 +606,7 @@ export default function ProductPage() {
 
   const handleEdit = (id: number) => {
     if (!canEditProducts) {
-      setToast({ message: \"You don't have permission to edit products\", type: 'warning' });
+      setToast({ message: "You don't have permission to edit products", type: 'warning' });
       return;
     }
     // Clear any existing session data
@@ -631,7 +631,7 @@ export default function ProductPage() {
 
   const handleAdd = () => {
     if (!canCreateProducts) {
-      setToast({ message: \"You don't have permission to create products\", type: 'warning' });
+      setToast({ message: "You don't have permission to create products", type: 'warning' });
       return;
     }
     // Clear any stored data to ensure create mode
@@ -646,7 +646,7 @@ export default function ProductPage() {
 
   const handleAddVariation = (group: ProductGroup) => {
     if (!canCreateProducts) {
-      setToast({ message: \"You don't have permission to create product variations\", type: 'warning' });
+      setToast({ message: "You don't have permission to create product variations", type: 'warning' });
       return;
     }
     // Clear any existing session data
@@ -817,7 +817,7 @@ export default function ProductPage() {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
-                      placeholder=\"Search by name, SKU, category, vendor, color, or size...\"
+                      placeholder="Search by name, SKU, category, vendor, color, or size..."
                       value={searchQuery}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -825,7 +825,7 @@ export default function ProductPage() {
                         setCurrentPage(1);
                         updateQueryParams({ q: val || null, page: '1' });
                       }}
-                      className=\"w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 text-sm shadow-sm\"
+                      className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 text-sm shadow-sm"
                     />
                   </div>
 
@@ -838,12 +838,12 @@ export default function ProductPage() {
                       setCurrentPage(1);
                       updateQueryParams({ sortBy: val, page: '1' });
                     }}
-                    className=\"px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors shadow-sm cursor-pointer\"
+                    className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors shadow-sm cursor-pointer"
                   >
-                    <option value=\"newest\">Newest</option>
-                    <option value=\"oldest\">Oldest</option>
-                    <option value=\"price_asc\">Price: Low to High</option>
-                    <option value=\"price_desc\">Price: High to Low</option>
+                    <option value="newest">Newest</option>
+                    <option value="oldest">Oldest</option>
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
                   </select>
 
                   {/* Filter Toggle */}
@@ -854,20 +854,20 @@ export default function ProductPage() {
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                   >
-                    <Filter className=\"w-4 h-4\" />
+                    <Filter className="w-4 h-4" />
                     Filters
                     {hasActiveFilters && (
-                      <span className=\"flex h-2 w-2 rounded-full bg-blue-500\"></span>
+                      <span className="flex h-2 w-2 rounded-full bg-blue-500"></span>
                     )}
                   </button>
                 </div>
 
                 {/* Expanded Filters */}
                 {showFilters && (
-                  <div className=\"grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl mb-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-300\">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl mb-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
                     {/* Category Filter */}
                     <div>
-                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Category
                       </label>
                       <select
@@ -878,9 +878,9 @@ export default function ProductPage() {
                           setCurrentPage(1);
                           updateQueryParams({ category: val || null, page: '1' });
                         }}
-                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
                       >
-                        <option value=\"\">All Categories</option>
+                        <option value="">All Categories</option>
                         {flatCategories.map((cat) => (
                           <option key={cat.id} value={cat.id}>
                             {cat.label}
@@ -891,7 +891,7 @@ export default function ProductPage() {
 
                     {/* Vendor Filter */}
                     <div>
-                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Vendor
                       </label>
                       <select
@@ -902,9 +902,9 @@ export default function ProductPage() {
                           setCurrentPage(1);
                           updateQueryParams({ vendor: val || null, page: '1' });
                         }}
-                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
                       >
-                        <option value=\"\">All Vendors</option>
+                        <option value="">All Vendors</option>
                         {vendorsList.map((v) => (
                           <option key={v.id} value={v.id}>
                             {v.name}
@@ -915,7 +915,7 @@ export default function ProductPage() {
 
                     {/* Stock Status Filter */}
                     <div>
-                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Stock Status
                       </label>
                       <select
@@ -929,44 +929,44 @@ export default function ProductPage() {
                             page: '1'
                           });
                         }}
-                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
                       >
-                        <option value=\"all\">All Availability</option>
-                        <option value=\"in_stock\">In Stock</option>
-                        <option value=\"out_of_stock\">Out of Stock</option>
+                        <option value="all">All Availability</option>
+                        <option value="in_stock">In Stock</option>
+                        <option value="out_of_stock">Out of Stock</option>
                       </select>
                     </div>
 
                     {/* Price Filter */}
-                    <div className=\"md:col-span-2\">
-                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Selling Price (৳)
                       </label>
-                      <div className=\"flex gap-3\">
+                      <div className="flex gap-3">
                         <input
-                          type=\"number\"
-                          placeholder=\"Min\"
+                          type="number"
+                          placeholder="Min"
                           value={minPrice}
                           onChange={(e) => setMinPrice(e.target.value)}
-                          className=\"flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors\"
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
                         />
                         <input
-                          type=\"number\"
-                          placeholder=\"Max\"
+                          type="number"
+                          placeholder="Max"
                           value={maxPrice}
                           onChange={(e) => setMaxPrice(e.target.value)}
-                          className=\"flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors\"
+                          className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
                         />
                       </div>
                     </div>
 
                     {/* Reset Filters */}
-                    <div className=\"flex items-end\">
+                    <div className="flex items-end">
                       <button
                         onClick={clearFilters}
-                        className=\"w-full px-4 py-2 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-2\"
+                        className="w-full px-4 py-2 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-2"
                       >
-                        <RefreshCw className=\"w-4 h-4\" />
+                        <RefreshCw className="w-4 h-4" />
                         Reset All
                       </button>
                     </div>
@@ -976,34 +976,34 @@ export default function ProductPage() {
 
               {/* Product List/Grid */}
               {isLoading ? (
-                <div className=\"flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm\">
-                  <div className=\"animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white mb-4\"></div>
-                  <p className=\"text-gray-600 dark:text-gray-400 font-medium\">Loading products...</p>
+                <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white mb-4"></div>
+                  <p className="text-gray-600 dark:text-gray-400 font-medium">Loading products...</p>
                 </div>
               ) : paginatedGroups.length === 0 ? (
-                <div className=\"flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm\">
-                  <div className=\"w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4\">
-                    <Search className=\"w-8 h-8 text-gray-400 dark:text-gray-500\" />
+                <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                    <Search className="w-8 h-8 text-gray-400 dark:text-gray-500" />
                   </div>
-                  <h3 className=\"text-xl font-bold text-gray-900 dark:text-white mb-2\">No products found</h3>
-                  <p className=\"text-gray-600 dark:text-gray-400 mb-6\">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No products found</h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
                     {hasActiveFilters
-                      ? 'Try adjusting your search or filters to find what you\\'re looking for.'
-                      : 'Your product catalog is empty. Start by adding your first product!'}
+                      ? "Try adjusting your search or filters to find what you're looking for."
+                      : "Your product catalog is empty. Start by adding your first product!"}
                   </p>
                   {hasActiveFilters ? (
                     <button
                       onClick={clearFilters}
-                      className=\"px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium\"
+                      className="px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium"
                     >
                       Clear All Filters
                     </button>
                   ) : (!selectMode && canCreateProducts) && (
                     <button
                       onClick={handleAdd}
-                      className=\"inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium\"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium"
                     >
-                      <Plus className=\"w-4 h-4\" />
+                      <Plus className="w-4 h-4" />
                       Add First Product
                     </button>
                   )}
@@ -1029,21 +1029,21 @@ export default function ProductPage() {
 
               {/* Pagination */}
               {!isLoading && totalPages > 1 && (
-                <div className=\"mt-10 flex flex-col items-center gap-4\">
-                  <p className=\"text-sm text-gray-600 dark:text-gray-400\">
-                    Showing <span className=\"font-semibold text-gray-900 dark:text-white\">{paginatedGroups.length}</span> of <span className=\"font-semibold text-gray-900 dark:text-white\">{totalProducts}</span> products
+                <div className="mt-10 flex flex-col items-center gap-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Showing <span className="font-semibold text-gray-900 dark:text-white">{paginatedGroups.length}</span> of <span className="font-semibold text-gray-900 dark:text-white">{totalProducts}</span> products
                   </p>
-                  <div className=\"flex items-center gap-2\">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => goToPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
-                      className=\"h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm\"
+                      className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm"
                     >
-                      <ChevronLeft className=\"w-5 h-5\" />
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
 
                     {/* Page Numbers */}
-                    <div className=\"flex items-center gap-1\">
+                    <div className="flex items-center gap-1">
                       {[...Array(totalPages)].map((_, i) => {
                         const page = i + 1;
                         // Logic to show limited page buttons with ellipsis if needed
@@ -1069,7 +1069,7 @@ export default function ProductPage() {
                           (page === currentPage - 2 && page > 1) ||
                           (page === currentPage + 2 && page < totalPages)
                         ) {
-                          return <span key={page} className=\"px-1 text-gray-400\">...</span>;
+                          return <span key={page} className="px-1 text-gray-400">...</span>;
                         }
                         return null;
                       })}
@@ -1078,9 +1078,9 @@ export default function ProductPage() {
                     <button
                       onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
-                      className=\"h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm\"
+                      className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm"
                     >
-                      <ChevronRight className=\"w-5 h-5\" />
+                      <ChevronRight className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
