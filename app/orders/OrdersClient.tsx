@@ -2723,9 +2723,8 @@ export default function OrdersDashboard() {
 
     setIsProductLoading(true);
     try {
-      const searchResult = await productService.advancedSearch({
-        query,
-        enable_fuzzy: true,
+      const searchResult = await productService.getAll({
+        search: query,
         per_page: 50,
       });
       const products = searchResult.data;

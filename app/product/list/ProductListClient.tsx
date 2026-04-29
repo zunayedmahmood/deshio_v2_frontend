@@ -9,7 +9,6 @@ import ProductListItem from '@/components/ProductListItem';
 import { productService, Product } from '@/services/productService';
 import categoryService, { Category } from '@/services/categoryService';
 import { vendorService, Vendor } from '@/services/vendorService';
-import catalogService from '@/services/catalogService';
 import Toast from '@/components/Toast';
 import AccessDenied from '@/components/AccessDenied';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,7 +42,6 @@ export default function ProductPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [vendorsById, setVendorsById] = useState<Record<number, string>>({});
-  const [catalogMetaById, setCatalogMetaById] = useState<Record<number, { selling_price: number | null; in_stock: boolean; stock_quantity: number }>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,7 +57,7 @@ export default function ProductPage() {
   const [debouncedMinPrice, setDebouncedMinPrice] = useState<string>('');
   const [debouncedMaxPrice, setDebouncedMaxPrice] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('newest');
-  const [stockStatus, setStockStatus] = useState<'all' | 'in_stock' | 'not_in_stock'>('all');
+  const [stockStatus, setStockStatus] = useState<'all' | 'in_stock' | 'out_of_stock'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const SERVER_PAGE_SIZE = 60;
@@ -119,7 +117,7 @@ export default function ProductPage() {
 
     const sort = searchParams.get('sortBy') ?? 'newest';
     const inStockParam = searchParams.get('in_stock');
-    const stock = inStockParam === 'true' ? 'in_stock' : inStockParam === 'false' ? 'not_in_stock' : 'all';
+    const stock = inStockParam === 'true' ? 'in_stock' : inStockParam === 'false' ? 'out_of_stock' : 'all';
 
     if (q !== searchQuery) {
       setSearchQuery(q);
@@ -250,7 +248,7 @@ export default function ProductPage() {
         group_by_sku: true,
         min_price: minPrice ? Number(minPrice) : undefined,
         max_price: maxPrice ? Number(maxPrice) : undefined,
-        in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
+        in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'out_of_stock' ? 'false' : undefined,
         sort_by: apiSortBy,
         sort_direction: apiSortDir,
       });
@@ -279,7 +277,6 @@ export default function ProductPage() {
         setProducts([]);
         setTotalProducts(0);
         setServerLastPage(1);
-        setCatalogMetaById({});
       }
     } finally {
       // Ensure loading state is only cleared for the latest request
@@ -376,7 +373,17 @@ export default function ProductPage() {
    * Uses custom_fields if present; otherwise parses the name.
    */
   const getBaseName = (product: Product): string => {
-    return ((product as any).base_name || product.name || '').trim();
+    let name = ((product as any).base_name || product.name || '').trim();
+    if (!(product as any).base_name && (product as any).variation_suffix) {
+      const suffix = (product as any).variation_suffix;
+      if (name.endsWith(suffix)) {
+        name = name.substring(0, name.length - suffix.length).trim();
+        if (name.endsWith('-')) {
+          name = name.substring(0, name.length - 1).trim();
+        }
+      }
+    }
+    return name;
   };
 
   /**
@@ -411,7 +418,7 @@ export default function ProductPage() {
   const productGroups = useMemo((): ProductGroup[] => {
     if (products.length === 0) return [];
 
-    // Detect grouped response: any product has the `has_variants` field
+    // All responses from ProductController.index are now grouped by default if group_by_sku is true
     const isGrouped = products.some(p => (p as any).has_variants !== undefined);
 
     if (isGrouped) {
@@ -432,6 +439,9 @@ export default function ProductPage() {
             size: getColorAndSize(product).size,
             variation_suffix: (product as any).variation_suffix,
             image: primaryImageUrl,
+            selling_price: (product as any).selling_price,
+            in_stock: (product as any).in_stock,
+            stock_quantity: (product as any).stock_quantity,
           },
           ...serverVariants.map((v: any) => {
             const vImg = v.images?.[0];
@@ -449,6 +459,9 @@ export default function ProductPage() {
               size: vColorSize.size,
               variation_suffix: v.variation_suffix,
               image: vImgUrl,
+              selling_price: v.selling_price,
+              in_stock: v.in_stock,
+              stock_quantity: v.stock_quantity,
             };
           }),
         ];
@@ -462,8 +475,10 @@ export default function ProductPage() {
           categoryPath: getCategoryPath(product.category_id),
           category_id: product.category_id,
           hasVariations: allVariants.length > 1,
-          vendorId: product.vendor_id,
           vendorName: vendorsById[product.vendor_id] ?? null,
+          sellingPrice: (product as any).selling_price ?? null,
+          inStock: (product as any).in_stock ?? null,
+          stockQuantity: (product as any).stock_quantity ?? null,
         };
       });
     }
@@ -538,73 +553,12 @@ export default function ProductPage() {
   const paginatedGroups = filteredGroups;
 
   // Fetch selling price + stock info (only for visible items, cached)
-  useEffect(() => {
-    const ids = paginatedGroups
-      .map((g) => g?.variants?.[0]?.id)
-      .filter((id): id is number => typeof id === 'number');
-
-    const missing = ids.filter((id) => !catalogMetaById[id]);
-    if (missing.length === 0) return;
-
-    let cancelled = false;
-
-    const run = async () => {
-      const chunkSize = 4;
-
-      for (let i = 0; i < missing.length; i += chunkSize) {
-        const chunk = missing.slice(i, i + chunkSize);
-
-        const results = await Promise.all(
-          chunk.map(async (id) => {
-            try {
-              const detail: any = await catalogService.getProduct(id);
-              const p = detail?.product ?? detail?.data?.product ?? detail?.data ?? detail;
-
-              const selling = Number(p?.selling_price ?? p?.sellingPrice ?? NaN);
-              const inStock = Boolean(p?.in_stock ?? p?.inStock ?? false);
-              const stockQty = Number(p?.stock_quantity ?? p?.stockQuantity ?? 0);
-
-              if (!Number.isFinite(selling) && inStock) {
-                // If backend doesn't provide selling price, treat as unknown
-                return { id, meta: { selling_price: null, in_stock: inStock, stock_quantity: stockQty } };
-              }
-
-              return {
-                id,
-                meta: {
-                  selling_price: Number.isFinite(selling) ? selling : null,
-                  in_stock: inStock,
-                  stock_quantity: Number.isFinite(stockQty) ? stockQty : 0,
-                },
-              };
-            } catch (e) {
-              return null;
-            }
-          })
-        );
-
-        if (cancelled) return;
-
-        setCatalogMetaById((prev) => {
-          const next = { ...prev };
-          results.forEach((r) => {
-            if (r) next[r.id] = r.meta;
-          });
-          return next;
-        });
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [paginatedGroups, catalogMetaById]);
+  // The stock and price info is now included in the main products fetch response.
+  // No secondary fetch needed.
 
   const handleDelete = async (id: number) => {
     if (!canDeleteProducts) {
-      setToast({ message: "You don't have permission to delete products", type: 'warning' });
+      setToast({ message: \"You don't have permission to delete products\", type: 'warning' });
       return;
     }
     try {
@@ -620,9 +574,39 @@ export default function ProductPage() {
     }
   };
 
+  const handleArchive = async (id: number) => {
+    try {
+      await productService.archive(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      setToast({ message: 'Product archived successfully', type: 'success' });
+      // Refresh data to update counts
+      await fetchData(currentPage);
+    } catch (err) {
+      console.error('Error archiving product:', err);
+      setToast({ message: 'Failed to archive product', type: 'error' });
+    }
+  };
+
+  const handleArchiveAll = async (group: ProductGroup) => {
+    try {
+      const ids = group.variants.map((v) => v.id);
+      await productService.bulkUpdate({
+        product_ids: ids,
+        action: 'archive',
+      });
+      setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+      setToast({ message: `Archived all variations of SKU: ${group.sku}`, type: 'success' });
+      // Refresh data to update counts
+      await fetchData(currentPage);
+    } catch (err) {
+      console.error('Error archiving all variations:', err);
+      setToast({ message: 'Failed to archive variations', type: 'error' });
+    }
+  };
+
   const handleEdit = (id: number) => {
     if (!canEditProducts) {
-      setToast({ message: "You don't have permission to edit products", type: 'warning' });
+      setToast({ message: \"You don't have permission to edit products\", type: 'warning' });
       return;
     }
     // Clear any existing session data
@@ -647,7 +631,7 @@ export default function ProductPage() {
 
   const handleAdd = () => {
     if (!canCreateProducts) {
-      setToast({ message: "You don't have permission to create products", type: 'warning' });
+      setToast({ message: \"You don't have permission to create products\", type: 'warning' });
       return;
     }
     // Clear any stored data to ensure create mode
@@ -662,7 +646,7 @@ export default function ProductPage() {
 
   const handleAddVariation = (group: ProductGroup) => {
     if (!canCreateProducts) {
-      setToast({ message: "You don't have permission to create product variations", type: 'warning' });
+      setToast({ message: \"You don't have permission to create product variations\", type: 'warning' });
       return;
     }
     // Clear any existing session data
@@ -721,7 +705,7 @@ export default function ProductPage() {
       minPrice: null,
       maxPrice: null,
       sortBy: null,
-      stockStatus: null,
+      in_stock: null,
       page: '1',
     });
   };
@@ -833,7 +817,7 @@ export default function ProductPage() {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
-                      placeholder="Search by name, SKU, category, vendor, color, or size..."
+                      placeholder=\"Search by name, SKU, category, vendor, color, or size...\"
                       value={searchQuery}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -841,7 +825,7 @@ export default function ProductPage() {
                         setCurrentPage(1);
                         updateQueryParams({ q: val || null, page: '1' });
                       }}
-                      className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 text-sm shadow-sm"
+                      className=\"w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 text-sm shadow-sm\"
                     />
                   </div>
 
@@ -854,195 +838,172 @@ export default function ProductPage() {
                       setCurrentPage(1);
                       updateQueryParams({ sortBy: val, page: '1' });
                     }}
-                    className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors shadow-sm cursor-pointer"
+                    className=\"px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors shadow-sm cursor-pointer\"
                   >
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="price_asc">Price: Low to High</option>
-                    <option value="price_desc">Price: High to Low</option>
+                    <option value=\"newest\">Newest</option>
+                    <option value=\"oldest\">Oldest</option>
+                    <option value=\"price_asc\">Price: Low to High</option>
+                    <option value=\"price_desc\">Price: High to Low</option>
                   </select>
 
-                  {/* Filter Toggle Button */}
+                  {/* Filter Toggle */}
                   <button
                     onClick={() => setShowFilters(!showFilters)}
-                    className={`flex items-center gap-2 px-4 py-3 border rounded-lg transition-colors shadow-sm ${showFilters || hasActiveFilters
+                    className={`flex items-center gap-2 px-4 py-3 border rounded-lg text-sm font-medium transition-colors shadow-sm ${showFilters
                       ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-gray-900 dark:border-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                   >
-                    <Filter className="w-5 h-5" />
-                    <span className="font-medium">Filters</span>
+                    <Filter className=\"w-4 h-4\" />
+                    Filters
                     {hasActiveFilters && (
-                      <span className="px-2 py-0.5 text-xs bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-full">
-                        {(searchQuery ? 1 : 0) + (selectedCategory ? 1 : 0) + (selectedVendor ? 1 : 0) + (minPrice || maxPrice ? 1 : 0) + (stockStatus !== 'all' ? 1 : 0) + (sortBy !== 'newest' ? 1 : 0)}
-                      </span>
+                      <span className=\"flex h-2 w-2 rounded-full bg-blue-500\"></span>
                     )}
                   </button>
                 </div>
 
-                {/* Filter Panel */}
+                {/* Expanded Filters */}
                 {showFilters && (
-                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-4 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Filters</h3>
-                      {hasActiveFilters && (
-                        <button
-                          onClick={clearFilters}
-                          className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        >
-                          Clear all
-                        </button>
-                      )}
+                  <div className=\"grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl mb-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-300\">
+                    {/* Category Filter */}
+                    <div>
+                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                        Category
+                      </label>
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedCategory(val);
+                          setCurrentPage(1);
+                          updateQueryParams({ category: val || null, page: '1' });
+                        }}
+                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                      >
+                        <option value=\"\">All Categories</option>
+                        {flatCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Category Filter */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Category
-                        </label>
-                        <select
-                          value={selectedCategory}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSelectedCategory(val);
-                            setCurrentPage(1);
-                            updateQueryParams({ category: val || null, page: '1' });
-                          }}
-                          className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
-                        >
-                          <option value="">All Categories</option>
-                          {flatCategories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
-                              {cat.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
 
-                      {/* Vendor Filter */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Vendor
-                        </label>
-                        <select
-                          value={selectedVendor}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSelectedVendor(val);
-                            setCurrentPage(1);
-                            updateQueryParams({ vendor: val || null, page: '1' });
-                          }}
-                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
-                        >
-                          <option value="">All Vendors</option>
-                          {vendorsList.map((v) => (
-                            <option key={v.id} value={String(v.id)}>
-                              {v.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    {/* Vendor Filter */}
+                    <div>
+                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                        Vendor
+                      </label>
+                      <select
+                        value={selectedVendor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedVendor(val);
+                          setCurrentPage(1);
+                          updateQueryParams({ vendor: val || null, page: '1' });
+                        }}
+                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                      >
+                        <option value=\"\">All Vendors</option>
+                        {vendorsList.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                      {/* Stock Status Filter */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Stock Status
-                        </label>
-                        <select
-                          value={stockStatus}
-                          onChange={(e) => {
-                            const val = e.target.value as 'all' | 'in_stock' | 'not_in_stock';
-                            setStockStatus(val);
-                            setCurrentPage(1);
-                            updateQueryParams({
-                              in_stock: val === 'in_stock' ? 'true' : val === 'not_in_stock' ? 'false' : null,
-                              page: '1'
-                            });
-                          }}
-                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="in_stock">In Stock</option>
-                          <option value="not_in_stock">Out of Stock</option>
-                        </select>
-                      </div>
+                    {/* Stock Status Filter */}
+                    <div>
+                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                        Stock Status
+                      </label>
+                      <select
+                        value={stockStatus}
+                        onChange={(e) => {
+                          const val = e.target.value as 'all' | 'in_stock' | 'out_of_stock';
+                          setStockStatus(val);
+                          setCurrentPage(1);
+                          updateQueryParams({
+                            in_stock: val === 'in_stock' ? 'true' : val === 'out_of_stock' ? 'false' : null,
+                            page: '1'
+                          });
+                        }}
+                        className=\"w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer\"
+                      >
+                        <option value=\"all\">All Availability</option>
+                        <option value=\"in_stock\">In Stock</option>
+                        <option value=\"out_of_stock\">Out of Stock</option>
+                      </select>
+                    </div>
 
-                      {/* Price Filter */}
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Selling Price (৳)
-                        </label>
-                        <div className="flex gap-3">
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="Min"
-                            value={minPrice}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMinPrice(val);
-                              setCurrentPage(1);
-                            }}
-                            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
-                          />
-                          <input
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="Max"
-                            value={maxPrice}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMaxPrice(val);
-                              setCurrentPage(1);
-                            }}
-                            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors"
-                          />
-                        </div>
-                        {(minPrice || maxPrice) && (
-                          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Showing only items whose selling price is within the selected range.
-                          </p>
-                        )}
+                    {/* Price Filter */}
+                    <div className=\"md:col-span-2\">
+                      <label className=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">
+                        Selling Price (৳)
+                      </label>
+                      <div className=\"flex gap-3\">
+                        <input
+                          type=\"number\"
+                          placeholder=\"Min\"
+                          value={minPrice}
+                          onChange={(e) => setMinPrice(e.target.value)}
+                          className=\"flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors\"
+                        />
+                        <input
+                          type=\"number\"
+                          placeholder=\"Max\"
+                          value={maxPrice}
+                          onChange={(e) => setMaxPrice(e.target.value)}
+                          className=\"flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors\"
+                        />
                       </div>
+                    </div>
+
+                    {/* Reset Filters */}
+                    <div className=\"flex items-end\">
+                      <button
+                        onClick={clearFilters}
+                        className=\"w-full px-4 py-2 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-2\"
+                      >
+                        <RefreshCw className=\"w-4 h-4\" />
+                        Reset All
+                      </button>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Content */}
+              {/* Product List/Grid */}
               {isLoading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-gray-200 dark:border-gray-700 border-t-gray-900 dark:border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-500 dark:text-gray-400">Loading products...</p>
-                  </div>
+                <div className=\"flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm\">
+                  <div className=\"animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-white mb-4\"></div>
+                  <p className=\"text-gray-600 dark:text-gray-400 font-medium\">Loading products...</p>
                 </div>
-              ) : filteredGroups.length === 0 ? (
-                <div className="bg-white dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-12 text-center shadow-sm">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Search className="w-8 h-8 text-gray-400" />
+              ) : paginatedGroups.length === 0 ? (
+                <div className=\"flex flex-col items-center justify-center py-20 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm\">
+                  <div className=\"w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4\">
+                    <Search className=\"w-8 h-8 text-gray-400 dark:text-gray-500\" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    {hasActiveFilters ? 'No products found' : 'No products yet'}
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-400 mb-6">
+                  <h3 className=\"text-xl font-bold text-gray-900 dark:text-white mb-2\">No products found</h3>
+                  <p className=\"text-gray-600 dark:text-gray-400 mb-6\">
                     {hasActiveFilters
-                      ? 'Try adjusting your filters or search terms'
-                      : 'Get started by adding your first product'}
+                      ? 'Try adjusting your search or filters to find what you\\'re looking for.'
+                      : 'Your product catalog is empty. Start by adding your first product!'}
                   </p>
                   {hasActiveFilters ? (
                     <button
                       onClick={clearFilters}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium"
+                      className=\"px-6 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium\"
                     >
-                      Clear Filters
+                      Clear All Filters
                     </button>
                   ) : (!selectMode && canCreateProducts) && (
                     <button
                       onClick={handleAdd}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium"
+                      className=\"inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors font-medium\"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className=\"w-4 h-4\" />
                       Add First Product
                     </button>
                   )}
@@ -1052,14 +1013,11 @@ export default function ProductPage() {
                   {paginatedGroups.map((group) => (
                     <ProductListItem
                       key={`${group.sku}-${group.variants[0].id}`}
-                      productGroup={{
-                        ...group,
-                        sellingPrice: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.selling_price ?? null : null,
-                        inStock: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.in_stock ?? null : null,
-                        stockQuantity: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.stock_quantity ?? null : null,
-                      }}
+                      productGroup={group}
                       onDelete={canDeleteProducts ? handleDelete : undefined}
                       onEdit={canEditProducts ? handleEdit : undefined}
+                      onArchive={canEditProducts ? handleArchive : undefined}
+                      onArchiveAll={canEditProducts ? handleArchiveAll : undefined}
                       onView={handleView}
                       onAddVariation={canCreateProducts ? handleAddVariation : undefined}
                       {...(selectMode && { onSelect: handleSelect })}
@@ -1070,49 +1028,59 @@ export default function ProductPage() {
               )}
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Showing <span className="font-medium text-gray-900 dark:text-white">{totalProducts === 0 ? 0 : ((currentPage - 1) * SERVER_PAGE_SIZE) + 1}</span> to <span className="font-medium text-gray-900 dark:text-white">{Math.min(currentPage * SERVER_PAGE_SIZE, totalProducts)}</span> of <span className="font-medium text-gray-900 dark:text-white">{totalProducts}</span> product groups
+              {!isLoading && totalPages > 1 && (
+                <div className=\"mt-10 flex flex-col items-center gap-4\">
+                  <p className=\"text-sm text-gray-600 dark:text-gray-400\">
+                    Showing <span className=\"font-semibold text-gray-900 dark:text-white\">{paginatedGroups.length}</span> of <span className=\"font-semibold text-gray-900 dark:text-white\">{totalProducts}</span> products
                   </p>
-                  <div className="flex gap-2">
+                  <div className=\"flex items-center gap-2\">
                     <button
                       onClick={() => goToPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
-                      className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm"
+                      className=\"h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm\"
                     >
-                      <ChevronLeft className="w-5 h-5" />
+                      <ChevronLeft className=\"w-5 h-5\" />
                     </button>
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let page;
-                      if (totalPages <= 5) {
-                        page = i + 1;
-                      } else if (currentPage <= 3) {
-                        page = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        page = totalPages - 4 + i;
-                      } else {
-                        page = currentPage - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={page}
-                          onClick={() => goToPage(page)}
-                          className={`h-10 w-10 flex items-center justify-center rounded-lg transition-colors font-medium shadow-sm ${currentPage === page
-                            ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                            : 'border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
-                        >
-                          {page}
-                        </button>
-                      );
-                    })}
+
+                    {/* Page Numbers */}
+                    <div className=\"flex items-center gap-1\">
+                      {[...Array(totalPages)].map((_, i) => {
+                        const page = i + 1;
+                        // Logic to show limited page buttons with ellipsis if needed
+                        if (
+                          totalPages <= 7 ||
+                          page === 1 ||
+                          page === totalPages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => goToPage(page)}
+                              className={`h-10 w-10 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${currentPage === page
+                                ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-sm'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                                }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        } else if (
+                          (page === currentPage - 2 && page > 1) ||
+                          (page === currentPage + 2 && page < totalPages)
+                        ) {
+                          return <span key={page} className=\"px-1 text-gray-400\">...</span>;
+                        }
+                        return null;
+                      })}
+                    </div>
+
                     <button
                       onClick={() => goToPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
-                      className="h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm"
+                      className=\"h-10 w-10 flex items-center justify-center border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white shadow-sm\"
                     >
-                      <ChevronRight className="w-5 h-5" />
+                      <ChevronRight className=\"w-5 h-5\" />
                     </button>
                   </div>
                 </div>

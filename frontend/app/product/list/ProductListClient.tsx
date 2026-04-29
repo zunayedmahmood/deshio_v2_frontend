@@ -9,11 +9,12 @@ import ProductListItem from '@/components/ProductListItem';
 import { productService, Product } from '@/services/productService';
 import categoryService, { Category } from '@/services/categoryService';
 import { vendorService, Vendor } from '@/services/vendorService';
+import { useTheme } from '@/contexts/ThemeContext';
+import SocialCommerceQueue, { QueuedProduct } from '@/components/product/SocialCommerceQueue';
 import catalogService from '@/services/catalogService';
 import Toast from '@/components/Toast';
 import AccessDenied from '@/components/AccessDenied';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 
 import {
   ProductVariant,
@@ -62,6 +63,10 @@ export default function ProductPage() {
   const [stockStatus, setStockStatus] = useState<'all' | 'in_stock' | 'not_in_stock'>('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  // Social Commerce Queue State
+  const [isSocialCommerceMode, setIsSocialCommerceMode] = useState(false);
+  const [queueItems, setQueueItems] = useState<QueuedProduct[]>([]);
   const SERVER_PAGE_SIZE = 60;
   const SEARCH_DEBOUNCE_MS = 1000;
 
@@ -100,7 +105,24 @@ export default function ProductPage() {
   // Hydration fix
   useEffect(() => {
     setIsMounted(true);
+    
+    // Load queue from localStorage
+    const savedQueue = localStorage.getItem('social_commerce_queue');
+    if (savedQueue) {
+      try {
+        setQueueItems(JSON.parse(savedQueue));
+      } catch (e) {
+        console.error('Failed to parse queue', e);
+      }
+    }
   }, []);
+
+  // Save queue to localStorage
+  useEffect(() => {
+    if (isMounted) {
+      localStorage.setItem('social_commerce_queue', JSON.stringify(queueItems));
+    }
+  }, [queueItems, isMounted]);
 
   // Keep state in sync with URL params (supports refresh + back/forward)
   useEffect(() => {
@@ -140,7 +162,13 @@ export default function ProductPage() {
 
     const rp = searchParams.get('redirect') || '';
     if (rp !== redirectPath) setRedirectPath(rp);
-  }, [searchParams, searchQuery, selectedCategory, selectedVendor, minPrice, maxPrice, sortBy, stockStatus, currentPage, selectMode, redirectPath]);
+
+    const scm = searchParams.get('mode') === 'social_commerce';
+    if (scm !== isSocialCommerceMode) {
+      setIsSocialCommerceMode(scm);
+      if (scm) setSelectMode(true);
+    }
+  }, [searchParams, searchQuery, selectedCategory, selectedVendor, minPrice, maxPrice, sortBy, stockStatus, currentPage, selectMode, redirectPath, isSocialCommerceMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -681,11 +709,75 @@ export default function ProductPage() {
     router.push('/product/add');
   };
 
-  const handleSelect = (variant: ProductVariant) => {
+  const handleSelect = async (variant: ProductVariant) => {
+    if (isSocialCommerceMode) {
+      // Add to queue logic
+      const existing = queueItems.find(item => item.id === variant.id);
+      if (existing) {
+        setQueueItems(prev => prev.map(item => 
+          item.id === variant.id 
+            ? { ...item, quantity: item.quantity + 1, amount: (item.quantity + 1) * item.unit_price }
+            : item
+        ));
+        setToast({ message: `Increased quantity for ${variant.name}`, type: 'success' });
+      } else {
+        // Need to get selling price for this variant
+        try {
+          const detail: any = await catalogService.getProduct(variant.id);
+          const p = detail?.product ?? detail?.data?.product ?? detail?.data ?? detail;
+          const price = Number(p?.selling_price ?? p?.sellingPrice ?? 0);
+          
+          const newItem: QueuedProduct = {
+            id: variant.id,
+            product_id: variant.id as number,
+            batch_id: null, // Logic for default batch can be added if needed
+            productName: variant.name,
+            sku: variant.sku,
+            quantity: 1,
+            unit_price: price,
+            discount_amount: 0,
+            amount: price,
+            image: variant.image
+          };
+          
+          setQueueItems(prev => [...prev, newItem]);
+          setToast({ message: `Added ${variant.name} to queue`, type: 'success' });
+        } catch (e) {
+          setToast({ message: 'Failed to fetch product price', type: 'error' });
+        }
+      }
+      return;
+    }
+
     if (selectMode && redirectPath) {
       const url = `${redirectPath}?productId=${variant.id}&productName=${encodeURIComponent(variant.name)}&productSku=${encodeURIComponent(variant.sku)}`;
       router.push(url);
     }
+  };
+
+  const handleUpdateQueueQuantity = (id: number | string, delta: number) => {
+    setQueueItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const newQty = Math.max(1, item.quantity + delta);
+        return { ...item, quantity: newQty, amount: newQty * item.unit_price };
+      }
+      return item;
+    }));
+  };
+
+  const handleRemoveFromQueue = (id: number | string) => {
+    setQueueItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleClearQueue = () => {
+    if (confirm('Are you sure you want to clear the queue?')) {
+      setQueueItems([]);
+    }
+  };
+
+  const handleReturnToSocialCommerce = () => {
+    // Other data preserved logic: the Social Commerce page should read from its own localStorage state
+    router.push(redirectPath || '/social-commerce');
   };
 
   // Flatten categories for filter dropdown
@@ -1121,6 +1213,16 @@ export default function ProductPage() {
           </main>
         </div>
       </div>
+
+      {isSocialCommerceMode && isMounted && (
+        <SocialCommerceQueue
+          items={queueItems}
+          onUpdateQuantity={handleUpdateQueueQuantity}
+          onRemove={handleRemoveFromQueue}
+          onClear={handleClearQueue}
+          onBack={handleReturnToSocialCommerce}
+        />
+      )}
 
       {toast && (
         <Toast

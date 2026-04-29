@@ -115,7 +115,7 @@ export function createSaleTransaction(saleData: any) {
       amount: totalAmount,
       category: 'POS Sales',
       date: saleData.createdAt || new Date().toISOString(),
-      comment: `Items: ${itemCount}, Cash: ৳${saleData.payments?.cash || 0}, Card: ৳${saleData.payments?.card || 0}, Bkash: ৳${saleData.payments?.bkash || 0}, Nagad: ৳${saleData.payments?.nagad || 0}, Due: ৳${saleData.payments?.due || 0}`,
+      comment: `Items: ${itemCount}, Cash: ৳${saleData.payments?.cash || 0}, Card: ৳${saleData.payments?.card || 0}, Bkash: ৳${saleData.payments?.bkash || 0}, Bank Transfer: ৳${saleData.payments?.nagad || 0}, Due: ৳${saleData.payments?.due || 0}`,
       createdAt: new Date().toISOString(),
       source: 'sale',
       referenceId: String(saleData.id)

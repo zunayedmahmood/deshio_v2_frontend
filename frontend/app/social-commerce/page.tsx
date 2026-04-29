@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useTheme } from "@/contexts/ThemeContext";
-import { Search, X, Globe, AlertCircle } from 'lucide-react';
+ import { useState, useEffect, useMemo } from 'react';
+ import { useRouter } from 'next/navigation';
+ import { useTheme } from "@/contexts/ThemeContext";
+ import { useAuth } from '@/contexts/AuthContext';
+import { Search, X, Globe, AlertCircle, Wrench } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import CustomerTagManager from '@/components/customers/CustomerTagManager';
@@ -10,10 +12,13 @@ import axios from '@/lib/axios';
 import storeService from '@/services/storeService';
 import productImageService from '@/services/productImageService';
 import batchService from '@/services/batchService';
-import catalogService, { CatalogGroupedProduct, Product } from '@/services/catalogService';
-import inventoryService, { GlobalInventoryItem } from '@/services/inventoryService';
+ import catalogService, { CatalogGroupedProduct, Product } from '@/services/catalogService';
+ import inventoryService, { GlobalInventoryItem } from '@/services/inventoryService';
+ import shipmentService from '@/services/shipmentService';
 import { fireToast } from '@/lib/globalToast';
+import paymentService from '@/services/paymentService';
 import { DollarSign, CreditCard, Wallet, MapPin, Truck, ChevronDown, ChevronRight, Plus, Minus, Store as StoreIcon } from 'lucide-react';
+import ServiceSelector, { ServiceItem } from '@/components/ServiceSelector';
 
 interface DefectItem {
   id: string;
@@ -77,20 +82,26 @@ export default function SocialCommercePage() {
   const [allProducts, setAllProducts] = useState<any[]>([]); // Kept for backward compatibility if needed
   const [allBatches, setAllBatches] = useState<any[]>([]); // Kept for backward compatibility if needed
   const [inventoryStats, setInventoryStats] = useState<{ total_stock: number; active_batches: number } | null>(null);
-  const [stores, setStores] = useState<any[]>([]);
-
-  const [date, setDate] = useState(getTodayDate());
+  const [stores, setStores] = useState<any[]>([]);  const [date, setDate] = useState(getTodayDate());
   const [salesBy, setSalesBy] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userPhone, setUserPhone] = useState('');
   const [socialId, setSocialId] = useState('');
-
   const [isInternational, setIsInternational] = useState(false);
 
   // ✅ Domestic
   const [streetAddress, setStreetAddress] = useState('');
   const [postalCode, setPostalCode] = useState('');
+  const [isPathaoAuto, setIsPathaoAuto] = useState(true);
+  
+  // ✅ Pathao Location States
+  const [pathaoCities, setPathaoCities] = useState<any[]>([]);
+  const [pathaoZones, setPathaoZones] = useState<any[]>([]);
+  const [pathaoAreas, setPathaoAreas] = useState<any[]>([]);
+  const [selectedCityId, setSelectedCityId] = useState('');
+  const [selectedZoneId, setSelectedZoneId] = useState('');
+  const [selectedAreaId, setSelectedAreaId] = useState('');
 
   // ✅ International
   const [country, setCountry] = useState('');
@@ -100,16 +111,20 @@ export default function SocialCommercePage() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [minPriceFilter, setMinPriceFilter] = useState('');
+  const [maxPriceFilter, setMaxPriceFilter] = useState('');
+  const [exactPriceFilter, setExactPriceFilter] = useState('');
+  
   const [searchResults, setSearchResults] = useState<CatalogGroupedProduct[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null); // For variants modal/dropdown
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartProduct[]>([]);
+  const [serviceCart, setServiceCart] = useState<ServiceItem[]>([]);
 
-  // ✅ Logistics & Store Assignment (from amount-details)
-  const [storeAssignmentType, setStoreAssignmentType] = useState<'auto' | 'specific'>('auto');
+  const [storeAssignmentType, setStoreAssignmentType] = useState<'auto' | 'specific'>('specific');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
-
-  // ✅ Payment States (from amount-details)
+  
+  // ✅ Payment States
   const [transportCost, setTransportCost] = useState('0');
   const [paymentOption, setPaymentOption] = useState<'full' | 'partial' | 'none'>('full');
   const [advanceAmount, setAdvanceAmount] = useState('');
@@ -118,22 +133,20 @@ export default function SocialCommercePage() {
   const [transactionReference, setTransactionReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [codPaymentMethod, setCodPaymentMethod] = useState('');
+
+  // ✅ Installment / EMI States
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(3);
+  const [installmentPaymentMode, setInstallmentPaymentMode] = useState<'cash' | 'card' | 'bkash' | 'bank_transfer'>('cash');
+  const [installmentTransactionReference, setInstallmentTransactionReference] = useState('');
+  const [installmentPayingNow, setInstallmentPayingNow] = useState('');
+
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
-  const [selectedProductInventory, setSelectedProductInventory] = useState<GlobalInventoryItem | null>(null);
-
-  const [quantity, setQuantity] = useState('');
-  const [discountPercent, setDiscountPercent] = useState('');
-  const [discountTk, setDiscountTk] = useState('');
-  const [amount, setAmount] = useState('0.00');
-
-  const [defectiveProduct, setDefectiveProduct] = useState<DefectItem | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [inventoryStats, setInventoryStats] = useState<any>(null);
 
-  // 🧑‍💼 Existing customer + last order summary states
-  const [existingCustomer, setExistingCustomer] = useState<any | null>(null);
-  const [lastOrderInfo, setLastOrderInfo] = useState<any | null>(null);
-  const [isCheckingCustomer, setIsCheckingCustomer] = useState(false);
-  const [customerCheckError, setCustomerCheckError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const router = useRouter();
 
   function getTodayDate() {
     const today = new Date();
@@ -208,6 +221,13 @@ export default function SocialCommercePage() {
       }
 
       setStores(storesData);
+      
+      // Preselect first online store
+      const onlineStore = storesData.find((s: any) => s.is_online);
+      if (onlineStore) {
+        setSelectedStoreId(String(onlineStore.id));
+        setStoreAssignmentType('specific');
+      }
     } catch (error) {
       console.error('Error fetching stores:', error);
       setStores([]);
@@ -562,25 +582,70 @@ export default function SocialCommercePage() {
     }
   }, []);
 
+  // Sync state with localStorage
   useEffect(() => {
-    const userName = localStorage.getItem('userName') || '';
-    setSalesBy(userName);
+    // Load state from localStorage on mount
+    const savedState = localStorage.getItem('social_commerce_state');
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        setUserName(state.userName || '');
+        setUserEmail(state.userEmail || '');
+        setUserPhone(state.userPhone || '');
+        setSocialId(state.socialId || '');
+        setStreetAddress(state.streetAddress || '');
+        setPostalCode(state.postalCode || '');
+        setIsInternational(state.isInternational || false);
+        setCountry(state.country || '');
+        setState(state.state || '');
+        setInternationalCity(state.internationalCity || '');
+        setInternationalPostalCode(state.internationalPostalCode || '');
+        setDeliveryAddress(state.deliveryAddress || '');
+        setIsPathaoAuto(state.isPathaoAuto !== undefined ? state.isPathaoAuto : true);
+        setSelectedCityId(state.selectedCityId || '');
+        setSelectedZoneId(state.selectedZoneId || '');
+        setSelectedAreaId(state.selectedAreaId || '');
+      } catch (e) {
+        console.error('Failed to load state', e);
+      }
+    }
+
+    // Load queue items from localStorage
+    const savedQueue = localStorage.getItem('social_commerce_queue');
+    if (savedQueue) {
+      try {
+        const queueItems = JSON.parse(savedQueue);
+        if (Array.isArray(queueItems) && queueItems.length > 0) {
+          const cartItems: CartProduct[] = queueItems.map(item => ({
+            id: Date.now() + Math.random(), // Unique ID for cart
+            product_id: item.product_id,
+            batch_id: item.batch_id,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_amount: item.discount_amount,
+            amount: item.amount,
+          }));
+          setCart(prev => [...prev, ...cartItems]);
+          // Clear queue after loading
+          localStorage.removeItem('social_commerce_queue');
+        }
+      } catch (e) {
+        console.error('Failed to load queue', e);
+      }
+    }
+
+    setSalesBy(user?.name || '');
 
     const loadInitialData = async () => {
       try {
         setIsLoadingData(true);
-        const [storesData, stats, payments] = await Promise.all([
+        await Promise.all([
           fetchStores(),
-          inventoryService.getStatistics().catch(() => null),
-          fetchPaymentMethods().catch(() => null)
+          fetchPaymentMethods().catch(() => null),
+          fetchPathaoCities().catch(() => null)
         ]);
-
-        if (stats?.success) {
-          setInventoryStats({
-            total_stock: stats.data.overview.total_inventory_units,
-            active_batches: stats.data.overview.active_batches
-          });
-        }
       } catch (err) {
         console.error('Failed to load initial data', err);
       } finally {
@@ -588,11 +653,76 @@ export default function SocialCommercePage() {
       }
     };
     loadInitialData();
-  }, []);
+  }, [user]);
+
+  // Pathao Location Fetching
+  const fetchPathaoCities = async () => {
+    try {
+      const cities = await shipmentService.getPathaoCities();
+      setPathaoCities(cities);
+    } catch (e) {
+      console.error('Failed to fetch cities', e);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedCityId) {
+      const fetchZones = async () => {
+        try {
+          const zones = await shipmentService.getPathaoZones(Number(selectedCityId));
+          setPathaoZones(zones);
+          setPathaoAreas([]);
+        } catch (e) {
+          console.error('Failed to fetch zones', e);
+        }
+      };
+      fetchZones();
+    }
+  }, [selectedCityId]);
+
+  useEffect(() => {
+    if (selectedZoneId) {
+      const fetchAreas = async () => {
+        try {
+          const areas = await shipmentService.getPathaoAreas(Number(selectedZoneId));
+          setPathaoAreas(areas);
+        } catch (e) {
+          console.error('Failed to fetch areas', e);
+        }
+      };
+      fetchAreas();
+    }
+  }, [selectedZoneId]);
+
+  // Save state to localStorage whenever it changes (with debounce)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const state = {
+        userName,
+        userEmail,
+        userPhone,
+        socialId,
+        streetAddress,
+        postalCode,
+        isInternational,
+        country,
+        state,
+        internationalCity,
+        internationalPostalCode,
+        deliveryAddress,
+        isPathaoAuto,
+        selectedCityId,
+        selectedZoneId,
+        selectedAreaId,
+      };
+      localStorage.setItem('social_commerce_state', JSON.stringify(state));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [userName, userEmail, userPhone, socialId, streetAddress, postalCode, isInternational, country, state, internationalCity, internationalPostalCode, deliveryAddress, isPathaoAuto, selectedCityId, selectedZoneId, selectedAreaId]);
 
   // ✅ Search effect using e-commerce catalog search
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!searchQuery.trim() && !minPriceFilter && !maxPriceFilter && !exactPriceFilter) {
       setSearchResults([]);
       return;
     }
@@ -601,24 +731,27 @@ export default function SocialCommercePage() {
     const delayDebounce = setTimeout(async () => {
       try {
         setIsLoadingData(true);
-        console.log('🔍 Executing SKU-grouped search for:', searchQuery);
-
-        const response = await catalogService.searchProducts({
+        
+        const params: any = {
           q: searchQuery,
           per_page: 50,
           group_by_sku: true,
-        });
+        };
+
+        if (minPriceFilter) params.min_price = minPriceFilter;
+        if (maxPriceFilter) params.max_price = maxPriceFilter;
+        if (exactPriceFilter) {
+          params.min_price = exactPriceFilter;
+          params.max_price = exactPriceFilter;
+        }
+
+        const response = await catalogService.searchProducts(params);
 
         if (active && response && response.grouped_products) {
           setSearchResults(response.grouped_products);
-
-          if (response.grouped_products.length === 0) {
-            fireToast('No products found', 'error');
-          }
         }
       } catch (error: any) {
         console.error('❌ Search failed:', error);
-        fireToast('Search failed. Please try again.', 'error');
       } finally {
         if (active) setIsLoadingData(false);
       }
@@ -628,7 +761,7 @@ export default function SocialCommercePage() {
       active = false;
       clearTimeout(delayDebounce);
     };
-  }, [searchQuery, stores]);
+  }, [searchQuery, minPriceFilter, maxPriceFilter, exactPriceFilter]);
 
   useEffect(() => {
     if (selectedProduct && quantity) {
@@ -747,14 +880,95 @@ export default function SocialCommercePage() {
 
   const subtotal = cart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
   const totalDiscount = cart.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
+  const serviceTotalAmount = serviceCart.reduce((sum, item) => sum + item.amount, 0);
+  const orderTotal = subtotal - totalDiscount + serviceTotalAmount + (parseFloat(transportCost) || 0);
+
+  // ✅ Installment calculations
+  const suggestedInstallmentAmount = useMemo(() => {
+    if (!isInstallment || orderTotal <= 0) return 0;
+    const n = Math.max(2, Math.min(24, Number(installmentCount) || 2));
+    return Math.ceil((orderTotal / n) * 100) / 100;
+  }, [isInstallment, installmentCount, orderTotal]);
+
+  const actualPayingNow = useMemo(() => {
+    if (!isInstallment) return 0;
+    const custom = parseFloat(installmentPayingNow);
+    if (custom > 0) return Math.min(custom, orderTotal);
+    return suggestedInstallmentAmount;
+  }, [isInstallment, installmentPayingNow, suggestedInstallmentAmount, orderTotal]);
+
+  const installmentRemaining = useMemo(() => {
+    return Math.max(0, orderTotal - actualPayingNow);
+  }, [orderTotal, actualPayingNow]);
+
+  const installmentPaymentMethodId = useMemo(() => {
+    if (!isInstallment) return null;
+    const method = paymentMethods.find(m => {
+      if (installmentPaymentMode === 'cash') return m.type === 'cash' || m.code === 'cash';
+      if (installmentPaymentMode === 'card') return m.type === 'card' || m.code === 'card';
+      if (installmentPaymentMode === 'bkash') return m.type === 'mobile_banking' || m.code === 'bkash';
+      if (installmentPaymentMode === 'bank_transfer') return m.type === 'bank_transfer' || m.code === 'bank_transfer';
+      return false;
+    });
+    return method?.id || (paymentMethods[0]?.id ?? 1);
+  }, [isInstallment, installmentPaymentMode, paymentMethods]);
+
+  const addServiceToCart = (service: ServiceItem) => {
+    setServiceCart((prev) => [...prev, service]);
+    fireToast(`Service "${service.serviceName}" added`, 'success');
+  };
+
+  const removeServiceFromCart = (id: number) => {
+    setServiceCart((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleClearAll = () => {
+    if (confirm('Are you sure you want to clear all data and start a new order?')) {
+      setCart([]);
+      setServiceCart([]);
+      setUserName('');
+      setUserPhone('');
+      setUserEmail('');
+      setSocialId('');
+      setStreetAddress('');
+      setPostalCode('');
+      setCountry('');
+      setState('');
+      setInternationalCity('');
+      setInternationalPostalCode('');
+      setDeliveryAddress('');
+      setSelectedCityId('');
+      setSelectedZoneId('');
+      setSelectedAreaId('');
+      setIsInternational(false);
+      setIsPathaoAuto(true);
+      setTransportCost('0');
+      setPaymentOption('full');
+      setAdvanceAmount('');
+      setSelectedPaymentMethod('');
+      setTransactionReference('');
+      setPaymentNotes('');
+      setCodPaymentMethod('');
+      setIsInstallment(false);
+      setInstallmentCount(3);
+      setInstallmentPaymentMode('cash');
+      setInstallmentTransactionReference('');
+      setInstallmentPayingNow('');
+      
+      localStorage.removeItem('social_commerce_state');
+      localStorage.removeItem('social_commerce_queue');
+      
+      fireToast('Form cleared successfully', 'success');
+    }
+  };
 
   const handleConfirmOrder = async () => {
     if (!userName || !userPhone) {
       fireToast('Please fill in customer name and phone number', 'error');
       return;
     }
-    if (cart.length === 0) {
-      fireToast('Please add products to cart', 'error');
+    if (cart.length === 0 && serviceCart.length === 0) {
+      fireToast('Please add products or services to cart', 'error');
       return;
     }
 
@@ -811,7 +1025,7 @@ export default function SocialCommercePage() {
       setIsProcessingOrder(true);
       console.log('📦 CREATING SOCIAL COMMERCE ORDER');
 
-      const total = subtotal - totalDiscount + (parseFloat(transportCost) || 0);
+      const total = orderTotal;
 
       const shipping_address = isInternational
         ? {
@@ -828,6 +1042,9 @@ export default function SocialCommercePage() {
           phone: userPhone,
           street: streetAddress,
           postal_code: postalCode || undefined,
+          pathao_city_id: !isPathaoAuto ? Number(selectedCityId) : undefined,
+          pathao_zone_id: !isPathaoAuto ? Number(selectedZoneId) : undefined,
+          pathao_area_id: !isPathaoAuto ? Number(selectedAreaId) : undefined,
         };
 
       const orderData = {
@@ -846,8 +1063,28 @@ export default function SocialCommercePage() {
           unit_price: item.unit_price,
           discount_amount: item.discount_amount,
         })),
+        // Services attached to the order
+        services: serviceCart.map(s => ({
+          service_id: s.serviceId,
+          service_name: s.serviceName,
+          quantity: s.quantity,
+          unit_price: s.price,
+          discount_amount: 0,
+          total_amount: s.amount,
+          category: s.category,
+        })),
         shipping_amount: parseFloat(transportCost) || 0,
-        notes: `Social Commerce. ${socialId ? `ID: ${socialId}. ` : ''}${isInternational ? 'International' : 'Domestic'} delivery. ${paymentOption === 'full' ? 'Full payment' : paymentOption === 'partial' ? 'Partial (Advance+COD)' : 'Full COD'}`,
+        notes: paymentNotes.trim(),
+        // Installment plan (if enabled)
+        ...(isInstallment
+          ? {
+            installment_plan: {
+              total_installments: Math.max(2, Math.min(24, Number(installmentCount) || 2)),
+              installment_amount: suggestedInstallmentAmount,
+              start_date: undefined,
+            },
+          }
+          : {}),
       };
 
       const response = await axios.post('/orders', orderData);
@@ -875,7 +1112,22 @@ export default function SocialCommercePage() {
       }
 
       // Handle Payment
-      if (paymentOption !== 'none') {
+      if (isInstallment) {
+        // ✅ Installment/EMI: collect first payment now
+        if (installmentPaymentMethodId && actualPayingNow > 0) {
+          console.log('💳 Processing installment/EMI first payment...');
+          await paymentService.addInstallmentPayment(createdOrder.id, {
+            payment_method_id: installmentPaymentMethodId,
+            amount: actualPayingNow,
+            auto_complete: true,
+            notes: `Social Commerce installment/EMI - 1st of ${Math.max(2, Math.min(24, Number(installmentCount) || 2))}`,
+            payment_data: installmentTransactionReference
+              ? { transaction_reference: installmentTransactionReference }
+              : {},
+          });
+          console.log('✅ Installment payment processed');
+        }
+      } else if (paymentOption !== 'none') {
         const method = paymentMethods.find(m => String(m.id) === selectedPaymentMethod);
         const amountToPay = paymentOption === 'full' ? total : (parseFloat(advanceAmount) || 0);
 
@@ -884,7 +1136,7 @@ export default function SocialCommercePage() {
           amount: amountToPay,
           payment_type: paymentOption === 'full' ? 'full' : 'partial',
           auto_complete: true,
-          notes: paymentNotes || `Social Commerce ${paymentOption} payment via ${method?.name}`,
+          notes: paymentNotes.trim(),
           payment_data: {
             mobile_number: userPhone,
             provider: method?.name,
@@ -905,12 +1157,20 @@ export default function SocialCommercePage() {
 
       // Cleanup and NOT redirecting
       setCart([]);
+      setServiceCart([]);
       setUserName('');
       setUserPhone('');
       setUserEmail('');
       setSocialId('');
       setStreetAddress('');
       setPostalCode('');
+      setCountry('');
+      setState('');
+      setInternationalCity('');
+      setInternationalPostalCode('');
+      setDeliveryAddress('');
+      localStorage.removeItem('social_commerce_state');
+      localStorage.removeItem('social_commerce_queue');
       setCountry('');
       setState('');
       setInternationalCity('');
@@ -943,11 +1203,11 @@ export default function SocialCommercePage() {
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 flex items-center justify-between">
         <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <div className="bg-teal-500 w-2 h-2 rounded-full"></div>
-          Order Summary ({cart.length} items)
+          Order Summary ({cart.length + serviceCart.length} items)
         </h3>
       </div>
 
-      <div className="max-h-[300px] overflow-y-auto">
+      <div className="max-h-[380px] overflow-y-auto">
         <table className="w-full text-xs">
           <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400">
             <tr>
@@ -958,40 +1218,75 @@ export default function SocialCommercePage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {cart.length === 0 ? (
+            {cart.length === 0 && serviceCart.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500 italic">
                   Cart is empty
                 </td>
               </tr>
             ) : (
-              cart.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400">SKU: {item.sku}</p>
-                  </td>
-                  <td className="px-2 py-3 text-center text-gray-700 dark:text-gray-300">{item.quantity}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
-                    <div className="flex flex-col items-end">
-                      <span>{(item.unit_price * item.quantity).toLocaleString()} Tk</span>
-                      {(item.discount_amount || 0) > 0 && (
-                        <span className="text-[10px] text-red-500 font-medium">
-                          - {item.discount_amount.toLocaleString()} Tk (Disc)
+              <>
+                {cart.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400">SKU: {item.sku}</p>
+                    </td>
+                    <td className="px-2 py-3 text-center text-gray-700 dark:text-gray-300">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                      <div className="flex flex-col items-end">
+                        <span>{(item.unit_price * item.quantity).toLocaleString()} Tk</span>
+                        {(item.discount_amount || 0) > 0 && (
+                          <span className="text-[10px] text-red-500 font-medium">
+                            - {item.discount_amount.toLocaleString()} Tk (Disc)
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 text-center">
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {/* Service Items */}
+                {serviceCart.length > 0 && (
+                  <>
+                    <tr>
+                      <td colSpan={4} className="px-4 py-2 bg-amber-50/60 dark:bg-amber-900/10">
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Wrench size={10} /> Services
                         </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 text-center">
-                    <button
-                      onClick={() => removeFromCart(item.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      <X size={14} />
-                    </button>
-                  </td>
-                </tr>
-              ))
+                      </td>
+                    </tr>
+                    {serviceCart.map((svc) => (
+                      <tr key={`svc-${svc.id}`} className="hover:bg-amber-50/40 dark:hover:bg-amber-900/10 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900 dark:text-white">{svc.serviceName}</p>
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 capitalize">{svc.category}</p>
+                        </td>
+                        <td className="px-2 py-3 text-center text-gray-700 dark:text-gray-300">{svc.quantity}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-white">
+                          {svc.amount.toLocaleString()} Tk
+                        </td>
+                        <td className="px-2 py-3 text-center">
+                          <button
+                            onClick={() => removeServiceFromCart(svc.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </tbody>
         </table>
@@ -1001,13 +1296,19 @@ export default function SocialCommercePage() {
         {/* Pricing Summary */}
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-            <span>Subtotal</span>
+            <span>Products Subtotal</span>
             <span className="font-medium text-gray-900 dark:text-white">{subtotal.toLocaleString()} ৳</span>
           </div>
           {totalDiscount > 0 && (
             <div className="flex justify-between text-xs text-red-500">
               <span>Discount</span>
               <span className="font-medium">-{totalDiscount.toLocaleString()} ৳</span>
+            </div>
+          )}
+          {serviceTotalAmount > 0 && (
+            <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+              <span>Services</span>
+              <span className="font-medium">+{serviceTotalAmount.toLocaleString()} ৳</span>
             </div>
           )}
           <div className="flex justify-between items-center text-xs">
@@ -1028,7 +1329,7 @@ export default function SocialCommercePage() {
           </div>
           <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-lg font-bold text-teal-600 dark:text-teal-400">
             <span>Total</span>
-            <span>{(subtotal - totalDiscount + (parseFloat(transportCost) || 0)).toLocaleString()} ৳</span>
+            <span>{(subtotal - totalDiscount + serviceTotalAmount + (parseFloat(transportCost) || 0)).toLocaleString()} ৳</span>
           </div>
         </div>
 
@@ -1140,7 +1441,7 @@ export default function SocialCommercePage() {
 
         <button
           onClick={handleConfirmOrder}
-          disabled={cart.length === 0 || isProcessingOrder}
+          disabled={(cart.length === 0 && serviceCart.length === 0) || isProcessingOrder}
           className="w-full mt-2 bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {isProcessingOrder ? 'Creating Order...' : 'Confirm Order'}
@@ -1362,23 +1663,513 @@ export default function SocialCommercePage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <Header darkMode={darkMode} setDarkMode={setDarkMode} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
           <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <h1 className="text-2xl font-black tracking-tight">SOCIAL COMMERCE</h1>
+          
+          <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              {/* Top Header */}
+              <div className="flex items-center justify-between bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Social Commerce</h1>
+                  <button
+                    onClick={handleClearAll}
+                    className="px-3 py-1.5 text-[10px] font-bold text-red-500 hover:text-white border border-red-200 hover:bg-red-500 rounded-lg transition-all"
+                  >
+                    Clear All
+                  </button>
+                </div>
                 <div className="flex gap-4">
-                  <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl shadow-sm border text-xs font-bold uppercase tracking-wider">Date: {date}</div>
-                  <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl shadow-sm border text-xs font-bold uppercase tracking-wider">By: {salesBy}</div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sales By</label>
+                    <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
+                      {salesBy || 'Loading...'}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={date}
+                      readOnly
+                      className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none w-32"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Store</label>
+                    <div className="space-y-1">
+                      <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-900 dark:text-white uppercase min-w-[120px]">
+                        {selectedStore?.name || 'Loading...'}
+                      </div>
+                      <p className="text-[10px] font-medium text-green-500 flex items-center gap-1">
+                        <Plus size={8} /> {inventoryStats?.active_batches || 0} batches available
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                <div className="lg:col-span-1 space-y-8">
-                  {renderBranchAvailability()}
-                  {renderOrderSummary()}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                {/* Left Column - Form Data */}
+                <div className="lg:col-span-3 space-y-6">
+                  {/* Customer Information */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Customer Information</h2>
+                    </div>
+                    <div className="p-6 space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">User Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          placeholder="Full Name"
+                          value={userName}
+                          onChange={(e) => setUserName(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">User Phone Number <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          placeholder="Phone Number"
+                          value={userPhone}
+                          onChange={(e) => setUserPhone(e.target.value)}
+                          onBlur={handlePhoneBlur}
+                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">Street Address <span className="text-red-500">*</span></label>
+                        <textarea
+                          placeholder="House 12, Road 5, etc."
+                          value={streetAddress}
+                          onChange={(e) => setStreetAddress(e.target.value)}
+                          rows={3}
+                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-500">Postal Code</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 1212"
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-500">User Email</label>
+                          <input
+                            type="email"
+                            placeholder="sample@email.com (optional)"
+                            value={userEmail}
+                            onChange={(e) => setUserEmail(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">Social ID</label>
+                        <input
+                          type="text"
+                          placeholder="Enter Social ID"
+                          value={socialId}
+                          onChange={(e) => setSocialId(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                      </div>
+
+                      {/* Domestic/International Toggle */}
+                      <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+                        <button
+                          onClick={() => setIsInternational(false)}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${!isInternational ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                          <span className="text-base">🏠</span> Domestic
+                        </button>
+                        <button
+                          onClick={() => setIsInternational(true)}
+                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${isInternational ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                          <span className="text-base">🌐</span> International
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Add-on Services */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Add-on Services</h2>
+                      <p className="text-xs text-gray-500 mt-1">Add service items (tailoring, wash, repair, etc.)</p>
+                    </div>
+                    <ServiceSelector
+                      onAddService={addServiceToCart}
+                      darkMode={darkMode}
+                      allowManualPrice={true}
+                    />
+                  </div>
+
+                  {/* Delivery Details */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Delivery Details</h2>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${isInternational ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                        {isInternational ? '🌐 International' : '🏠 Domestic'}
+                      </span>
+                    </div>
+                    <div className="p-6 space-y-6">
+                      {!isInternational ? (
+                        <>
+                          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-gray-900 dark:text-white">Auto-detect Pathao location</p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">When ON, City/Zone/Area are not required. Pathao will infer the location from the full address text.</p>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isPathaoAuto}
+                              onChange={(e) => setIsPathaoAuto(e.target.checked)}
+                              className="w-5 h-5 accent-teal-600 rounded cursor-pointer"
+                            />
+                          </div>
+
+                          {!isPathaoAuto && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-500">City (Pathao) <span className="text-red-500">*</span></label>
+                                <select
+                                  value={selectedCityId}
+                                  onChange={(e) => setSelectedCityId(e.target.value)}
+                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                >
+                                  <option value="">Select City</option>
+                                  {pathaoCities.map(city => (
+                                    <option key={city.city_id} value={city.city_id}>{city.city_name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-500">Zone (Pathao) <span className="text-red-500">*</span></label>
+                                <select
+                                  value={selectedZoneId}
+                                  onChange={(e) => setSelectedZoneId(e.target.value)}
+                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                  disabled={!selectedCityId}
+                                >
+                                  <option value="">Select Zone</option>
+                                  {pathaoZones.map(zone => (
+                                    <option key={zone.zone_id} value={zone.zone_id}>{zone.zone_name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="md:col-span-2 space-y-2">
+                                <label className="text-xs font-bold text-gray-500">Area (Pathao) <span className="text-red-500">*</span></label>
+                                <select
+                                  value={selectedAreaId}
+                                  onChange={(e) => setSelectedAreaId(e.target.value)}
+                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                  disabled={!selectedZoneId}
+                                >
+                                  <option value="">Select Area</option>
+                                  {pathaoAreas.map(area => (
+                                    <option key={area.area_id} value={area.area_id}>{area.area_name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="space-y-5">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500">Country <span className="text-red-500">*</span></label>
+                            <input
+                              type="text"
+                              placeholder="Enter Country"
+                              value={country}
+                              onChange={(e) => setCountry(e.target.value)}
+                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500">State/Province</label>
+                            <input
+                              type="text"
+                              placeholder="Enter State"
+                              value={state}
+                              onChange={(e) => setState(e.target.value)}
+                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500">City <span className="text-red-500">*</span></label>
+                            <input
+                              type="text"
+                              placeholder="Enter City"
+                              value={internationalCity}
+                              onChange={(e) => setInternationalCity(e.target.value)}
+                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-gray-500">Order Notes</label>
+                        <textarea
+                          placeholder="Special instructions, landmark, preferred delivery note, packaging note, etc."
+                          rows={4}
+                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="lg:col-span-2 space-y-8">
-                  {renderProductSearch()}
-                  {renderCustomerDetails()}
+
+                {/* Right Column - Cart & Search */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Search Product */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Search Product</h2>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Type to search product..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="flex-1 bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Min ৳"
+                          value={minPriceFilter}
+                          onChange={(e) => setMinPriceFilter(e.target.value)}
+                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Max ৳"
+                          value={maxPriceFilter}
+                          onChange={(e) => setMaxPriceFilter(e.target.value)}
+                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Exact ৳"
+                          value={exactPriceFilter}
+                          onChange={(e) => setExactPriceFilter(e.target.value)}
+                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all border-blue-200 dark:border-blue-900"
+                        />
+                        <button className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 p-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all">
+                          <Search size={20} />
+                        </button>
+                      </div>
+
+                      <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
+                            Click a product card to stage it instantly, or open Product List for bigger browsing.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => router.push(`/product/list?mode=social_commerce&redirect=/social-commerce`)}
+                          className="flex-shrink-0 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm whitespace-nowrap"
+                        >
+                          Browse Product List
+                        </button>
+                      </div>
+
+                      <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                        <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                          Instant stage mode is on. Click any product card to add it to the staged list, then edit quantity, discount, or final amount there before adding everything to cart.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cart */}
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Cart ({cart.length + serviceCart.length} items)</h2>
+                    </div>
+                    
+                    <div className="flex-1 min-h-[300px]">
+                      <table className="w-full text-left">
+                        <thead className="bg-gray-50 dark:bg-gray-800/50">
+                          <tr>
+                            <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Product</th>
+                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Qty</th>
+                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
+                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Amount</th>
+                            <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {cart.length === 0 && serviceCart.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-6 py-12 text-center text-gray-400 dark:text-gray-500 italic text-sm">
+                                Cart is empty
+                              </td>
+                            </tr>
+                          ) : (
+                            <>
+                              {cart.map((item) => (
+                                <tr key={item.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <p className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[120px]">{item.productName}</p>
+                                    <p className="text-[10px] text-gray-500 font-mono mt-0.5">{item.sku}</p>
+                                  </td>
+                                  <td className="px-4 py-4 text-center text-xs font-bold text-gray-700 dark:text-gray-300">{item.quantity}</td>
+                                  <td className="px-4 py-4 text-right text-xs font-medium text-gray-700 dark:text-gray-300">{item.unit_price.toFixed(2)}</td>
+                                  <td className="px-4 py-4 text-right text-xs font-bold text-gray-900 dark:text-white">{item.amount.toFixed(2)}</td>
+                                  <td className="px-6 py-4 text-center">
+                                    <button
+                                      onClick={() => removeFromCart(item.id)}
+                                      className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                              {serviceCart.map((svc) => (
+                                <tr key={`svc-${svc.id}`} className="group hover:bg-amber-50/20 dark:hover:bg-amber-900/10 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 truncate max-w-[120px]">{svc.serviceName}</p>
+                                    <p className="text-[10px] text-amber-600 dark:text-amber-500 uppercase tracking-widest mt-0.5">{svc.category}</p>
+                                  </td>
+                                  <td className="px-4 py-4 text-center text-xs font-bold text-amber-700 dark:text-amber-300">{svc.quantity}</td>
+                                  <td className="px-4 py-4 text-right text-xs font-medium text-amber-700 dark:text-amber-300">{svc.price.toFixed(2)}</td>
+                                  <td className="px-4 py-4 text-right text-xs font-bold text-amber-700 dark:text-amber-400">{svc.amount.toFixed(2)}</td>
+                                  <td className="px-6 py-4 text-center">
+                                    <button
+                                      onClick={() => removeServiceFromCart(svc.id)}
+                                      className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                    >
+                                      Remove
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="p-6 bg-gray-50/80 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800 space-y-4">
+                      <div className="flex justify-between items-end">
+                        <span className="text-sm font-bold text-gray-500">Subtotal:</span>
+                        <div className="text-right">
+                          <p className="text-xl font-black text-gray-900 dark:text-white">{orderTotal.toFixed(2)} Tk</p>
+                          {totalDiscount > 0 && <p className="text-[10px] font-bold text-red-500 mt-0.5">- {totalDiscount.toFixed(2)} Tk Discount</p>}
+                        </div>
+                      </div>
+
+                      {/* ✅ Installment / EMI Section */}
+                      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <label className="flex items-center gap-2 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isInstallment}
+                            onChange={(e) => setIsInstallment(e.target.checked)}
+                            className="h-4 w-4 accent-teal-600 rounded"
+                          />
+                          Installment / EMI
+                        </label>
+
+                        {isInstallment && (
+                          <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-3">
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400">Total installments</label>
+                                <input
+                                  type="number"
+                                  min={2}
+                                  max={24}
+                                  value={installmentCount === 0 ? '' : installmentCount}
+                                  placeholder="3"
+                                  onChange={(e) => setInstallmentCount(e.target.value === '' ? 0 : Number(e.target.value))}
+                                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400">Paying now</label>
+                                <div className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm font-bold text-gray-900 dark:text-white">
+                                  ৳{suggestedInstallmentAmount.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400">Payment method</label>
+                                <select
+                                  value={installmentPaymentMode}
+                                  onChange={(e) => setInstallmentPaymentMode(e.target.value as any)}
+                                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                >
+                                  <option value="cash">Cash</option>
+                                  <option value="card">Card</option>
+                                  <option value="bkash">bKash</option>
+                                  <option value="bank_transfer">Bank Transfer</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400">Txn ref (optional)</label>
+                                <input
+                                  value={installmentTransactionReference}
+                                  onChange={(e) => setInstallmentTransactionReference(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                  placeholder="e.g. Txn ID"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400">Paying now (flexible)</label>
+                              <input
+                                type="number"
+                                value={installmentPayingNow}
+                                placeholder={suggestedInstallmentAmount.toFixed(2)}
+                                onChange={(e) => setInstallmentPayingNow(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-gray-500 dark:text-gray-400">
+                              <span>Suggested per installment: <span className="font-bold text-gray-700 dark:text-gray-300">৳{suggestedInstallmentAmount.toFixed(2)}</span></span>
+                              <span>Remaining after today: <span className="font-bold text-gray-700 dark:text-gray-300">৳{installmentRemaining.toFixed(2)}</span></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {isInternational && (
+                        <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30 flex items-center gap-3">
+                          <Globe size={16} className="text-blue-500" />
+                          <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400">International shipping rates will apply</p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleConfirmOrder}
+                        disabled={(cart.length === 0 && serviceCart.length === 0) || isProcessingOrder}
+                        className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-teal-500/20 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:scale-100"
+                      >
+                        {isProcessingOrder ? 'Processing...' : isInstallment ? `Confirm Order (EMI: ৳${actualPayingNow.toFixed(2)} now)` : 'Confirm Order'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1960,7 +1960,7 @@ export default function POSPage() {
                                 <option value="cash">Cash</option>
                                 <option value="card">Card</option>
                                 <option value="bkash">bKash</option>
-                                <option value="nagad">Nagad</option>
+                                <option value="nagad">Bank Transfer</option>
                               </select>
                             </div>
                             <div>
@@ -2022,7 +2022,7 @@ export default function POSPage() {
                         </div>
                         <div>
                           <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
-                            Nagad
+                            Bank Transfer
                           </label>
                           <input
                             type="number"

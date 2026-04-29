@@ -57,7 +57,7 @@ const DailyCashReportModal: React.FC<DailyCashReportModalProps> = ({
       ['Cash', data.cash.toFixed(2)],
       ['Card', data.card.toFixed(2)],
       ['Bkash', data.bkash.toFixed(2)],
-      ['Nagad', data.nagad.toFixed(2)],
+      ['Bank Transfer', data.nagad.toFixed(2)],
     ].map(e => e.join(',')).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -104,7 +104,7 @@ const DailyCashReportModal: React.FC<DailyCashReportModalProps> = ({
       ['Cash', data.cash],
       ['Card', data.card],
       ['Bkash', data.bkash],
-      ['Nagad', data.nagad],
+      ['Bank Transfer', data.nagad],
     ];
 
     rows.forEach((row, i) => {

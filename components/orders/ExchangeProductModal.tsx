@@ -765,7 +765,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                         <input type="number" value={bkashAmount} onChange={(e) => setBkashAmount(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Nagad</label>
+                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Bank Transfer</label>
                         <input type="number" value={nagadAmount} onChange={(e) => setNagadAmount(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                       <div>
@@ -882,7 +882,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                         <input type="number" value={bkashAmount} onChange={(e) => setBkashAmount(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Nagad</label>
+                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Bank Transfer</label>
                         <input type="number" value={nagadAmount} onChange={(e) => setNagadAmount(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                     </div>

@@ -479,7 +479,7 @@ export default function ReturnProductModal({ order, onClose, onReturn }: ReturnP
                         <input type="number" value={refundBkash} onChange={(e) => setRefundBkash(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Nagad Refund</label>
+                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Bank Transfer Refund</label>
                         <input type="number" value={refundNagad} onChange={(e) => setRefundNagad(Number(e.target.value))} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" />
                       </div>
                     </div>
