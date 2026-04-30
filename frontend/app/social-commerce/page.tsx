@@ -143,6 +143,7 @@ export default function SocialCommercePage() {
   const [installmentPaymentMode, setInstallmentPaymentMode] = useState<'cash' | 'card' | 'bkash' | 'bank_transfer'>('cash');
   const [installmentTransactionReference, setInstallmentTransactionReference] = useState('');
   const [installmentPayingNow, setInstallmentPayingNow] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
 
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -969,6 +970,7 @@ export default function SocialCommercePage() {
       setSelectedPaymentMethod('');
       setTransactionReference('');
       setPaymentNotes('');
+      setOrderNotes('');
       setCodPaymentMethod('');
       setIsInstallment(false);
       setInstallmentCount(3);
@@ -1735,104 +1737,102 @@ export default function SocialCommercePage() {
                 {/* Left Column - Form Data */}
                 <div className="lg:col-span-3 space-y-6">
                   {/* Customer Information */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50">
-                      <h2 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
-                        <User size={18} className="text-teal-500" />
-                        Customer Information
-                      </h2>
-                    </div>
-                    <div className="p-8 space-y-6">
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Name*</label>
-                        <input
-                          type="text"
-                          placeholder="Full Name"
-                          value={userName}
-                          onChange={(e) => setUserName(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                  <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <div className="p-6">
+                      <h2 className="text-base font-bold text-gray-800 dark:text-white">Customer Information</h2>
+                      
+                      <div className="mt-6 space-y-5">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">User Name*</label>
+                          <input
+                            type="text"
+                            placeholder="Full Name"
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Phone Number*</label>
-                        <input
-                          type="text"
-                          placeholder="Phone Number"
-                          value={userPhone}
-                          onChange={(e) => setUserPhone(e.target.value)}
-                          onBlur={handlePhoneBlur}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">User Phone Number*</label>
+                          <input
+                            type="text"
+                            placeholder="Phone Number"
+                            value={userPhone}
+                            onChange={(e) => setUserPhone(e.target.value)}
+                            onBlur={handlePhoneBlur}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Address*</label>
-                        <textarea
-                          placeholder="House 71, Road 15, Sector 11, Uttara, Dhaka"
-                          value={streetAddress}
-                          onChange={(e) => setStreetAddress(e.target.value)}
-                          rows={4}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Full Address*</label>
+                          <textarea
+                            placeholder="House 71, Road 15, Sector 11, Uttara, Dhaka"
+                            value={streetAddress}
+                            onChange={(e) => setStreetAddress(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all resize-none placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Postal Code</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., 1212"
-                          value={postalCode}
-                          onChange={(e) => setPostalCode(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Postal Code</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 1212"
+                            value={postalCode}
+                            onChange={(e) => setPostalCode(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Email</label>
-                        <input
-                          type="email"
-                          placeholder="sample@email.com (optional)"
-                          value={userEmail}
-                          onChange={(e) => setUserEmail(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">User Email</label>
+                          <input
+                            type="email"
+                            placeholder="sample@email.com (optional)"
+                            value={userEmail}
+                            onChange={(e) => setUserEmail(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Social ID</label>
-                        <input
-                          type="text"
-                          placeholder="Enter Social ID"
-                          value={socialId}
-                          onChange={(e) => setSocialId(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
-                      </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Social ID</label>
+                          <input
+                            type="text"
+                            placeholder="Enter Social ID"
+                            value={socialId}
+                            onChange={(e) => setSocialId(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all placeholder:text-gray-300"
+                          />
+                        </div>
 
-                      {/* Domestic/International Toggle */}
-                      <div className="flex p-1.5 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-inner mt-4">
-                        <button
-                          onClick={() => setIsInternational(false)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${!isInternational ? 'bg-gray-900 text-white shadow-xl scale-100' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 scale-95'}`}
-                        >
-                          <span className="text-base">🏠</span> Domestic
-                        </button>
-                        <button
-                          onClick={() => setIsInternational(true)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${isInternational ? 'bg-blue-600 text-white shadow-xl scale-100' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 scale-95'}`}
-                        >
-                          <span className="text-base">🌐</span> International
-                        </button>
+                        {/* Domestic/International Toggle */}
+                        <div className="flex p-1 bg-white border border-gray-200 dark:bg-gray-800 rounded-xl mt-4">
+                          <button
+                            onClick={() => setIsInternational(false)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${!isInternational ? 'bg-[#1a1f2c] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                          >
+                            <span>🔥</span> Domestic
+                          </button>
+                          <button
+                            onClick={() => setIsInternational(true)}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${isInternational ? 'bg-[#1a1f2c] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                          >
+                            <Globe size={16} className={isInternational ? 'text-white' : 'text-gray-400'} /> International
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   {/* Add-on Services */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 flex items-center justify-between">
+                  <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-6 flex items-center justify-between">
                     <div>
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Add-on Services</h2>
-                      <p className="text-xs text-gray-500 mt-1">Add service items (tailoring, wash, repair, etc.)</p>
+                      <h2 className="text-base font-bold text-gray-800 dark:text-white">Add-on Services</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">Add service items (tailoring, wash, repair, etc.)</p>
                     </div>
                     <ServiceSelector
                       onAddService={addServiceToCart}
@@ -1842,68 +1842,47 @@ export default function SocialCommercePage() {
                   </div>
 
                   {/* Delivery Details */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Truck size={18} className="text-teal-500" />
-                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Delivery Details</h2>
+                  <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+                    <div className="p-6">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-base font-bold text-gray-800 dark:text-white">Delivery Details</h2>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/20 text-[#c2410c] dark:text-orange-400 rounded-full text-[10px] font-bold">
+                          <span>🏠</span> Domestic
+                        </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm ${isInternational ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'}`}>
-                        {isInternational ? '🌐 International' : '🏠 Domestic'}
-                      </span>
-                    </div>
-                    <div className="p-8 space-y-8">
-                      {!isInternational ? (
-                        <div className="space-y-6">
-                          <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm hover:border-teal-300 transition-colors group">
-                            <div className="flex-1">
-                              <p className="text-sm font-black text-gray-900 dark:text-white">Auto-detect Pathao location</p>
-                              <p className="text-[11px] text-gray-500 mt-1 font-medium leading-relaxed">When ON, City/Zone/Area are not required. Pathao will infer the location from the full address text.</p>
-                            </div>
-                            <div className="relative inline-block w-12 h-6 ml-4">
+                      
+                      <div className="mt-6 space-y-6">
+                        {!isInternational ? (
+                          <div className="space-y-6">
+                            <div className="bg-[#f8fafc] dark:bg-gray-800/50 p-5 rounded-xl border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-xs font-bold text-gray-800 dark:text-white tracking-tight">Auto-detect Pathao location</p>
+                                <p className="text-[11px] text-gray-500 mt-1 font-medium leading-relaxed max-w-[280px]">When ON, City/Zone/Area are not required. Pathao will infer the location from the full address text.</p>
+                              </div>
                               <input
                                 type="checkbox"
                                 checked={isPathaoAuto}
                                 onChange={(e) => setIsPathaoAuto(e.target.checked)}
-                                className="sr-only peer"
-                                id="pathao-auto-toggle"
+                                className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
                               />
-                              <label
-                                htmlFor="pathao-auto-toggle"
-                                className="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 dark:bg-gray-700 rounded-full transition-all peer-checked:bg-teal-500"
-                              >
-                                <span className="absolute left-1 bottom-1 bg-white w-4 h-4 rounded-full transition-all peer-checked:translate-x-6"></span>
-                              </label>
                             </div>
+                            
+                            <p className="text-[11px] text-gray-400 italic px-1">
+                              Tip: include area + city (e.g., <span className="font-bold">Uttara, Dhaka</span>) in the address above.
+                            </p>
                           </div>
-                          
-                          <p className="text-[11px] text-gray-400 italic flex items-center gap-2 px-1">
-                            <Info size={12} className="text-teal-500" />
-                            Tip: include area + city (e.g., <span className="font-bold text-gray-600 dark:text-gray-300">Uttara, Dhaka</span>) in the address above.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Country <span className="text-red-500">*</span></label>
-                            <input
-                              type="text"
-                              placeholder="Enter Country"
-                              value={country}
-                              onChange={(e) => setCountry(e.target.value)}
-                              className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm"
-                            />
-                          </div>
-                        </div>
-                      )}
+                        ) : null}
 
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Order Notes</label>
-                        <textarea
-                          placeholder="Special instructions, landmark, preferred delivery note, packaging note, etc."
-                          rows={4}
-                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Order Notes</label>
+                          <textarea
+                            placeholder="Special instructions, landmark, preferred delivery note, packaging note, etc."
+                            value={orderNotes}
+                            onChange={(e) => setOrderNotes(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-sm focus:ring-1 focus:ring-teal-500 outline-none transition-all resize-none placeholder:text-gray-300"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
