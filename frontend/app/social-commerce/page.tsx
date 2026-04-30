@@ -4,7 +4,10 @@
  import { useRouter } from 'next/navigation';
  import { useTheme } from "@/contexts/ThemeContext";
  import { useAuth } from '@/contexts/AuthContext';
-import { Search, X, Globe, AlertCircle, Wrench } from 'lucide-react';
+import { 
+  Search, X, Globe, AlertCircle, Wrench, RefreshCw, User, ShoppingBag, Info,
+  DollarSign, CreditCard, Wallet, MapPin, Truck, ChevronDown, ChevronRight, Plus, Minus, Store as StoreIcon 
+} from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import CustomerTagManager from '@/components/customers/CustomerTagManager';
@@ -17,7 +20,7 @@ import batchService from '@/services/batchService';
  import shipmentService from '@/services/shipmentService';
 import { fireToast } from '@/lib/globalToast';
 import paymentService from '@/services/paymentService';
-import { DollarSign, CreditCard, Wallet, MapPin, Truck, ChevronDown, ChevronRight, Plus, Minus, Store as StoreIcon } from 'lucide-react';
+
 import ServiceSelector, { ServiceItem } from '@/components/ServiceSelector';
 
 interface DefectItem {
@@ -568,7 +571,7 @@ export default function SocialCommercePage() {
             store_name: defect.store || 'Unknown',
           };
 
-          setCart([defectCartItem]);
+          setCart(prev => [...prev, defectCartItem]);
           showToast(`Defective item added to cart: ${defect.productName}`, 'success');
           sessionStorage.removeItem('defectItem');
         } catch (error) {
@@ -584,7 +587,7 @@ export default function SocialCommercePage() {
 
   // Sync state with localStorage
   useEffect(() => {
-    // Load state from localStorage on mount
+    // Load state from localStorage on mount - ONLY ONCE
     const savedState = localStorage.getItem('social_commerce_state');
     if (savedState) {
       try {
@@ -605,12 +608,20 @@ export default function SocialCommercePage() {
         setSelectedCityId(state.selectedCityId || '');
         setSelectedZoneId(state.selectedZoneId || '');
         setSelectedAreaId(state.selectedAreaId || '');
+        
+        // Restore cart items
+        if (state.cart && Array.isArray(state.cart)) {
+          setCart(state.cart);
+        }
+        if (state.serviceCart && Array.isArray(state.serviceCart)) {
+          setServiceCart(state.serviceCart);
+        }
       } catch (e) {
         console.error('Failed to load state', e);
       }
     }
 
-    // Load queue items from localStorage
+    // Load queue items from localStorage - ONLY ONCE
     const savedQueue = localStorage.getItem('social_commerce_queue');
     if (savedQueue) {
       try {
@@ -630,13 +641,14 @@ export default function SocialCommercePage() {
           setCart(prev => [...prev, ...cartItems]);
           // Clear queue after loading
           localStorage.removeItem('social_commerce_queue');
+          
+          // Show success toast
+          showToast(`Added ${cartItems.length} items from product list`, 'success');
         }
       } catch (e) {
         console.error('Failed to load queue', e);
       }
     }
-
-    setSalesBy(user?.name || '');
 
     const loadInitialData = async () => {
       try {
@@ -653,6 +665,13 @@ export default function SocialCommercePage() {
       }
     };
     loadInitialData();
+  }, []); // Run only once on mount
+
+  // Separate effect for user synchronization
+  useEffect(() => {
+    if (user?.name) {
+      setSalesBy(user.name);
+    }
   }, [user]);
 
   // Pathao Location Fetching
@@ -697,7 +716,7 @@ export default function SocialCommercePage() {
   // Save state to localStorage whenever it changes (with debounce)
   useEffect(() => {
     const timer = setTimeout(() => {
-      const state = {
+      const stateToSave = {
         userName,
         userEmail,
         userPhone,
@@ -714,11 +733,13 @@ export default function SocialCommercePage() {
         selectedCityId,
         selectedZoneId,
         selectedAreaId,
+        cart,
+        serviceCart,
       };
-      localStorage.setItem('social_commerce_state', JSON.stringify(state));
+      localStorage.setItem('social_commerce_state', JSON.stringify(stateToSave));
     }, 500);
     return () => clearTimeout(timer);
-  }, [userName, userEmail, userPhone, socialId, streetAddress, postalCode, isInternational, country, state, internationalCity, internationalPostalCode, deliveryAddress, isPathaoAuto, selectedCityId, selectedZoneId, selectedAreaId]);
+  }, [userName, userEmail, userPhone, socialId, streetAddress, postalCode, isInternational, country, state, internationalCity, internationalPostalCode, deliveryAddress, isPathaoAuto, selectedCityId, selectedZoneId, selectedAreaId, cart, serviceCart]);
 
   // ✅ Search effect using e-commerce catalog search
   useEffect(() => {
@@ -1661,46 +1682,49 @@ export default function SocialCommercePage() {
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
         <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Header darkMode={darkMode} setDarkMode={setDarkMode} toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-          
-          <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-            <div className="max-w-7xl mx-auto space-y-6">
+          <main className="flex-1 overflow-y-auto p-6 lg:p-10">
+            <div className="max-w-[1400px] mx-auto space-y-8">
               {/* Top Header */}
-              <div className="flex items-center justify-between bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Social Commerce</h1>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Social Commerce</h1>
                   <button
                     onClick={handleClearAll}
-                    className="px-3 py-1.5 text-[10px] font-bold text-red-500 hover:text-white border border-red-200 hover:bg-red-500 rounded-lg transition-all"
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-500 hover:text-white border border-red-200 hover:bg-red-500 rounded-xl transition-all shadow-sm"
                   >
-                    Clear All
+                    <RefreshCw size={14} /> Clear All
                   </button>
                 </div>
-                <div className="flex gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sales By</label>
-                    <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-600 dark:text-gray-300">
-                      {salesBy || 'Loading...'}
+                
+                <div className="flex items-start gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Sales By</label>
+                    <div className="bg-gray-100 dark:bg-gray-800/50 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[180px] shadow-sm">
+                      {salesBy || 'System User'}
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date <span className="text-red-500">*</span></label>
-                    <input
-                      type="text"
-                      value={date}
-                      readOnly
-                      className="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 outline-none w-32"
-                    />
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Date <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={date}
+                        readOnly
+                        className="bg-white dark:bg-gray-800 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-900 dark:text-white w-40 shadow-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Store</label>
-                    <div className="space-y-1">
-                      <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-900 dark:text-white uppercase min-w-[120px]">
-                        {selectedStore?.name || 'Loading...'}
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Store</label>
+                    <div>
+                      <div className="bg-gray-100 dark:bg-gray-800/50 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-900 dark:text-white uppercase min-w-[160px] shadow-sm">
+                        {selectedStore?.name || 'Main Warehouse'}
                       </div>
-                      <p className="text-[10px] font-medium text-green-500 flex items-center gap-1">
-                        <Plus size={8} /> {inventoryStats?.active_batches || 0} batches available
+                      <p className="text-[10px] font-bold text-green-500 mt-1.5 ml-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                        {inventoryStats?.active_batches || 0} batches available
                       </p>
                     </div>
                   </div>
@@ -1711,90 +1735,92 @@ export default function SocialCommercePage() {
                 {/* Left Column - Form Data */}
                 <div className="lg:col-span-3 space-y-6">
                   {/* Customer Information */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Customer Information</h2>
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50">
+                      <h2 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                        <User size={18} className="text-teal-500" />
+                        Customer Information
+                      </h2>
                     </div>
-                    <div className="p-6 space-y-5">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500">User Name <span className="text-red-500">*</span></label>
+                    <div className="p-8 space-y-6">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Name*</label>
                         <input
                           type="text"
                           placeholder="Full Name"
                           value={userName}
                           onChange={(e) => setUserName(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500">User Phone Number <span className="text-red-500">*</span></label>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Phone Number*</label>
                         <input
                           type="text"
                           placeholder="Phone Number"
                           value={userPhone}
                           onChange={(e) => setUserPhone(e.target.value)}
                           onBlur={handlePhoneBlur}
-                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500">Street Address <span className="text-red-500">*</span></label>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Full Address*</label>
                         <textarea
-                          placeholder="House 12, Road 5, etc."
+                          placeholder="House 71, Road 15, Sector 11, Uttara, Dhaka"
                           value={streetAddress}
                           onChange={(e) => setStreetAddress(e.target.value)}
-                          rows={3}
-                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                          rows={4}
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-500">Postal Code</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., 1212"
-                            value={postalCode}
-                            onChange={(e) => setPostalCode(e.target.value)}
-                            className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold text-gray-500">User Email</label>
-                          <input
-                            type="email"
-                            placeholder="sample@email.com (optional)"
-                            value={userEmail}
-                            onChange={(e) => setUserEmail(e.target.value)}
-                            className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
-                          />
-                        </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Postal Code</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., 1212"
+                          value={postalCode}
+                          onChange={(e) => setPostalCode(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                        />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500">Social ID</label>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">User Email</label>
+                        <input
+                          type="email"
+                          placeholder="sample@email.com (optional)"
+                          value={userEmail}
+                          onChange={(e) => setUserEmail(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Social ID</label>
                         <input
                           type="text"
                           placeholder="Enter Social ID"
                           value={socialId}
                           onChange={(e) => setSocialId(e.target.value)}
-                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                       </div>
 
                       {/* Domestic/International Toggle */}
-                      <div className="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">
+                      <div className="flex p-1.5 bg-gray-100 dark:bg-gray-800 rounded-2xl shadow-inner mt-4">
                         <button
                           onClick={() => setIsInternational(false)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${!isInternational ? 'bg-gray-900 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${!isInternational ? 'bg-gray-900 text-white shadow-xl scale-100' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 scale-95'}`}
                         >
                           <span className="text-base">🏠</span> Domestic
                         </button>
                         <button
                           onClick={() => setIsInternational(true)}
-                          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${isInternational ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${isInternational ? 'bg-blue-600 text-white shadow-xl scale-100' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 scale-95'}`}
                         >
                           <span className="text-base">🌐</span> International
                         </button>
@@ -1816,116 +1842,67 @@ export default function SocialCommercePage() {
                   </div>
 
                   {/* Delivery Details */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Delivery Details</h2>
-                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${isInternational ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'}`}>
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Truck size={18} className="text-teal-500" />
+                        <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Delivery Details</h2>
+                      </div>
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-sm ${isInternational ? 'bg-blue-600 text-white' : 'bg-amber-500 text-white'}`}>
                         {isInternational ? '🌐 International' : '🏠 Domestic'}
                       </span>
                     </div>
-                    <div className="p-6 space-y-6">
+                    <div className="p-8 space-y-8">
                       {!isInternational ? (
-                        <>
-                          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-bold text-gray-900 dark:text-white">Auto-detect Pathao location</p>
-                              <p className="text-[10px] text-gray-500 mt-0.5">When ON, City/Zone/Area are not required. Pathao will infer the location from the full address text.</p>
+                        <div className="space-y-6">
+                          <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-2xl border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm hover:border-teal-300 transition-colors group">
+                            <div className="flex-1">
+                              <p className="text-sm font-black text-gray-900 dark:text-white">Auto-detect Pathao location</p>
+                              <p className="text-[11px] text-gray-500 mt-1 font-medium leading-relaxed">When ON, City/Zone/Area are not required. Pathao will infer the location from the full address text.</p>
                             </div>
-                            <input
-                              type="checkbox"
-                              checked={isPathaoAuto}
-                              onChange={(e) => setIsPathaoAuto(e.target.checked)}
-                              className="w-5 h-5 accent-teal-600 rounded cursor-pointer"
-                            />
+                            <div className="relative inline-block w-12 h-6 ml-4">
+                              <input
+                                type="checkbox"
+                                checked={isPathaoAuto}
+                                onChange={(e) => setIsPathaoAuto(e.target.checked)}
+                                className="sr-only peer"
+                                id="pathao-auto-toggle"
+                              />
+                              <label
+                                htmlFor="pathao-auto-toggle"
+                                className="absolute cursor-pointer top-0 left-0 right-0 bottom-0 bg-gray-300 dark:bg-gray-700 rounded-full transition-all peer-checked:bg-teal-500"
+                              >
+                                <span className="absolute left-1 bottom-1 bg-white w-4 h-4 rounded-full transition-all peer-checked:translate-x-6"></span>
+                              </label>
+                            </div>
                           </div>
-
-                          {!isPathaoAuto && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                              <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500">City (Pathao) <span className="text-red-500">*</span></label>
-                                <select
-                                  value={selectedCityId}
-                                  onChange={(e) => setSelectedCityId(e.target.value)}
-                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                                >
-                                  <option value="">Select City</option>
-                                  {pathaoCities.map(city => (
-                                    <option key={city.city_id} value={city.city_id}>{city.city_name}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-xs font-bold text-gray-500">Zone (Pathao) <span className="text-red-500">*</span></label>
-                                <select
-                                  value={selectedZoneId}
-                                  onChange={(e) => setSelectedZoneId(e.target.value)}
-                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                                  disabled={!selectedCityId}
-                                >
-                                  <option value="">Select Zone</option>
-                                  {pathaoZones.map(zone => (
-                                    <option key={zone.zone_id} value={zone.zone_id}>{zone.zone_name}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="md:col-span-2 space-y-2">
-                                <label className="text-xs font-bold text-gray-500">Area (Pathao) <span className="text-red-500">*</span></label>
-                                <select
-                                  value={selectedAreaId}
-                                  onChange={(e) => setSelectedAreaId(e.target.value)}
-                                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                                  disabled={!selectedZoneId}
-                                >
-                                  <option value="">Select Area</option>
-                                  {pathaoAreas.map(area => (
-                                    <option key={area.area_id} value={area.area_id}>{area.area_name}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                          )}
-                        </>
+                          
+                          <p className="text-[11px] text-gray-400 italic flex items-center gap-2 px-1">
+                            <Info size={12} className="text-teal-500" />
+                            Tip: include area + city (e.g., <span className="font-bold text-gray-600 dark:text-gray-300">Uttara, Dhaka</span>) in the address above.
+                          </p>
+                        </div>
                       ) : (
-                        <div className="space-y-5">
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500">Country <span className="text-red-500">*</span></label>
+                        <div className="space-y-6">
+                          <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Country <span className="text-red-500">*</span></label>
                             <input
                               type="text"
                               placeholder="Enter Country"
                               value={country}
                               onChange={(e) => setCountry(e.target.value)}
-                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500">State/Province</label>
-                            <input
-                              type="text"
-                              placeholder="Enter State"
-                              value={state}
-                              onChange={(e) => setState(e.target.value)}
-                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500">City <span className="text-red-500">*</span></label>
-                            <input
-                              type="text"
-                              placeholder="Enter City"
-                              value={internationalCity}
-                              onChange={(e) => setInternationalCity(e.target.value)}
-                              className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                              className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm"
                             />
                           </div>
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500">Order Notes</label>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">Order Notes</label>
                         <textarea
                           placeholder="Special instructions, landmark, preferred delivery note, packaging note, etc."
                           rows={4}
-                          className="w-full bg-white dark:bg-gray-800 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none"
+                          className="w-full bg-white dark:bg-gray-800 px-5 py-3.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all resize-none shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                       </div>
                     </div>
@@ -1935,61 +1912,67 @@ export default function SocialCommercePage() {
                 {/* Right Column - Cart & Search */}
                 <div className="lg:col-span-2 space-y-6">
                   {/* Search Product */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Search Product</h2>
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50">
+                      <h2 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Search size={18} className="text-teal-500" />
+                        Search Product
+                      </h2>
                     </div>
-                    <div className="p-6 space-y-4">
+                    <div className="p-6 space-y-5">
                       <div className="flex gap-2">
                         <input
                           type="text"
                           placeholder="Type to search product..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="flex-1 bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="flex-1 bg-white dark:bg-gray-800 px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                         <input
                           type="number"
                           placeholder="Min ৳"
                           value={minPriceFilter}
                           onChange={(e) => setMinPriceFilter(e.target.value)}
-                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-20 bg-white dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm text-center placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                         <input
                           type="number"
                           placeholder="Max ৳"
                           value={maxPriceFilter}
                           onChange={(e) => setMaxPriceFilter(e.target.value)}
-                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          className="w-20 bg-white dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm text-center placeholder:text-gray-300 dark:placeholder:text-gray-600"
                         />
                         <input
                           type="number"
                           placeholder="Exact ৳"
                           value={exactPriceFilter}
                           onChange={(e) => setExactPriceFilter(e.target.value)}
-                          className="w-20 bg-white dark:bg-gray-800 px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all border-blue-200 dark:border-blue-900"
+                          className="w-20 bg-blue-50 dark:bg-blue-900/10 px-3 py-3 rounded-xl border border-blue-200 dark:border-blue-900 text-xs font-black focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-center text-blue-700 dark:text-blue-300 placeholder:text-blue-200 dark:placeholder:text-blue-800"
                         />
-                        <button className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 p-2.5 rounded-xl hover:scale-105 active:scale-95 transition-all">
-                          <Search size={20} />
+                        <button className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center justify-center">
+                          <Search size={22} strokeWidth={2.5} />
                         </button>
                       </div>
 
-                      <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-between gap-4">
+                      <div className="p-5 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-between gap-6 transition-all hover:border-teal-400 group">
                         <div className="flex-1">
-                          <p className="text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
+                          <p className="text-[11px] leading-relaxed font-semibold text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
                             Click a product card to stage it instantly, or open Product List for bigger browsing.
                           </p>
                         </div>
                         <button
                           onClick={() => router.push(`/product/list?mode=social_commerce&redirect=/social-commerce`)}
-                          className="flex-shrink-0 bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm whitespace-nowrap"
+                          className="flex-shrink-0 bg-white dark:bg-gray-900 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-[11px] font-black text-gray-900 dark:text-white hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-black transition-all shadow-md whitespace-nowrap uppercase tracking-widest"
                         >
                           Browse Product List
                         </button>
                       </div>
 
-                      <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
-                        <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-tight">
+                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-start gap-3">
+                        <div className="bg-indigo-500/10 p-1 rounded-md text-indigo-600 dark:text-indigo-400">
+                          <Info size={14} />
+                        </div>
+                        <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 leading-tight">
                           Instant stage mode is on. Click any product card to add it to the staged list, then edit quantity, discount, or final amount there before adding everything to cart.
                         </p>
                       </div>
@@ -1997,65 +1980,75 @@ export default function SocialCommercePage() {
                   </div>
 
                   {/* Cart */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-white">Cart ({cart.length + serviceCart.length} items)</h2>
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50 flex items-center justify-between">
+                      <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Cart ({cart.length + serviceCart.length} items)</h2>
                     </div>
                     
-                    <div className="flex-1 min-h-[300px]">
+                    <div className="flex-1 min-h-[400px]">
                       <table className="w-full text-left">
-                        <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <thead className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-800">
                           <tr>
-                            <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Product</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Qty</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Price</th>
-                            <th className="px-4 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Amount</th>
-                            <th className="px-6 py-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-center">Action</th>
+                            <th className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest">Product</th>
+                            <th className="px-4 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">Qty</th>
+                            <th className="px-4 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Price</th>
+                            <th className="px-4 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest text-right">Amount</th>
+                            <th className="px-6 py-4 text-[11px] font-black text-gray-400 uppercase tracking-widest text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                           {cart.length === 0 && serviceCart.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="px-6 py-12 text-center text-gray-400 dark:text-gray-500 italic text-sm">
-                                Cart is empty
+                              <td colSpan={5} className="px-6 py-20 text-center text-gray-300 dark:text-gray-600 italic text-sm font-medium">
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="w-12 h-12 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-200 dark:text-gray-700">
+                                    <ShoppingBag size={24} />
+                                  </div>
+                                  No products in cart
+                                </div>
                               </td>
                             </tr>
                           ) : (
                             <>
                               {cart.map((item) => (
                                 <tr key={item.id} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                                  <td className="px-6 py-4">
-                                    <p className="text-xs font-bold text-gray-900 dark:text-white truncate max-w-[120px]">{item.productName}</p>
-                                    <p className="text-[10px] text-gray-500 font-mono mt-0.5">{item.sku}</p>
+                                  <td className="px-6 py-5">
+                                    <p className="text-xs font-black text-gray-900 dark:text-white truncate max-w-[150px]">{item.productName}</p>
+                                    <p className="text-[10px] text-gray-500 font-mono mt-1 uppercase tracking-tighter">{item.sku}</p>
                                   </td>
-                                  <td className="px-4 py-4 text-center text-xs font-bold text-gray-700 dark:text-gray-300">{item.quantity}</td>
-                                  <td className="px-4 py-4 text-right text-xs font-medium text-gray-700 dark:text-gray-300">{item.unit_price.toFixed(2)}</td>
-                                  <td className="px-4 py-4 text-right text-xs font-bold text-gray-900 dark:text-white">{item.amount.toFixed(2)}</td>
-                                  <td className="px-6 py-4 text-center">
+                                  <td className="px-4 py-5 text-center text-xs font-black text-gray-700 dark:text-gray-300">
+                                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-md">{item.quantity}</span>
+                                  </td>
+                                  <td className="px-4 py-5 text-right text-xs font-bold text-gray-600 dark:text-gray-400">{item.unit_price.toLocaleString()}</td>
+                                  <td className="px-4 py-5 text-right text-xs font-black text-gray-900 dark:text-white">{item.amount.toLocaleString()}</td>
+                                  <td className="px-6 py-5 text-center">
                                     <button
                                       onClick={() => removeFromCart(item.id)}
-                                      className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                      className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                      title="Remove from cart"
                                     >
-                                      Remove
+                                      <X size={16} />
                                     </button>
                                   </td>
                                 </tr>
                               ))}
                               {serviceCart.map((svc) => (
                                 <tr key={`svc-${svc.id}`} className="group hover:bg-amber-50/20 dark:hover:bg-amber-900/10 transition-colors">
-                                  <td className="px-6 py-4">
-                                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 truncate max-w-[120px]">{svc.serviceName}</p>
-                                    <p className="text-[10px] text-amber-600 dark:text-amber-500 uppercase tracking-widest mt-0.5">{svc.category}</p>
+                                  <td className="px-6 py-5 border-l-4 border-amber-400">
+                                    <p className="text-xs font-black text-amber-700 dark:text-amber-400 truncate max-w-[150px]">{svc.serviceName}</p>
+                                    <p className="text-[10px] text-amber-600 dark:text-amber-500 uppercase tracking-widest mt-1 font-bold">{svc.category}</p>
                                   </td>
-                                  <td className="px-4 py-4 text-center text-xs font-bold text-amber-700 dark:text-amber-300">{svc.quantity}</td>
-                                  <td className="px-4 py-4 text-right text-xs font-medium text-amber-700 dark:text-amber-300">{svc.price.toFixed(2)}</td>
-                                  <td className="px-4 py-4 text-right text-xs font-bold text-amber-700 dark:text-amber-400">{svc.amount.toFixed(2)}</td>
-                                  <td className="px-6 py-4 text-center">
+                                  <td className="px-4 py-5 text-center text-xs font-black text-amber-700 dark:text-amber-300">
+                                    <span className="px-2 py-1 bg-amber-50 dark:bg-amber-900/30 rounded-md">{svc.quantity}</span>
+                                  </td>
+                                  <td className="px-4 py-5 text-right text-xs font-bold text-amber-700 dark:text-amber-300">{svc.price.toLocaleString()}</td>
+                                  <td className="px-4 py-5 text-right text-xs font-black text-amber-700 dark:text-amber-400">{svc.amount.toLocaleString()}</td>
+                                  <td className="px-6 py-5 text-center">
                                     <button
                                       onClick={() => removeServiceFromCart(svc.id)}
-                                      className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                      className="p-2 text-amber-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                     >
-                                      Remove
+                                      <X size={16} />
                                     </button>
                                   </td>
                                 </tr>
