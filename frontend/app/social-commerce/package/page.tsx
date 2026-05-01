@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   Package,
   Scan,
@@ -89,8 +87,7 @@ const formatBDT = (value: any, decimals: 0 | 2 = 0) => {
 const normalize = (v: any) => String(v ?? '').trim().toLowerCase();
 
 export default function WarehouseFulfillmentPage() {
-  const { darkMode, setDarkMode } = useTheme();
-  const { isRole } = useAuth();
+  const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
@@ -286,30 +283,13 @@ export default function WarehouseFulfillmentPage() {
   const fetchPendingOrders = async () => {
     setIsLoadingOrders(true);
     try {
-      let allOrders: any[] = [];
+      // Fetch both social_commerce and ecommerce orders
+      const [socialCommerceResponse, ecommerceResponse] = await Promise.all([
+        orderService.getPendingFulfillment({ per_page: 100, order_type: 'social_commerce' }),
+        orderService.getPendingFulfillment({ per_page: 100, order_type: 'ecommerce' }),
+      ]);
 
-      if (isRole('pos-salesman')) {
-        // POS Salesman sees pos/ecommerce/social-commerce
-        const response = await orderService.getPendingFulfillment({
-          per_page: 100,
-          order_types: ['counter', 'social_commerce', 'ecommerce']
-        });
-        allOrders = response.data || [];
-      } else if (isRole('branch-manager')) {
-        // Branch Manager: social_commerce for their branch only (store_id auto-injected by interceptor)
-        const response = await orderService.getPendingFulfillment({
-          per_page: 100,
-          order_type: 'social_commerce',
-        });
-        allOrders = response.data || [];
-      } else {
-        // Admins/Moderators see standard social/ecommerce delivery orders
-        const [socialCommerceResponse, ecommerceResponse] = await Promise.all([
-          orderService.getPendingFulfillment({ per_page: 100, order_type: 'social_commerce' }),
-          orderService.getPendingFulfillment({ per_page: 100, order_type: 'ecommerce' }),
-        ]);
-        allOrders = [...(socialCommerceResponse.data || []), ...(ecommerceResponse.data || [])];
-      }
+      const allOrders = [...(socialCommerceResponse.data || []), ...(ecommerceResponse.data || [])];
 
       // Sort by date, newest first
       allOrders.sort((a, b) => new Date(b.order_date).getTime() - new Date(a.order_date).getTime());
@@ -329,6 +309,8 @@ export default function WarehouseFulfillmentPage() {
       // Run in background (no need to block UI render)
       loadOrderCardMeta(filtered);
       console.log('📦 Loaded pending orders:', {
+        social_commerce: socialCommerceResponse.data?.length || 0,
+        ecommerce: ecommerceResponse.data?.length || 0,
         total: filtered.length,
       });
     } catch (error: any) {
@@ -461,55 +443,55 @@ export default function WarehouseFulfillmentPage() {
 
       // Find matching order item
       // Normalize ids (handles product_id vs product.id, string vs number)
-      const getProductId = (item: any) =>
-        Number(item?.product_id ?? item?.productId ?? item?.product?.id ?? 0) || 0;
+const getProductId = (item: any) =>
+  Number(item?.product_id ?? item?.productId ?? item?.product?.id ?? 0) || 0;
 
-      const getBatchId = (item: any) =>
-        Number(item?.batch_id ?? item?.batchId ?? item?.batch?.id ?? 0) || 0;
+const getBatchId = (item: any) =>
+  Number(item?.batch_id ?? item?.batchId ?? item?.batch?.id ?? 0) || 0;
 
-      const scannedProductId = Number(scannedProduct?.id ?? 0) || 0;
-      const scannedBatchId = Number(scannedBatch?.id ?? 0) || 0;
+const scannedProductId = Number(scannedProduct?.id ?? 0) || 0;
+const scannedBatchId = Number(scannedBatch?.id ?? 0) || 0;
 
-      // Find candidates by product first
-      const candidates = (orderDetails.items || []).filter((item: any) => {
-        return getProductId(item) === scannedProductId;
-      });
+// Find candidates by product first
+const candidates = (orderDetails.items || []).filter((item: any) => {
+  return getProductId(item) === scannedProductId;
+});
 
-      if (candidates.length === 0) {
-        displayToast(`❌ "${scannedProduct.name}" not in this order`, 'error');
-        addToScanHistory(barcode, 'error', `${scannedProduct.name} - Not in order`);
-        playErrorSound();
-        return;
-      }
+if (candidates.length === 0) {
+  displayToast(`❌ "${scannedProduct.name}" not in this order`, 'error');
+  addToScanHistory(barcode, 'error', `${scannedProduct.name} - Not in order`);
+  playErrorSound();
+  return;
+}
 
-      // If order item has batch assigned, enforce it. If not assigned, allow any batch.
-      const candidateWithBatchRules = candidates.filter((item: any) => {
-        const orderItemBatchId = getBatchId(item);
+// If order item has batch assigned, enforce it. If not assigned, allow any batch.
+const candidateWithBatchRules = candidates.filter((item: any) => {
+  const orderItemBatchId = getBatchId(item);
 
-        // If order item has NO batch, accept any scanned batch
-        if (!orderItemBatchId) return true;
+  // If order item has NO batch, accept any scanned batch
+  if (!orderItemBatchId) return true;
 
-        // If scanned batch missing, reject (order expects a batch)
-        if (!scannedBatchId) return false;
+  // If scanned batch missing, reject (order expects a batch)
+  if (!scannedBatchId) return false;
 
-        // Otherwise enforce match
-        return orderItemBatchId === scannedBatchId;
-      });
+  // Otherwise enforce match
+  return orderItemBatchId === scannedBatchId;
+});
 
-      // Choose an item that still needs scanning (important when same product appears multiple times)
-      const matchingItem = candidateWithBatchRules.find((item: any) => {
-        const track = scannedItems[item.id];
-        const required = Number(item.quantity || 0);
-        const already = track?.scanned.length || 0;
-        return already < required;
-      });
+// Choose an item that still needs scanning (important when same product appears multiple times)
+const matchingItem = candidateWithBatchRules.find((item: any) => {
+  const track = scannedItems[item.id];
+  const required = Number(item.quantity || 0);
+  const already = track?.scanned.length || 0;
+  return already < required;
+});
 
-      if (!matchingItem) {
-        displayToast(`⚠️ "${scannedProduct.name}" is already fully scanned (or batch mismatch)`, 'warning');
-        addToScanHistory(barcode, 'warning', `${scannedProduct.name} - Already complete / batch mismatch`);
-        playErrorSound();
-        return;
-      }
+if (!matchingItem) {
+  displayToast(`⚠️ "${scannedProduct.name}" is already fully scanned (or batch mismatch)`, 'warning');
+  addToScanHistory(barcode, 'warning', `${scannedProduct.name} - Already complete / batch mismatch`);
+  playErrorSound();
+  return;
+}
 
 
       // Check if item already fully scanned
@@ -830,8 +812,9 @@ export default function WarehouseFulfillmentPage() {
                 </div>
                 <button
                   onClick={() => setIsScanning(!isScanning)}
-                  className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${isScanning ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}
+                  className={`px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                    isScanning ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }`}
                 >
                   <Scan className="h-5 w-5" />
                   {isScanning ? 'Stop Scanning' : 'Start Scanning'}
@@ -886,12 +869,13 @@ export default function WarehouseFulfillmentPage() {
                         return (
                           <div
                             key={item.id}
-                            className={`p-4 rounded-lg border-2 transition-all ${isComplete
-                              ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
-                              : scannedCount > 0
+                            className={`p-4 rounded-lg border-2 transition-all ${
+                              isComplete
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-500'
+                                : scannedCount > 0
                                 ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500'
                                 : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700'
-                              }`}
+                            }`}
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex items-start gap-3 flex-1">
@@ -913,62 +897,63 @@ export default function WarehouseFulfillmentPage() {
                                 </button>
                                 <div className="flex-1">
                                   <h3 className="font-medium text-gray-900 dark:text-white">{item.product_name}</h3>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">SKU: {item.product_sku}</p>
-                                  {(item.batch_number || item.batch_id || item.batchId || item?.batch?.id) ? (
-                                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                                      Batch: {item.batch_number || item?.batch?.batch_number || item.batch_id || item.batchId || item?.batch?.id}
-                                    </p>
-                                  ) : (
-                                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                                      Batch: <span className="font-medium">Any</span> (assign on scan)
-                                    </p>
-                                  )}
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">SKU: {item.product_sku}</p>
+                                {(item.batch_number || item.batch_id || item.batchId || item?.batch?.id) ? (
+                                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                                    Batch: {item.batch_number || item?.batch?.batch_number || item.batch_id || item.batchId || item?.batch?.id}
+                                  </p>
+                                ) : (
+                                  <p className="text-xs text-gray-500 dark:text-gray-500">
+                                    Batch: <span className="font-medium">Any</span> (assign on scan)
+                                  </p>
+                                )}
 
-                                  {/* ✅ Fixed / Added pricing UI */}
-                                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                                    <div className="text-gray-600 dark:text-gray-400">
-                                      Unit:{' '}
-                                      <span className="font-semibold text-gray-900 dark:text-white">
-                                        {formatBDT(unit, 0)}
-                                      </span>
-                                    </div>
-                                    <div className="text-gray-600 dark:text-gray-400">
-                                      Discount:{' '}
-                                      <span className="font-semibold text-gray-900 dark:text-white">
-                                        {formatBDT(discount, 0)}
-                                      </span>
-                                    </div>
-                                    <div className="text-gray-600 dark:text-gray-400 sm:text-right">
-                                      Line:{' '}
-                                      <span className="font-semibold text-gray-900 dark:text-white">
-                                        {formatBDT(lineTotal, 0)}
-                                      </span>
-                                    </div>
+                                {/* ✅ Fixed / Added pricing UI */}
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                  <div className="text-gray-600 dark:text-gray-400">
+                                    Unit:{' '}
+                                    <span className="font-semibold text-gray-900 dark:text-white">
+                                      {formatBDT(unit, 0)}
+                                    </span>
                                   </div>
-
-                                  <div className="mt-2 flex items-center gap-2">
-                                    <div
-                                      className={`text-sm font-semibold ${isComplete
-                                        ? 'text-green-600 dark:text-green-400'
-                                        : scannedCount > 0
-                                          ? 'text-blue-600 dark:text-blue-400'
-                                          : 'text-gray-600 dark:text-gray-400'
-                                        }`}
-                                    >
-                                      {scannedCount} / {scanned?.required || 0} scanned
-                                    </div>
-                                    {scannedCount > 0 && !isComplete && (
-                                      <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                        <div
-                                          className="h-2 bg-blue-500 transition-all"
-                                          style={{ width: `${(scannedCount / (scanned?.required || 1)) * 100}%` }}
-                                        />
-                                      </div>
-                                    )}
+                                  <div className="text-gray-600 dark:text-gray-400">
+                                    Discount:{' '}
+                                    <span className="font-semibold text-gray-900 dark:text-white">
+                                      {formatBDT(discount, 0)}
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-600 dark:text-gray-400 sm:text-right">
+                                    Line:{' '}
+                                    <span className="font-semibold text-gray-900 dark:text-white">
+                                      {formatBDT(lineTotal, 0)}
+                                    </span>
                                   </div>
                                 </div>
+
+                                <div className="mt-2 flex items-center gap-2">
+                                  <div
+                                    className={`text-sm font-semibold ${
+                                      isComplete
+                                        ? 'text-green-600 dark:text-green-400'
+                                        : scannedCount > 0
+                                        ? 'text-blue-600 dark:text-blue-400'
+                                        : 'text-gray-600 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    {scannedCount} / {scanned?.required || 0} scanned
+                                  </div>
+                                  {scannedCount > 0 && !isComplete && (
+                                    <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-2 bg-blue-500 transition-all"
+                                        style={{ width: `${(scannedCount / (scanned?.required || 1)) * 100}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                              <div className="ml-4">
+                            </div>
+                            <div className="ml-4">
                                 {isComplete ? (
                                   <CheckCircle className="h-8 w-8 text-green-600" />
                                 ) : scannedCount > 0 ? (
@@ -988,19 +973,15 @@ export default function WarehouseFulfillmentPage() {
 
                   <button
                     onClick={handleFulfillOrder}
-                    disabled={isProcessing || progress.percentage !== 100 || isRole('branch-manager')}
-                    className={`w-full mt-6 px-6 py-4 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2 ${progress.percentage === 100 && !isProcessing && !isRole('branch-manager') ? 'bg-green-600 hover:bg-green-700 shadow-lg' : 'bg-gray-400 cursor-not-allowed'
-                      }`}
+                    disabled={isProcessing || progress.percentage !== 100}
+                    className={`w-full mt-6 px-6 py-4 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2 ${
+                      progress.percentage === 100 && !isProcessing ? 'bg-green-600 hover:bg-green-700 shadow-lg' : 'bg-gray-400 cursor-not-allowed'
+                    }`}
                   >
                     {isProcessing ? (
                       <>
                         <Loader className="h-5 w-5 animate-spin" />
                         Processing Order...
-                      </>
-                    ) : isRole('branch-manager') ? (
-                      <>
-                        <AlertTriangle className="h-5 w-5" />
-                        View Only Mode
                       </>
                     ) : progress.percentage === 100 ? (
                       <>
@@ -1034,10 +1015,11 @@ export default function WarehouseFulfillmentPage() {
                       onKeyDown={handleBarcodeInput}
                       disabled={!isScanning}
                       placeholder={isScanning ? 'Scan barcode or type manually...' : 'Start scanning first'}
-                      className={`w-full px-4 py-3 rounded-lg border-2 text-lg font-mono transition-all ${isScanning
-                        ? 'bg-white dark:bg-gray-700 border-blue-500 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500'
-                        : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 cursor-not-allowed'
-                        } focus:outline-none`}
+                      className={`w-full px-4 py-3 rounded-lg border-2 text-lg font-mono transition-all ${
+                        isScanning
+                          ? 'bg-white dark:bg-gray-700 border-blue-500 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500'
+                          : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 cursor-not-allowed'
+                      } focus:outline-none`}
                     />
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -1106,12 +1088,13 @@ export default function WarehouseFulfillmentPage() {
                         scanHistory.map((scan, index) => (
                           <div
                             key={index}
-                            className={`p-3 rounded-lg border transition-all ${scan.status === 'success'
-                              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                              : scan.status === 'warning'
+                            className={`p-3 rounded-lg border transition-all ${
+                              scan.status === 'success'
+                                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                : scan.status === 'warning'
                                 ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
                                 : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                              }`}
+                            }`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex-1 min-w-0">
@@ -1124,12 +1107,13 @@ export default function WarehouseFulfillmentPage() {
                                     <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 flex-shrink-0" />
                                   )}
                                   <span
-                                    className={`text-xs font-mono font-semibold truncate ${scan.status === 'success'
-                                      ? 'text-green-700 dark:text-green-400'
-                                      : scan.status === 'warning'
+                                    className={`text-xs font-mono font-semibold truncate ${
+                                      scan.status === 'success'
+                                        ? 'text-green-700 dark:text-green-400'
+                                        : scan.status === 'warning'
                                         ? 'text-yellow-700 dark:text-yellow-400'
                                         : 'text-red-700 dark:text-red-400'
-                                      }`}
+                                    }`}
                                   >
                                     {scan.barcode}
                                   </span>
@@ -1158,14 +1142,14 @@ export default function WarehouseFulfillmentPage() {
                         <AlertTriangle className="h-4 w-4 text-yellow-600" />
                         <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Warning</span>
                       </div>
-                      <p className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{scanHistory.filter((s) => s.status === 'warning').length}</p>
+                      <p className="text-xl font-bold text-yellow-700 dark:text-green-400">{scanHistory.filter((s) => s.status === 'warning').length}</p>
                     </div>
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                       <div className="flex items-center gap-2 mb-1">
                         <XCircle className="h-4 w-4 text-red-600" />
                         <span className="text-xs font-medium text-red-700 dark:text-red-400">Error</span>
                       </div>
-                      <p className="text-xl font-bold text-red-700 dark:text-red-400">{scanHistory.filter((s) => s.status === 'error').length}</p>
+                      <p className="text-xl font-bold text-red-700 dark:text-green-400">{scanHistory.filter((s) => s.status === 'error').length}</p>
                     </div>
                   </div>
                 </div>
