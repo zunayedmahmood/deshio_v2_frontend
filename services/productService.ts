@@ -28,8 +28,6 @@ export interface Product {
   };
   selling_price?: number;
   base_price?: number; // alias for selling_price
-  stock_quantity?: number;
-  in_stock?: boolean;
   global_available?: number; // total available from reserved_products
   created_at: string;
   updated_at: string;
@@ -138,8 +136,6 @@ function transformProduct(product: any): Product {
     vendor: product.vendor,
     selling_price: product.selling_price || product.base_price,
     base_price: product.base_price || product.selling_price,
-    stock_quantity: product.stock_quantity,
-    in_stock: product.in_stock,
     global_available: product.global_available,
     created_at: product.created_at,
     updated_at: product.updated_at,
@@ -186,7 +182,7 @@ export const productService = {
     /** Proposal 2: server-side price filter (BDT) */
     min_price?: number;
     max_price?: number;
-    stock_status?: 'all' | 'in_stock' | 'out_of_stock';
+    stock_status?: 'all' | 'in_stock' | 'not_in_stock';
     in_stock?: string;
     is_archived?: boolean;
     no_pagination?: boolean;
@@ -247,6 +243,50 @@ export const productService = {
     } catch (error: any) {
       console.error('Get products error:', error);
       return { data: [], total: 0, current_page: 1, last_page: 1 };
+    }
+  },
+
+  /**
+   * Proposal 5 — Wire the advanced search controller.
+   * Uses ProductSearchController (fuzzy, Bangla, phonetic) when a query is present.
+   * Falls back gracefully: if the endpoint is unavailable, the caller should use getAll().
+   */
+  async advancedSearch(params: {
+    query: string;
+    category_id?: number;
+    vendor_id?: number;
+    per_page?: number;
+    page?: number;
+    enable_fuzzy?: boolean;
+    stock_status?: 'all' | 'in_stock' | 'not_in_stock';
+    in_stock?: string;
+  }): Promise<{ data: Product[]; total: number; current_page: number; last_page: number }> {
+    try {
+      const response = await axiosInstance.post('/products/advanced-search', params);
+      const result = response.data;
+      if (!result?.success) return { data: [], total: 0, current_page: 1, last_page: 1 };
+
+      const dataRoot = result.data ?? {};
+      const rawList: any[] = Array.isArray(dataRoot.items)
+        ? dataRoot.items
+        : Array.isArray(dataRoot.products)
+          ? dataRoot.products
+          : Array.isArray(dataRoot.data)
+            ? dataRoot.data
+            : [];
+
+      const products = rawList.map(transformProduct);
+      const pagination = dataRoot.pagination ?? dataRoot;
+      return {
+        data: products,
+        total: pagination.total ?? products.length,
+        current_page: pagination.current_page ?? 1,
+        last_page: pagination.last_page ?? pagination.total_pages ?? 1,
+      };
+    } catch (error: any) {
+      console.error('Advanced search error:', error);
+      // Surface as a typed error so caller can fall back to getAll
+      throw error;
     }
   },
 

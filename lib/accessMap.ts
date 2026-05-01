@@ -53,8 +53,8 @@ export const PAGE_ACCESS: Record<string, RoleSlug[]> = {
   '/returns': ['super-admin', 'admin', 'branch-manager', 'online-moderator', 'pos-salesman'],
 
   // Services
-  '/services-management': ['super-admin', 'admin', 'branch-manager'],
-  '/service-orders': ['super-admin', 'admin', 'branch-manager'],
+  '/services-management': ['super-admin', 'admin', 'online-moderator'],
+  '/service-orders': ['super-admin', 'admin', 'online-moderator'],
 
   // Marketing
   '/campaigns': ['super-admin', 'admin'],

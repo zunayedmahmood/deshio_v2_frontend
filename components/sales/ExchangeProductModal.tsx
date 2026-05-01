@@ -885,7 +885,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                         />
                       </div>
                       <div className="col-span-2">
-                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Bank Transfer</label>
+                        <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Nagad</label>
                         <input
                           type="number"
                           min="0"

@@ -1,25 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, RefreshCw, List, Grid } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
 
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import Toast from '@/components/Toast';
-import ProductListItem from '@/components/ProductListItem';
+import ProductCard from '@/components/ProductCard';
 import { productService, Product } from '@/services/productService';
 import categoryService, { Category } from '@/services/categoryService';
-import { ProductGroup } from '@/types/product';
 
+
+const ERROR_IMG_SRC =
+  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODgiIGhlaWdodD0iODgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBvcGFjaXR5PSIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIzLjciPjxyZWN0IHg9IjE2IiB5PSIxNiIgd2lkdGg9IjU2IiBoZWlnaHQ9IjU2IiByeD0iNiIvPjxwYXRoIGQ9Im0xNiA1OCAxNi0xOCAzMiAzMiIvPjxjaXJjbGUgY3g9IjUzIiBjeT0iMzUiIHI9IjciLz48L3N2Zz4=';
 
 export default function ArchivedProductsPage() {
   const router = useRouter();
 
   const { darkMode, setDarkMode } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,7 +35,7 @@ export default function ArchivedProductsPage() {
     setLoading(true);
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        productService.getAll({ is_archived: true, per_page: 100, group_by_sku: true }),
+        productService.getAll({ is_archived: true, per_page: 100 }),
         categoryService.getAll({ per_page: 500 }),
       ]);
 
@@ -56,106 +57,38 @@ export default function ArchivedProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper to normalize images
-  const getImageUrl = (imagePath: string | null | undefined): string | null => {
-    if (!imagePath) return null;
-    if (imagePath.startsWith('http')) return imagePath;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || '';
-    return `${baseUrl}/storage/${imagePath}`;
-  };
-
-  const getCategoryPath = useCallback((categoryId: number): string => {
-    const findPath = (cats: Category[], id: number, path: string[] = []): string[] | null => {
-      for (const cat of cats) {
-        const newPath = [...path, cat.title];
-        if (String(cat.id) === String(id)) {
-          return newPath;
-        }
-        const childCategories = cat.children || cat.all_children || [];
-        if (childCategories.length > 0) {
-          const found = findPath(childCategories, id, newPath);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const path = findPath(categories, categoryId);
-    return path ? path.join(' > ') : 'Uncategorized';
+  const categoryMap = useMemo(() => {
+    const map = new Map<number, Category>();
+    categories.forEach((c) => map.set(c.id, c));
+    return map;
   }, [categories]);
 
-  // Grouping logic for the frontend (to match ProductListClient behavior)
-  const productGroups = useMemo((): ProductGroup[] => {
-    if (products.length === 0) return [];
+  const getCategoryPath = (categoryId: number | null | undefined) => {
+    if (!categoryId) return 'Uncategorized';
+    const parts: string[] = [];
+    let current = categoryMap.get(categoryId);
+    while (current) {
+      parts.unshift(current.title);
+      const parentId = (current as any).parent_id as number | null | undefined;
+      if (!parentId) break;
+      current = categoryMap.get(parentId);
+    }
+    return parts.join(' → ') || 'Uncategorized';
+  };
 
-    return products.map((product) => {
-      const primaryImg = product.images?.find(img => img.is_primary && img.is_active)
-        ?? product.images?.find(img => img.is_active)
-        ?? product.images?.[0];
-      const primaryImageUrl = primaryImg ? getImageUrl(primaryImg.image_path) : null;
-
-      const serverVariants: any[] = (product as any).variants ?? [];
-
-      const allVariants = [
-        {
-          id: product.id,
-          name: product.name,
-          sku: product.sku,
-          variation_suffix: (product as any).variation_suffix,
-          image: primaryImageUrl,
-          selling_price: (product as any).selling_price,
-          in_stock: (product as any).in_stock,
-          stock_quantity: (product as any).stock_quantity,
-        },
-        ...serverVariants.map((v: any) => {
-          const vImg = v.images?.[0];
-          const vImgUrl = vImg
-            ? (vImg.url?.startsWith('http') ? vImg.url : getImageUrl(vImg.image_path ?? vImg.url))
-            : null;
-
-          return {
-            id: v.id,
-            name: v.name,
-            sku: v.sku,
-            variation_suffix: v.variation_suffix,
-            image: vImgUrl,
-            selling_price: v.selling_price,
-            in_stock: v.in_stock,
-            stock_quantity: v.stock_quantity,
-          };
-        }),
-      ];
-
-      // ✅ NEW: Apply stripping variation_suffix from name for the header
-      let baseName = (product as any).base_name || product.name || '';
-      const firstVariant = allVariants[0];
-      if (!(product as any).base_name && firstVariant.variation_suffix) {
-        const suffix = firstVariant.variation_suffix;
-        if (baseName.endsWith(suffix)) {
-            baseName = baseName.substring(0, baseName.length - suffix.length).trim();
-            if (baseName.endsWith('-')) {
-                baseName = baseName.substring(0, baseName.length - 1).trim();
-            }
-        }
-      }
-
-      return {
-        sku: product.sku,
-        baseName: baseName,
-        totalVariants: allVariants.length,
-        variants: allVariants,
-        primaryImage: primaryImageUrl,
-        categoryPath: getCategoryPath(product.category_id),
-        category_id: product.category_id,
-        hasVariations: allVariants.length > 1,
-        sellingPrice: (product as any).selling_price ?? null,
-        inStock: (product as any).in_stock ?? null,
-        stockQuantity: (product as any).stock_quantity ?? null,
-      };
-    });
-  }, [products, getCategoryPath]);
+  const getProductImage = (product: Product) => {
+    const imgs = product.images || [];
+    const active = imgs.filter((i) => i.is_active);
+    const list = active.length ? active : imgs;
+    const primary = list.find((i) => i.is_primary) || list[0];
+    if (!primary?.image_path) return ERROR_IMG_SRC;
+    if (primary.image_path.startsWith('http')) return primary.image_path;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || '';
+    return `${baseUrl}/storage/${primary.image_path}`;
+  };
 
   const handleRestore = async (id: number) => {
+    if (!confirm('Restore this product? It will appear again in the product list.')) return;
     try {
       await productService.restore(id);
       showToast('Product restored successfully', 'success');
@@ -167,22 +100,8 @@ export default function ArchivedProductsPage() {
     }
   };
 
-  const handleRestoreAll = async (group: ProductGroup) => {
-    try {
-      const ids = group.variants.map((v) => v.id);
-      await productService.bulkUpdate({
-        product_ids: ids,
-        action: 'restore',
-      });
-      setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
-      showToast(`Restored all variations of SKU: ${group.sku}`, 'success');
-    } catch (err) {
-      console.error('Error restoring all variations:', err);
-      showToast('Failed to restore variations', 'error');
-    }
-  };
-
   const handleDelete = async (id: number) => {
+    if (!confirm('Delete this product permanently? This action cannot be undone.')) return;
     try {
       await productService.delete(id);
       showToast('Product deleted successfully', 'success');
@@ -191,10 +110,6 @@ export default function ArchivedProductsPage() {
       console.error(e);
       showToast('Failed to delete product', 'error');
     }
-  };
-
-  const handleView = (id: number) => {
-    router.push(`/product/${id}`);
   };
 
   return (
@@ -221,59 +136,38 @@ export default function ArchivedProductsPage() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Archived Products</h1>
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* View Mode Toggle */}
-                <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded transition-colors ${viewMode === 'list'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
-                    title="List view"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded transition-colors ${viewMode === 'grid'
-                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                      }`}
-                    title="Grid view"
-                  >
-                    <Grid className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <button
-                  onClick={loadData}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Refresh
-                </button>
-              </div>
+              <button
+                onClick={loadData}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
             </div>
 
             {loading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="w-10 h-10 border-4 border-gray-200 dark:border-gray-700 border-t-gray-900 dark:border-t-white rounded-full animate-spin" />
               </div>
-            ) : productGroups.length === 0 ? (
+            ) : products.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-10 text-center">
                 <p className="text-gray-600 dark:text-gray-300">No archived products found.</p>
               </div>
             ) : (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-4'}>
-                {productGroups.map((group) => (
-                  <ProductListItem
-                    key={`${group.sku}-${group.variants[0].id}`}
-                    productGroup={group}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    image={getProductImage(product)}
+                    categoryPath={getCategoryPath(product.category_id)}
                     onDelete={handleDelete}
-                    onView={handleView}
+                    onEdit={(p) => {
+                      sessionStorage.setItem('editProduct', JSON.stringify(p));
+                      router.push(`/product/add?id=${p.id}`);
+                    }}
+                    onView={(p) => router.push(`/product/${p.id}`)}
                     onRestore={handleRestore}
-                    onRestoreAll={handleRestoreAll}
                   />
                 ))}
               </div>

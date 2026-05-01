@@ -276,7 +276,7 @@ function posReceiptBody(order: any) {
     { label: 'Cash', amount: paymentMap.CASH },
     { label: 'Card', amount: paymentMap.CARD },
     { label: 'Bkash', amount: paymentMap.BKASH },
-    ...(paymentMap.NAGAD > 0 ? [{ label: 'Bank Transfer', amount: paymentMap.NAGAD }] : []),
+    ...(paymentMap.NAGAD > 0 ? [{ label: 'Nagad', amount: paymentMap.NAGAD }] : []),
   ].filter((p) => p.amount > 0);
 
   const hasOtherPayments = paymentMap.OTHERS.length > 0;

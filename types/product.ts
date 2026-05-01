@@ -13,9 +13,6 @@ export interface ProductVariant {
   size?: string;
   variation_suffix?: string;
   image?: string | null;
-  selling_price?: number | null;
-  in_stock?: boolean | null;
-  stock_quantity?: number | null;
 }
 
 export interface ProductGroup {

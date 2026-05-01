@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { computeMenuPosition } from '@/lib/menuPosition';
-import { MoreVertical, Edit, Trash2, Eye, Plus, Archive, RotateCcw } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Plus } from 'lucide-react';
 import type { ProductGroup, ProductVariant } from '@/types/product';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
 
@@ -16,10 +16,6 @@ interface ProductListItemProps {
   onEdit?: (id: number) => void;
   onView: (id: number) => void;
   onAddVariation?: (group: ProductGroup) => void;
-  onArchive?: (id: number) => void;
-  onArchiveAll?: (group: ProductGroup) => void;
-  onRestore?: (id: number) => void;
-  onRestoreAll?: (group: ProductGroup) => void;
   onSelect?: (variant: ProductVariant) => void;
   selectable?: boolean;
 }
@@ -30,10 +26,6 @@ export default function ProductListItem({
   onEdit,
   onView,
   onAddVariation,
-  onArchive,
-  onArchiveAll,
-  onRestore,
-  onRestoreAll,
   onSelect,
   selectable,
 }: ProductListItemProps) {
@@ -197,36 +189,6 @@ export default function ProductListItem({
             </button>
           )}
 
-          {/* Archive All Button */}
-          {onArchiveAll && (
-            <button
-              onClick={() => {
-                if (confirm(`Archive all variations of "${productGroup.baseName}"?`)) {
-                  onArchiveAll(productGroup);
-                }
-              }}
-              className="h-9 w-9 flex items-center justify-center hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg transition-colors border border-amber-200 dark:border-amber-800/30 shadow-sm"
-              title="Archive all variations"
-            >
-              <Archive className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Restore All Button */}
-          {onRestoreAll && (
-            <button
-              onClick={() => {
-                if (confirm(`Restore all variations of "${productGroup.baseName}"?`)) {
-                  onRestoreAll(productGroup);
-                }
-              }}
-              className="h-9 w-9 flex items-center justify-center hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg transition-colors border border-green-200 dark:border-green-800/30 shadow-sm"
-              title="Restore all variations"
-            >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-          )}
-
           {/* Dropdown menu */}
           <button
             ref={buttonRef}
@@ -269,42 +231,6 @@ export default function ProductListItem({
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     Edit Product
-                  </button>
-                )}
-                {onArchive && (
-                  <button
-                    onClick={() => {
-                      if (confirm(`Archive ${hasMultipleVariants ? 'all variants of' : ''} "${productGroup.baseName}"?`)) {
-                        if (hasMultipleVariants) {
-                          onArchiveAll?.(productGroup);
-                        } else {
-                          onArchive(firstVariant.id);
-                        }
-                      }
-                      setShowDropdown(false);
-                      setTimeout(() => setIsDropdownMounted(false), 200);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                  >
-                    Archive {hasMultipleVariants ? 'All' : 'Product'}
-                  </button>
-                )}
-                {onRestore && (
-                  <button
-                    onClick={() => {
-                      if (confirm(`Restore ${hasMultipleVariants ? 'all variants of' : ''} "${productGroup.baseName}"?`)) {
-                        if (hasMultipleVariants) {
-                          onRestoreAll?.(productGroup);
-                        } else {
-                          onRestore(firstVariant.id);
-                        }
-                      }
-                      setShowDropdown(false);
-                      setTimeout(() => setIsDropdownMounted(false), 200);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                  >
-                    Restore {hasMultipleVariants ? 'All' : 'Product'}
                   </button>
                 )}
                 {(canDelete) && <div className="my-1 border-t border-gray-200 dark:border-gray-700"></div>}
@@ -378,20 +304,6 @@ export default function ProductListItem({
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {variant.variation_suffix || variant.size || 'One Size'}
                       </span>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                          variant.in_stock === false || variant.stock_quantity === 0
-                            ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
-                            : 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400'
-                        }`}>
-                          {variant.in_stock === false || variant.stock_quantity === 0 ? 'Out' : 'In Stock'}
-                        </span>
-                        {variant.selling_price != null && (
-                          <span className="text-xs font-bold text-gray-900 dark:text-white">
-                            ৳{Number(variant.selling_price).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
                       <div className="flex gap-1 ml-auto">
                         {canEdit && (
                           <button
@@ -419,32 +331,6 @@ export default function ProductListItem({
                             className="text-xs text-gray-900 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 font-medium px-2 py-0.5 hover:bg-gray-50 dark:hover:bg-blue-900/30 rounded"
                           >
                             Select
-                          </button>
-                        )}
-                        {onArchive && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Archive variant "${variant.name}"?`)) {
-                                onArchive(variant.id);
-                              }
-                            }}
-                            className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-medium px-2 py-0.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded border border-amber-100 dark:border-amber-800/30"
-                            title="Archive variation"
-                          >
-                            <Archive className="w-3 h-3" />
-                          </button>
-                        )}
-                        {onRestore && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Restore variant "${variant.name}"?`)) {
-                                onRestore(variant.id);
-                              }
-                            }}
-                            className="text-xs text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-medium px-2 py-0.5 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-green-100 dark:border-green-800/30"
-                            title="Restore variation"
-                          >
-                            <RotateCcw className="w-3 h-3" />
                           </button>
                         )}
                         <button

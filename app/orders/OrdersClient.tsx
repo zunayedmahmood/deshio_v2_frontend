@@ -2022,6 +2022,36 @@ export default function OrdersDashboard() {
     }, 5000);
   };
 
+  const handleBulkSetMarker = async (marker: string | null) => {
+    if (selectedOrders.size === 0) return;
+
+    const label = marker === null ? 'Remove marker' : `Set marker to "${courierLabel(marker)}"`;
+    if (!confirm(`Are you sure you want to ${label} for ${selectedOrders.size} selected orders?`)) return;
+
+    setIsSavingCourier(true);
+    try {
+      const orderIds = Array.from(selectedOrders);
+      // Process in chunks of 20 to avoid overloading
+      const chunks: number[][] = [];
+      for (let i = 0; i < orderIds.length; i += 20) {
+        chunks.push(orderIds.slice(i, i + 20));
+      }
+
+      for (const chunk of chunks) {
+        await Promise.all(chunk.map(id => orderService.setIntendedCourier(id, marker)));
+      }
+
+      setOrders(prev => prev.map(o => selectedOrders.has(o.id) ? { ...o, intendedCourier: marker } : o));
+      alert(`Successfully updated markers for ${selectedOrders.size} orders.`);
+      setSelectedOrders(new Set());
+    } catch (error: any) {
+      console.error('❌ Bulk marker update error:', error);
+      alert(`Failed to update markers: ${error.message}`);
+    } finally {
+      setIsSavingCourier(false);
+    }
+  };
+
   const handleBulkExport = async () => {
     if (selectedOrders.size === 0) {
       alert('Please select at least one order to export.');
@@ -2723,8 +2753,9 @@ export default function OrdersDashboard() {
 
     setIsProductLoading(true);
     try {
-      const searchResult = await productService.getAll({
-        search: query,
+      const searchResult = await productService.advancedSearch({
+        query,
+        enable_fuzzy: true,
         per_page: 50,
       });
       const products = searchResult.data;
@@ -3346,6 +3377,36 @@ export default function OrdersDashboard() {
                 </button>
               </div>
 
+              {/* ✅ Marker Quick Filters */}
+              {viewMode === 'online' && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                  <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase mr-1">Markers:</span>
+                  <button
+                    onClick={() => setCourierFilter('All Couriers')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                      courierFilter === 'All Couriers'
+                        ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                        : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                    }`}
+                  >
+                    All
+                  </button>
+                  {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCourierFilter(c)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                        courierFilter === c
+                          ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                          : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                      }`}
+                    >
+                      {courierLabel(c)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Main Search & Primary Filters */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 <div className="relative flex-1">
@@ -3398,6 +3459,19 @@ export default function OrdersDashboard() {
                       </option>
                     ))}
                   </select>
+
+                  {viewMode === 'online' && (
+                    <select
+                      value={courierFilter}
+                      onChange={(e) => setCourierFilter(e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
+                    >
+                      <option value="All Couriers">All Markers</option>
+                      {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
+                        <option key={c} value={c}>{courierLabel(c)}</option>
+                      ))}
+                    </select>
+                  )}
 
                   <button
                     onClick={() => setShowMoreFilters(!showMoreFilters)}
@@ -3472,22 +3546,6 @@ export default function OrdersDashboard() {
                       )}
                     </select>
                   </div>
-
-                  {viewMode === 'online' && (
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Order Marker</label>
-                      <select
-                        value={courierFilter}
-                        onChange={(e) => setCourierFilter(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-                      >
-                        <option value="All Couriers">All Markers</option>
-                        {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
-                          <option key={c} value={c}>{courierLabel(c)}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -3616,6 +3674,32 @@ export default function OrdersDashboard() {
                           <CheckCircle className="w-3 h-3" />
                           Mark Delivered
                         </button>
+
+                        <div className="h-4 w-px bg-gray-300 dark:bg-gray-700 mx-1" />
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold text-gray-500 dark:text-gray-400 uppercase">Set Marker:</span>
+                          <select
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (!val) return;
+                              if (val === 'REMOVE_MARKER') {
+                                handleBulkSetMarker(null);
+                              } else {
+                                handleBulkSetMarker(val);
+                              }
+                              e.target.value = ''; // reset
+                            }}
+                            disabled={isSavingCourier}
+                            className="px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-[10px] font-medium text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                          >
+                            <option value="">Select...</option>
+                            {quickCourierTabs.filter(c => c !== 'All Couriers').map((c) => (
+                              <option key={c} value={c}>{courierLabel(c)}</option>
+                            ))}
+                            <option value="REMOVE_MARKER" className="text-red-500 font-bold">Remove Marker</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4186,20 +4270,51 @@ export default function OrdersDashboard() {
             <span>Edit Order</span>
           </button>
 
-          {viewMode === 'online' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const order = filteredOrders.find((o) => o.id === activeMenu);
-                if (order) openCourierEditor(order);
-              }}
-              disabled={isBranchManager}
-              className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
-            >
-              <Truck className="h-5 w-5 flex-shrink-0" />
-              <span>Add Order Marker</span>
-            </button>
-          )}
+          {viewMode === 'online' && (() => {
+            const order = filteredOrders.find((o) => o.id === activeMenu);
+            if (!order) return null;
+            const hasMarker = !!normalizeCourier(order.intendedCourier);
+
+            return (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCourierEditor(order);
+                  }}
+                  disabled={isBranchManager}
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                >
+                  <Truck className="h-5 w-5 flex-shrink-0" />
+                  <span>{hasMarker ? 'Update Marker' : 'Add Marker'}</span>
+                </button>
+                
+                {hasMarker && (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (confirm('Remove marker from this order?')) {
+                        try {
+                          await orderService.setIntendedCourier(order.id, null);
+                          setOrders((prev) =>
+                            prev.map((o) => (o.id === order.id ? { ...o, intendedCourier: null } : o))
+                          );
+                          setActiveMenu(null);
+                        } catch (err: any) {
+                          alert(err.message || 'Failed to remove marker');
+                        }
+                      }
+                    }}
+                    disabled={isBranchManager}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                  >
+                    <X className="h-5 w-5 flex-shrink-0" />
+                    <span>Remove Marker</span>
+                  </button>
+                )}
+              </>
+            );
+          })()}
 
           {(() => {
             const order = filteredOrders.find((o) => o.id === activeMenu);
