@@ -1,12 +1,12 @@
 'use client';
 
- import { useState, useEffect, useMemo } from 'react';
- import { useRouter } from 'next/navigation';
- import { useTheme } from "@/contexts/ThemeContext";
- import { useAuth } from '@/contexts/AuthContext';
-import { 
+import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTheme } from "@/contexts/ThemeContext";
+import { useAuth } from '@/contexts/AuthContext';
+import {
   Search, X, Globe, AlertCircle, Wrench, RefreshCw, User, ShoppingBag, Info,
-  DollarSign, CreditCard, Wallet, MapPin, Truck, ChevronDown, ChevronRight, Plus, Minus, Store as StoreIcon 
+  DollarSign, CreditCard, Wallet, MapPin, Truck, ChevronDown, ChevronRight, Plus, Minus, Store as StoreIcon
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -15,9 +15,9 @@ import axios from '@/lib/axios';
 import storeService from '@/services/storeService';
 import productImageService from '@/services/productImageService';
 import batchService from '@/services/batchService';
- import catalogService, { CatalogGroupedProduct, Product } from '@/services/catalogService';
- import inventoryService, { GlobalInventoryItem } from '@/services/inventoryService';
- import shipmentService from '@/services/shipmentService';
+import catalogService, { CatalogGroupedProduct, Product } from '@/services/catalogService';
+import inventoryService, { GlobalInventoryItem } from '@/services/inventoryService';
+import shipmentService from '@/services/shipmentService';
 import { fireToast } from '@/lib/globalToast';
 import paymentService from '@/services/paymentService';
 
@@ -85,7 +85,7 @@ export default function SocialCommercePage() {
   const [allProducts, setAllProducts] = useState<any[]>([]); // Kept for backward compatibility if needed
   const [allBatches, setAllBatches] = useState<any[]>([]); // Kept for backward compatibility if needed
   const [inventoryStats, setInventoryStats] = useState<{ total_stock: number; active_batches: number } | null>(null);
-  const [stores, setStores] = useState<any[]>([]);  const [date, setDate] = useState(getTodayDate());
+  const [stores, setStores] = useState<any[]>([]); const [date, setDate] = useState(getTodayDate());
   const [salesBy, setSalesBy] = useState('');
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
@@ -97,7 +97,7 @@ export default function SocialCommercePage() {
   const [streetAddress, setStreetAddress] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [isPathaoAuto, setIsPathaoAuto] = useState(true);
-  
+
   // ✅ Pathao Location States
   const [pathaoCities, setPathaoCities] = useState<any[]>([]);
   const [pathaoZones, setPathaoZones] = useState<any[]>([]);
@@ -117,7 +117,7 @@ export default function SocialCommercePage() {
   const [minPriceFilter, setMinPriceFilter] = useState('');
   const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [exactPriceFilter, setExactPriceFilter] = useState('');
-  
+
   const [searchResults, setSearchResults] = useState<CatalogGroupedProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export default function SocialCommercePage() {
 
   const [storeAssignmentType, setStoreAssignmentType] = useState<'auto' | 'specific'>('specific');
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
-  
+
   // ✅ Payment States
   const [transportCost, setTransportCost] = useState('0');
   const [paymentOption, setPaymentOption] = useState<'full' | 'partial' | 'none'>('full');
@@ -144,6 +144,9 @@ export default function SocialCommercePage() {
   const [installmentTransactionReference, setInstallmentTransactionReference] = useState('');
   const [installmentPayingNow, setInstallmentPayingNow] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
+  const selectedStore = useMemo(() => {
+    return stores.find(s => String(s.id) === selectedStoreId) || stores.find(s => s.is_online);
+  }, [stores, selectedStoreId]);
 
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -225,7 +228,7 @@ export default function SocialCommercePage() {
       }
 
       setStores(storesData);
-      
+
       // Preselect first online store
       const onlineStore = storesData.find((s: any) => s.is_online);
       if (onlineStore) {
@@ -609,7 +612,7 @@ export default function SocialCommercePage() {
         setSelectedCityId(state.selectedCityId || '');
         setSelectedZoneId(state.selectedZoneId || '');
         setSelectedAreaId(state.selectedAreaId || '');
-        
+
         // Restore cart items
         if (state.cart && Array.isArray(state.cart)) {
           setCart(state.cart);
@@ -631,26 +634,24 @@ export default function SocialCommercePage() {
           const cartItems: CartProduct[] = queueItems.map(item => ({
             id: Date.now() + Math.random(), // Unique ID for cart
             product_id: item.product_id,
-            batch_id: item.batch_id,
+            batch_id: item.batch_id || null,
             productName: item.productName,
             sku: item.sku,
             quantity: item.quantity,
             unit_price: item.unit_price,
-            discount_amount: item.discount_amount,
+            discount_amount: item.discount_amount || 0,
             amount: item.amount,
+            isDefective: false
           }));
+
           setCart(prev => [...prev, ...cartItems]);
-          // Clear queue after loading
           localStorage.removeItem('social_commerce_queue');
-          
-          // Show success toast
-          showToast(`Added ${cartItems.length} items from product list`, 'success');
+          fireToast(`Added ${cartItems.length} items from product list`, 'success');
         }
       } catch (e) {
         console.error('Failed to load queue', e);
       }
     }
-
     const loadInitialData = async () => {
       try {
         setIsLoadingData(true);
@@ -753,7 +754,7 @@ export default function SocialCommercePage() {
     const delayDebounce = setTimeout(async () => {
       try {
         setIsLoadingData(true);
-        
+
         const params: any = {
           q: searchQuery,
           per_page: 50,
@@ -977,10 +978,10 @@ export default function SocialCommercePage() {
       setInstallmentPaymentMode('cash');
       setInstallmentTransactionReference('');
       setInstallmentPayingNow('');
-      
+
       localStorage.removeItem('social_commerce_state');
       localStorage.removeItem('social_commerce_queue');
-      
+
       fireToast('Form cleared successfully', 'success');
     }
   };
@@ -1356,41 +1357,8 @@ export default function SocialCommercePage() {
           </div>
         </div>
 
-        {/* Store Assignment */}
-        <div className="space-y-2 pt-2">
-          <label className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Logistics & Store</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setStoreAssignmentType('auto')}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${storeAssignmentType === 'auto'
-                ? 'bg-teal-500 text-white border-teal-500 shadow-md'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-            >
-              <Truck size={14} /> Auto
-            </button>
-            <button
-              onClick={() => setStoreAssignmentType('specific')}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all ${storeAssignmentType === 'specific'
-                ? 'bg-teal-500 text-white border-teal-500 shadow-md'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-            >
-              <StoreIcon size={14} /> Manual
-            </button>
-          </div>
-          {storeAssignmentType === 'specific' && (
-            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-              <select
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-1 focus:ring-teal-500"
-              >
-                <option value="">Select Store Branch</option>
-                {stores.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        {/* Store Assignment Locked */}
+        <div className="hidden">
         </div>
 
         {/* Payment Logic */}
@@ -1697,15 +1665,15 @@ export default function SocialCommercePage() {
                     <RefreshCw size={14} /> Clear All
                   </button>
                 </div>
-                
+
                 <div className="flex items-start gap-6">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Sales By</label>
                     <div className="bg-gray-100 dark:bg-gray-800/50 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-200 min-w-[180px] shadow-sm">
-                      {salesBy || 'System User'}
+                      {salesBy || 'Mueed Sami'}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Date <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -1717,12 +1685,12 @@ export default function SocialCommercePage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Store</label>
                     <div>
                       <div className="bg-gray-100 dark:bg-gray-800/50 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-900 dark:text-white uppercase min-w-[160px] shadow-sm">
-                        {selectedStore?.name || 'Main Warehouse'}
+                        {selectedStore?.name || 'OFFICE'}
                       </div>
                       <p className="text-[10px] font-bold text-green-500 mt-1.5 ml-1 flex items-center gap-1">
                         <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
@@ -1740,7 +1708,7 @@ export default function SocialCommercePage() {
                   <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
                     <div className="p-6">
                       <h2 className="text-base font-bold text-gray-800 dark:text-white">Customer Information</h2>
-                      
+
                       <div className="mt-6 space-y-5">
                         <div className="space-y-1.5">
                           <label className="text-xs font-medium text-gray-600 dark:text-gray-400">User Name*</label>
@@ -1815,7 +1783,7 @@ export default function SocialCommercePage() {
                             onClick={() => setIsInternational(false)}
                             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${!isInternational ? 'bg-[#1a1f2c] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
                           >
-                            <span>🔥</span> Domestic
+                            <span>🏠</span> Domestic
                           </button>
                           <button
                             onClick={() => setIsInternational(true)}
@@ -1850,7 +1818,7 @@ export default function SocialCommercePage() {
                           <span>🏠</span> Domestic
                         </div>
                       </div>
-                      
+
                       <div className="mt-6 space-y-6">
                         {!isInternational ? (
                           <div className="space-y-6">
@@ -1866,7 +1834,56 @@ export default function SocialCommercePage() {
                                 className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
                               />
                             </div>
-                            
+
+                            {!isPathaoAuto && (
+                              <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="space-y-1.5">
+                                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">City (Pathao)*</label>
+                                  <select
+                                    value={selectedCityId}
+                                    onChange={(e) => setSelectedCityId(e.target.value)}
+                                    className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                  >
+                                    <option value="">Select City</option>
+                                    {pathaoCities.map((c) => (
+                                      <option key={c.city_id} value={c.city_id}>{c.city_name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Zone*</label>
+                                    <select
+                                      value={selectedZoneId}
+                                      onChange={(e) => setSelectedZoneId(e.target.value)}
+                                      disabled={!selectedCityId}
+                                      className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none disabled:opacity-50"
+                                    >
+                                      <option value="">Select Zone</option>
+                                      {pathaoZones.map((z) => (
+                                        <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-1">Area*</label>
+                                    <select
+                                      value={selectedAreaId}
+                                      onChange={(e) => setSelectedAreaId(e.target.value)}
+                                      disabled={!selectedZoneId}
+                                      className="w-full bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none disabled:opacity-50"
+                                    >
+                                      <option value="">Select Area</option>
+                                      {pathaoAreas.map((a) => (
+                                        <option key={a.area_id} value={a.area_id}>{a.area_name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
                             <p className="text-[11px] text-gray-400 italic px-1">
                               Tip: include area + city (e.g., <span className="font-bold">Uttara, Dhaka</span>) in the address above.
                             </p>
@@ -1963,7 +1980,7 @@ export default function SocialCommercePage() {
                     <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50 flex items-center justify-between">
                       <h2 className="text-lg font-extrabold text-gray-900 dark:text-white">Cart ({cart.length + serviceCart.length} items)</h2>
                     </div>
-                    
+
                     <div className="flex-1 min-h-[400px]">
                       <table className="w-full text-left">
                         <thead className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-800">
