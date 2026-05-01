@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, ChevronDown, ChevronUp, Trash2, MoreVertical, ArrowRightLeft, RotateCcw, Printer } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Trash2, MoreVertical, ArrowRightLeft, RotateCcw, Printer, Edit } from 'lucide-react';
 import { computeMenuPosition } from '@/lib/menuPosition';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -10,6 +10,7 @@ import productReturnService, { type CreateReturnRequest } from '@/services/produ
 import refundService, { type CreateRefundRequest } from '@/services/refundService';
 import ReturnProductModal from '@/components/sales/ReturnProductModal';
 import ExchangeProductModal from '@/components/sales/ExchangeProductModal';
+import CustomerFormModal from '@/components/pos/CustomerFormModal';
 import axiosInstance from '@/lib/axios';
 import { checkQZStatus, printReceipt } from '@/lib/qz-tray';
 import { useAuth } from '@/contexts/AuthContext';
@@ -108,6 +109,8 @@ export default function PurchaseHistoryPage() {
   // Modal states
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showExchangeModal, setShowExchangeModal] = useState(false);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [selectedCustomerForEdit, setSelectedCustomerForEdit] = useState<any>(null);
   const [selectedOrderForAction, setSelectedOrderForAction] = useState<any | null>(null);
 
   // Initialize roles and initial store selection
@@ -251,6 +254,16 @@ export default function PurchaseHistoryPage() {
       console.error('Error deleting order:', error);
       alert('Failed to delete order. Please try again.');
     }
+  };
+
+  const handleEditCustomer = (order: PurchaseHistoryOrder) => {
+    setActiveMenu(null);
+    if (!order.customer) {
+      alert("No customer attached to this order.");
+      return;
+    }
+    setSelectedCustomerForEdit(order.customer);
+    setShowCustomerModal(true);
   };
 
   const handleReturn = async (order: PurchaseHistoryOrder) => {
@@ -869,6 +882,18 @@ export default function PurchaseHistoryPage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      handleEditCustomer(order);
+                                    }}
+                                    className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
+                                  >
+                                    <Edit className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                                    <span>Edit Customer</span>
+                                  </button>
+                                  <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       handleExchange(order);
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-3 transition-colors"
@@ -1086,6 +1111,29 @@ export default function PurchaseHistoryPage() {
             setSelectedOrderForAction(null);
           }}
           onExchange={handleExchangeSubmit}
+        />
+      )}
+
+      {showCustomerModal && selectedCustomerForEdit && (
+        <CustomerFormModal
+          mode="edit"
+          customer={selectedCustomerForEdit}
+          initial={{
+            name: selectedCustomerForEdit.name,
+            phone: selectedCustomerForEdit.phone,
+            address: selectedCustomerForEdit.address || '',
+            customer_type: 'counter',
+          }}
+          onClose={() => {
+            setShowCustomerModal(false);
+            setSelectedCustomerForEdit(null);
+          }}
+          onSaved={(savedCustomer: any) => {
+            // Re-fetch orders to show updated customer info
+            fetchOrders();
+            setShowCustomerModal(false);
+            setSelectedCustomerForEdit(null);
+          }}
         />
       )}
     </div>

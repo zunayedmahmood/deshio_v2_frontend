@@ -141,7 +141,10 @@ export default function ProductPage() {
 
     const sort = searchParams.get('sortBy') ?? 'newest';
     const inStockParam = searchParams.get('in_stock');
-    const stock = inStockParam === 'true' ? 'in_stock' : inStockParam === 'false' ? 'not_in_stock' : 'all';
+    const stockStatusParam = searchParams.get('stock_status');
+    const stock = stockStatusParam === 'in_stock' || stockStatusParam === 'not_in_stock' || stockStatusParam === 'available_online' 
+      ? stockStatusParam 
+      : inStockParam === 'true' ? 'in_stock' : inStockParam === 'false' ? 'not_in_stock' : 'all';
 
     if (q !== searchQuery) {
       setSearchQuery(q);
@@ -278,7 +281,7 @@ export default function ProductPage() {
         group_by_sku: true,
         min_price: minPrice ? Number(minPrice) : undefined,
         max_price: maxPrice ? Number(maxPrice) : undefined,
-        in_stock: stockStatus === 'in_stock' ? 'true' : stockStatus === 'not_in_stock' ? 'false' : undefined,
+        stock_status: stockStatus !== 'all' ? stockStatus : undefined,
         sort_by: apiSortBy,
         sort_direction: apiSortDir,
       });
@@ -460,6 +463,9 @@ export default function ProductPage() {
             size: getColorAndSize(product).size,
             variation_suffix: (product as any).variation_suffix,
             image: primaryImageUrl,
+            stockQuantity: product.stock_quantity ?? 0,
+            onlineStockQuantity: product.online_stock_quantity ?? 0,
+            offlineStockQuantity: product.offline_stock_quantity ?? 0,
           },
           ...serverVariants.map((v: any) => {
             const vImg = v.images?.[0];
@@ -477,6 +483,9 @@ export default function ProductPage() {
               size: vColorSize.size,
               variation_suffix: v.variation_suffix,
               image: vImgUrl,
+              stockQuantity: v.stock_quantity ?? 0,
+              onlineStockQuantity: v.online_stock_quantity ?? 0,
+              offlineStockQuantity: v.offline_stock_quantity ?? 0,
             };
           }),
         ];
@@ -492,6 +501,9 @@ export default function ProductPage() {
           hasVariations: allVariants.length > 1,
           vendorId: product.vendor_id,
           vendorName: vendorsById[product.vendor_id] ?? null,
+          stockQuantity: allVariants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0),
+          onlineStockQuantity: allVariants.reduce((sum, v) => sum + (v.onlineStockQuantity || 0), 0),
+          offlineStockQuantity: allVariants.reduce((sum, v) => sum + (v.offlineStockQuantity || 0), 0),
         };
       });
     }
@@ -540,7 +552,10 @@ export default function ProductPage() {
         color,
         size,
         variation_suffix: (product as any).variation_suffix,
-        image: variantImageUrl
+        image: variantImageUrl,
+        stockQuantity: product.stock_quantity ?? 0,
+        onlineStockQuantity: product.online_stock_quantity ?? 0,
+        offlineStockQuantity: product.offline_stock_quantity ?? 0,
       });
     });
 
@@ -548,6 +563,9 @@ export default function ProductPage() {
       group.baseName = getGroupBaseName(group.variants, group.baseName);
       group.totalVariants = group.variants.length;
       group.hasVariations = group.variants.length > 1;
+      group.stockQuantity = group.variants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
+      group.onlineStockQuantity = group.variants.reduce((sum, v) => sum + (v.onlineStockQuantity || 0), 0);
+      group.offlineStockQuantity = group.variants.reduce((sum, v) => sum + (v.offlineStockQuantity || 0), 0);
       if (!group.primaryImage) {
         group.primaryImage = group.variants.find(v => v.image)?.image || null;
       }
@@ -645,6 +663,24 @@ export default function ProductPage() {
     } catch (err) {
       console.error('Error deleting product:', err);
       setToast({ message: 'Failed to delete product', type: 'error' });
+    }
+  };
+
+  const handleArchive = async (id: number) => {
+    if (!canEditProducts) {
+      setToast({ message: "You don't have permission to archive products", type: 'warning' });
+      return;
+    }
+    try {
+      await productService.archive(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      setToast({ message: 'Product archived successfully', type: 'success' });
+
+      // Refresh data to update counts
+      await fetchData(currentPage);
+    } catch (err) {
+      console.error('Error archiving product:', err);
+      setToast({ message: 'Failed to archive product', type: 'error' });
     }
   };
 
@@ -811,9 +847,9 @@ export default function ProductPage() {
       category: null,
       vendor: null,
       minPrice: null,
-      maxPrice: null,
       sortBy: null,
-      stockStatus: null,
+      stock_status: null,
+      in_stock: null,
       page: '1',
     });
   };
@@ -916,6 +952,66 @@ export default function ProductPage() {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Categories</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">{flatCategories.length}</p>
                   </div>
+                </div>
+
+                {/* Stock Status Toggle Buttons */}
+                <div className="flex gap-2 flex-wrap mb-4">
+                  <button
+                    onClick={() => {
+                      setStockStatus('all');
+                      setCurrentPage(1);
+                      updateQueryParams({ stock_status: null, page: '1' });
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
+                      stockStatus === 'all'
+                        ? 'bg-gray-900 dark:bg-gray-700 text-white border-gray-900 dark:border-gray-700'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    All Products
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStockStatus('in_stock');
+                      setCurrentPage(1);
+                      updateQueryParams({ stock_status: 'in_stock', page: '1' });
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
+                      stockStatus === 'in_stock'
+                        ? 'bg-gray-900 dark:bg-gray-700 text-white border-gray-900 dark:border-gray-700'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    In Stock
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStockStatus('not_in_stock');
+                      setCurrentPage(1);
+                      updateQueryParams({ stock_status: 'not_in_stock', page: '1' });
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
+                      stockStatus === 'not_in_stock'
+                        ? 'bg-gray-900 dark:bg-gray-700 text-white border-gray-900 dark:border-gray-700'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    Out of Stock
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStockStatus('available_online');
+                      setCurrentPage(1);
+                      updateQueryParams({ stock_status: 'available_online', page: '1' });
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border shadow-sm ${
+                      stockStatus === 'available_online'
+                        ? 'bg-gray-900 dark:bg-gray-700 text-white border-gray-900 dark:border-gray-700'
+                        : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    Available Online
+                  </button>
                 </div>
 
                 {/* Search and Filter Bar */}
@@ -1035,30 +1131,6 @@ export default function ProductPage() {
                         </select>
                       </div>
 
-                      {/* Stock Status Filter */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Stock Status
-                        </label>
-                        <select
-                          value={stockStatus}
-                          onChange={(e) => {
-                            const val = e.target.value as 'all' | 'in_stock' | 'not_in_stock';
-                            setStockStatus(val);
-                            setCurrentPage(1);
-                            updateQueryParams({
-                              in_stock: val === 'in_stock' ? 'true' : val === 'not_in_stock' ? 'false' : null,
-                              page: '1'
-                            });
-                          }}
-                          className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 transition-colors cursor-pointer"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="in_stock">In Stock</option>
-                          <option value="not_in_stock">Out of Stock</option>
-                        </select>
-                      </div>
-
                       {/* Price Filter */}
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1152,6 +1224,7 @@ export default function ProductPage() {
                       }}
                       onDelete={canDeleteProducts ? handleDelete : undefined}
                       onEdit={canEditProducts ? handleEdit : undefined}
+                      onArchive={canEditProducts ? handleArchive : undefined}
                       onView={handleView}
                       onAddVariation={canCreateProducts ? handleAddVariation : undefined}
                       {...(selectMode && { onSelect: handleSelect })}

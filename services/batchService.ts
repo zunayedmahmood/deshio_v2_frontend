@@ -72,12 +72,17 @@ export interface AdjustStockData {
 }
 
 export interface BatchFilters {
-  product_id?: number;
-  store_id?: number;
-  status?: 'available' | 'expired' | 'low_stock' | 'out_of_stock' | 'inactive';
-  barcode?: string;
-  expiring_days?: number;
+  product_id?: number | string;
+  product_ids?: string | number[];
+  min_sell_price?: string | number;
+  max_sell_price?: string | number;
+  exact_price?: string | number;
   search?: string;
+  store_id?: number | string;
+  status?: 'available' | 'expired' | 'low_stock' | 'out_of_stock' | 'inactive' | string;
+  barcode?: string;
+  batch_number?: string;
+  expiring_days?: number;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
   per_page?: number;
@@ -142,6 +147,40 @@ class BatchService {
   async getBatchesArray(filters?: BatchFilters): Promise<Batch[]> {
     const response = await this.getBatches(filters);
     return response.data.data;
+  }
+
+  async getBatchesAll(
+    filters: BatchFilters = {},
+    options: { max_items?: number; max_pages?: number } = {}
+  ): Promise<Batch[]> {
+    const maxItems = options.max_items ?? 2000;
+    const maxPages = options.max_pages ?? 20;
+    const all: Batch[] = [];
+    let page = Number(filters.page || 1) || 1;
+    let pagesRead = 0;
+
+    while (pagesRead < maxPages && all.length < maxItems) {
+      const response = await this.getBatches({
+        ...filters,
+        page,
+        per_page: filters.per_page || 100,
+      });
+
+      const items = Array.isArray((response as any)?.data?.data) ? (response as any).data.data : [];
+      all.push(...items);
+
+      const currentPage = Number((response as any)?.data?.current_page || page);
+      const lastPage = Number((response as any)?.data?.last_page || currentPage);
+
+      if (!items.length || currentPage >= lastPage) {
+        break;
+      }
+
+      page = currentPage + 1;
+      pagesRead += 1;
+    }
+
+    return all.slice(0, maxItems);
   }
 
   /**

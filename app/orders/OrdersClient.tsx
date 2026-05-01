@@ -1556,25 +1556,43 @@ export default function OrdersDashboard() {
   const handleEditOrder = async (order: Order) => {
     setActiveMenu(null);
     setIsLoadingDetails(true);
-    setShowEditModal(true);
 
     try {
       const fullOrder = await orderService.getById(order.id);
-      setSelectedBackendOrder(fullOrder);
-      const transformedOrder = transformOrder(fullOrder);
+      
+      const shippingAddress = (fullOrder as any).shipping_address || (fullOrder as any).delivery_address || {};
+      const isIntl = !!(shippingAddress.country && shippingAddress.country.toLowerCase() !== 'bangladesh');
+      const usePathaoAuto = !shippingAddress.city_id && !shippingAddress.zone_id && !shippingAddress.area_id;
 
-      setSelectedOrder(transformedOrder);
-      setEditableOrder(transformedOrder);
-      setServicesTouched(false);
-      ensureProductThumbs((fullOrder.items ?? []).map((it: any) => it?.product_id));
-      if (fullOrder.store?.id) {
-        setPickerStoreId(fullOrder.store.id);
-      }
+      const prefillPayload = {
+        editOrderId: fullOrder.id,
+        editOrderNumber: fullOrder.order_number,
+        storeId: String(fullOrder.store?.id || ''),
+        userName: fullOrder.customer?.name || '',
+        userPhone: fullOrder.customer?.phone || '',
+        userEmail: fullOrder.customer?.email || '',
+        socialId: (fullOrder.customer as any)?.social_id || '',
+        orderNotes: fullOrder.notes || '',
+        isInternational: isIntl,
+        usePathaoAutoLocation: usePathaoAuto,
+        pathaoCityId: String(shippingAddress.city_id || ''),
+        pathaoZoneId: String(shippingAddress.zone_id || ''),
+        pathaoAreaId: String(shippingAddress.area_id || ''),
+        streetAddress: shippingAddress.address || shippingAddress.street || '',
+        postalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
+        country: shippingAddress.country || '',
+        state: shippingAddress.state || '',
+        internationalCity: shippingAddress.city || '',
+        internationalPostalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
+        deliveryAddress: shippingAddress.address || shippingAddress.street || '',
+        cart: fullOrder.items || []
+      };
+
+      sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));
+      window.location.href = '/social-commerce';
     } catch (error: any) {
       console.error('Failed to load order details:', error);
       alert('Failed to load order details: ' + error.message);
-      setShowEditModal(false);
-      setEditableOrder(null);
     } finally {
       setIsLoadingDetails(false);
     }

@@ -444,24 +444,52 @@ export default function DispatchManagementPage() {
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <h3 className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
                     Source Store
                   </h3>
-                  <p className="text-gray-900 dark:text-white">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {selectedDispatch.source_store.name}
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  <h3 className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
                     Destination Store
                   </h3>
-                  <p className="text-gray-900 dark:text-white">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {selectedDispatch.destination_store.name}
                   </p>
                 </div>
+                <div>
+                  <h3 className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
+                    Carrier / Logistics
+                  </h3>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {selectedDispatch.carrier_name || '—'}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-[11px] uppercase tracking-wider font-bold text-gray-500 dark:text-gray-400 mb-1">
+                    Tracking Number
+                  </h3>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {selectedDispatch.tracking_number || '—'}
+                  </p>
+                </div>
               </div>
+
+              {selectedDispatch.notes && (
+                <div className="mb-6 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/50 rounded-lg p-4">
+                  <h3 className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <Package className="w-3.5 h-3.5" />
+                    Dispatch Notes
+                  </h3>
+                  <p className="text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap leading-relaxed">
+                    {selectedDispatch.notes}
+                  </p>
+                </div>
+              )}
 
               {selectedDispatch.items && selectedDispatch.items.length > 0 && (
                 <div>

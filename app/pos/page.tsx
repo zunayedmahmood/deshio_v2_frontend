@@ -144,6 +144,7 @@ export default function POSPage() {
   // Products (for manual entry)
   const [products, setProducts] = useState<Product[]>([]);
   const [product, setProduct] = useState('');
+  const [manualSearchQuery, setManualSearchQuery] = useState('');
   const [minPriceFilter, setMinPriceFilter] = useState('');
   const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
@@ -157,6 +158,7 @@ export default function POSPage() {
   const [customerName, setCustomerName] = useState('');
   const [mobileNo, setMobileNo] = useState('');
   const [address, setAddress] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
 
   // ✅ Customer lookup (existing customer by phone + last purchase)
   const customerLookup = useCustomerLookup({ debounceMs: 500, minLength: 6 });
@@ -747,12 +749,12 @@ export default function POSPage() {
           }
           : {}),
 
-        // ✅ Add notes if any
-        ...(address || change > 0
-          ? {
-            notes: `${address ? `Address: ${address}` : ''}${address && change > 0 ? ', ' : ''}${change > 0 ? `Change Given: ৳${change.toFixed(2)}` : ''}`.trim(),
-          }
-          : {}),
+        // ✅ Combine manual notes with automated info (address/change)
+        notes: [
+          orderNotes.trim(),
+          address ? `Address: ${address}` : null,
+          change > 0 ? `Change Given: ৳${change.toFixed(2)}` : null,
+        ].filter(Boolean).join(' | '),
       };
 
       console.log('═══════════════════════════════════');
@@ -1085,6 +1087,7 @@ export default function POSPage() {
     setNagadPaid(0);
     setTransportCost(0);
     setAutoCustomerId(null);
+    setOrderNotes('');
 
     // ✅ Clear lookup input + last order UI as well
     (customerLookup as any)?.clear?.();
@@ -1605,43 +1608,86 @@ export default function POSPage() {
                             />
                           </div>
 
-                          <select
-                            value={product}
-                            onChange={(e) => handleProductSelect(e.target.value)}
-                            disabled={!selectedOutlet}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-                          >
-                            <option value="">Select Product</option>
-                            {products
-                              .filter((p) => {
-                                if (!p.batches || p.batches.length === 0) return false;
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              placeholder="Search by SKU, Product Name or ID..."
+                              value={manualSearchQuery}
+                              onChange={(e) => setManualSearchQuery(e.target.value)}
+                              disabled={!selectedOutlet}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                            
+                            <select
+                              value={product}
+                              onChange={(e) => handleProductSelect(e.target.value)}
+                              disabled={!selectedOutlet}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                            >
+                              <option value="">
+                                {manualSearchQuery ? 'Matching Products' : 'Select Product'}
+                              </option>
+                              {products
+                                .filter((p) => {
+                                  if (!p.batches || p.batches.length === 0) return false;
 
-                                const min =
-                                  minPriceFilter.trim() !== '' && Number.isFinite(Number(minPriceFilter))
-                                    ? Number(minPriceFilter)
-                                    : null;
-                                const max =
-                                  maxPriceFilter.trim() !== '' && Number.isFinite(Number(maxPriceFilter))
-                                    ? Number(maxPriceFilter)
-                                    : null;
+                                  const query = manualSearchQuery.toLowerCase().trim();
+                                  const min =
+                                    minPriceFilter.trim() !== '' && Number.isFinite(Number(minPriceFilter))
+                                      ? Number(minPriceFilter)
+                                      : null;
+                                  const max =
+                                    maxPriceFilter.trim() !== '' && Number.isFinite(Number(maxPriceFilter))
+                                      ? Number(maxPriceFilter)
+                                      : null;
 
-                                if (min === null && max === null) return p.batches.length > 0;
+                                  // Apply manual search query filter
+                                  if (query) {
+                                    const skuMatch = p.sku?.toLowerCase().includes(query);
+                                    const nameMatch = p.name.toLowerCase().includes(query);
+                                    const idMatch = String(p.id) === query;
+                                    if (!skuMatch && !nameMatch && !idMatch) return false;
+                                  }
 
-                                return p.batches.some((b) => {
-                                  if (Number(b.quantity) <= 0) return false;
+                                  if (min === null && max === null) return true;
 
-                                  const price = Number(String(b.sell_price ?? '0').replace(/[^0-9.-]/g, ''));
-                                  if (min !== null && price < min) return false;
-                                  if (max !== null && price > max) return false;
-                                  return true;
-                                });
-                              })
-                              .map((prod) => (
-                                <option key={prod.id} value={prod.name}>
-                                  {prod.name} ({prod.batches?.length || 0} batches)
-                                </option>
-                              ))}
-                          </select>
+                                  return p.batches.some((b) => {
+                                    if (Number(b.quantity) <= 0) return false;
+                                    const price = Number(String(b.sell_price ?? '0').replace(/[^0-9.-]/g, ''));
+                                    if (min !== null && price < min) return false;
+                                    if (max !== null && price > max) return false;
+                                    return true;
+                                  });
+                                })
+                                .sort((a, b) => {
+                                  if (!manualSearchQuery) return 0;
+                                  const query = manualSearchQuery.toLowerCase().trim();
+                                  
+                                  // 1. Exact SKU/ID match
+                                  const aExact = a.sku?.toLowerCase() === query || String(a.id) === query;
+                                  const bExact = b.sku?.toLowerCase() === query || String(b.id) === query;
+                                  if (aExact && !bExact) return -1;
+                                  if (!aExact && bExact) return 1;
+
+                                  // 2. Starts with name/sku
+                                  const aStarts = a.name.toLowerCase().startsWith(query) || a.sku?.toLowerCase().startsWith(query);
+                                  const bStarts = b.name.toLowerCase().startsWith(query) || b.sku?.toLowerCase().startsWith(query);
+                                  if (aStarts && !bStarts) return -1;
+                                  if (!aStarts && bStarts) return 1;
+
+                                  return 0;
+                                })
+                                .slice(0, manualSearchQuery ? 100 : 50) // Limit results for performance
+                                .map((prod) => (
+                                  <option key={prod.id} value={prod.name}>
+                                    {prod.name} {prod.sku ? `(${prod.sku})` : ''} — {prod.batches?.length || 0} batches
+                                  </option>
+                                ))}
+                            </select>
+                            {manualSearchQuery && products.filter(p => p.sku?.toLowerCase().includes(manualSearchQuery.toLowerCase()) || p.name.toLowerCase().includes(manualSearchQuery.toLowerCase())).length === 0 && (
+                              <p className="text-[11px] text-red-500 italic">No products found matching your search.</p>
+                            )}
+                          </div>
                         </div>
 
                         <div>
@@ -1744,6 +1790,13 @@ export default function POSPage() {
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      />
+                      <textarea
+                        placeholder="Order Notes (e.g. special instructions, gift wrapping)..."
+                        value={orderNotes}
+                        onChange={(e) => setOrderNotes(e.target.value)}
+                        className="col-span-3 mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        rows={2}
                       />
                     </div>
 

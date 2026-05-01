@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { computeMenuPosition } from '@/lib/menuPosition';
-import { MoreVertical, Edit, Trash2, Eye, Plus } from 'lucide-react';
+import { MoreVertical, Edit, Trash2, Eye, Plus, Archive } from 'lucide-react';
 import type { ProductGroup, ProductVariant } from '@/types/product';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
 
@@ -14,6 +14,7 @@ interface ProductListItemProps {
   productGroup: ProductGroup;
   onDelete?: (id: number) => void;
   onEdit?: (id: number) => void;
+  onArchive?: (id: number) => void;
   onView: (id: number) => void;
   onAddVariation?: (group: ProductGroup) => void;
   onSelect?: (variant: ProductVariant) => void;
@@ -24,6 +25,7 @@ export default function ProductListItem({
   productGroup,
   onDelete,
   onEdit,
+  onArchive,
   onView,
   onAddVariation,
   onSelect,
@@ -31,6 +33,7 @@ export default function ProductListItem({
 }: ProductListItemProps) {
   const canEdit = typeof onEdit === 'function';
   const canDelete = typeof onDelete === 'function';
+  const canArchive = typeof onArchive === 'function';
   const canAddVariation = typeof onAddVariation === 'function';
   const [showDropdown, setShowDropdown] = useState(false);
   const [showVariations, setShowVariations] = useState(false);
@@ -151,6 +154,19 @@ export default function ProductListItem({
                       ? `৳${Number(productGroup.sellingPrice).toFixed(2)}`
                       : 'Checking stock...'}
                 </span>
+                {(productGroup.stockQuantity ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 ml-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                      Stock: {productGroup.stockQuantity}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                      Online: {productGroup.onlineStockQuantity || 0}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                      Offline: {productGroup.offlineStockQuantity || 0}
+                    </span>
+                  </div>
+                )}
               </div>
 </div>
           </div>
@@ -233,6 +249,20 @@ export default function ProductListItem({
                     Edit Product
                   </button>
                 )}
+                {canArchive && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Archive ${hasMultipleVariants ? 'all variants of' : ''} "${productGroup.baseName}"?`)) {
+                        productGroup.variants.forEach((v) => onArchive?.(v.id));
+                      }
+                      setShowDropdown(false);
+                      setTimeout(() => setIsDropdownMounted(false), 200);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                  >
+                    Archive {hasMultipleVariants ? `All (${productGroup.totalVariants})` : ''}
+                  </button>
+                )}
                 {(canDelete) && <div className="my-1 border-t border-gray-200 dark:border-gray-700"></div>}
                 {canDelete && (
                   <button
@@ -304,6 +334,11 @@ export default function ProductListItem({
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {variant.variation_suffix || variant.size || 'One Size'}
                       </span>
+                      <div className="flex items-center gap-2 ml-3">
+                        <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">Stock: {variant.stockQuantity || 0}</span>
+                        <span className="text-[11px] font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded">Online: {variant.onlineStockQuantity || 0}</span>
+                        <span className="text-[11px] font-medium text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">Offline: {variant.offlineStockQuantity || 0}</span>
+                      </div>
                       <div className="flex gap-1 ml-auto">
                         {canEdit && (
                           <button
@@ -323,6 +358,19 @@ export default function ProductListItem({
                             className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium px-2 py-0.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                           >
                             <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                        {canArchive && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Archive "${variant.name}"?`)) {
+                                onArchive?.(variant.id);
+                              }
+                            }}
+                            className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-medium px-2 py-0.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded"
+                            title="Archive variation"
+                          >
+                            <Archive className="w-3 h-3" />
                           </button>
                         )}
                         {onSelect && (

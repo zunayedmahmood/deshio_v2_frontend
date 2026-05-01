@@ -231,16 +231,24 @@ export default function SocialCommercePage() {
   const readQueuedSelections = () => {
     if (typeof window === 'undefined') return [];
     try {
-      const raw = sessionStorage.getItem(SC_SELECTION_QUEUE_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const list = Array.isArray(parsed) ? parsed : [];
+      const rawSession = sessionStorage.getItem(SC_SELECTION_QUEUE_KEY);
+      const rawLegacyLocal = localStorage.getItem('social_commerce_queue');
+      
+      const parsedSession = rawSession ? JSON.parse(rawSession) : [];
+      const parsedLegacy = rawLegacyLocal ? JSON.parse(rawLegacyLocal) : [];
+      
+      const listSession = Array.isArray(parsedSession) ? parsedSession : [];
+      const listLegacy = Array.isArray(parsedLegacy) ? parsedLegacy : [];
+      
+      // Merge them
+      const list = [...listSession, ...listLegacy];
 
       const byId = new Map<number, any>();
       for (const item of list) {
         const id = Number(item?.id || 0);
         if (!Number.isFinite(id) || id <= 0) continue;
 
-        const qtyRaw = Number(item?.qty);
+        const qtyRaw = Number(item?.qty ?? item?.quantity);
         const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.floor(qtyRaw) : 1;
 
         const ex = byId.get(id);
@@ -249,11 +257,11 @@ export default function SocialCommercePage() {
           ex.ts = Math.max(Number(ex.ts || 0), Number(item?.ts || 0));
           if (!ex.image && item?.image) ex.image = String(item.image);
           if (!ex.sku && item?.sku) ex.sku = String(item.sku);
-          if (!ex.name && item?.name) ex.name = String(item.name);
+          if (!ex.name && (item?.name || item?.productName)) ex.name = String(item.name || item.productName);
         } else {
           byId.set(id, {
             id,
-            name: String(item?.name || ''),
+            name: String(item?.name || item?.productName || ''),
             sku: String(item?.sku || ''),
             image: item?.image ? String(item.image) : null,
             qty,
@@ -271,6 +279,7 @@ export default function SocialCommercePage() {
   const clearQueuedSelections = () => {
     if (typeof window === 'undefined') return;
     sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
+    localStorage.removeItem('social_commerce_queue');
   };
 
   const formatOrderDateTime = (v?: any) => {
@@ -1184,7 +1193,7 @@ export default function SocialCommercePage() {
         const stockLimitedNames: string[] = [];
 
         if (selectedProducts.length) {
-          setCart((prev) => {
+          setStagingQueue((prev) => {
             const next = [...prev];
             const queuedCountByPid = new Map<number, number>();
 
@@ -1194,38 +1203,38 @@ export default function SocialCommercePage() {
               const price = Number(String(p?.attributes?.Price ?? '0').replace(/[^0-9.-]/g, '')) || 0;
               const available = Math.max(0, Number(p?.available ?? 0) || 0);
 
-              const alreadyInCartQty = next
+              const alreadyInCartQty = cart
                 .filter((item) => !item.isService && !item.isDefective && Number(item.product_id) === pid)
                 .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 
+              const alreadyInStagingQty = next
+                .filter((item) => Number(item.product?.id || 0) === pid)
+                .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+
               const queuedUsed = queuedCountByPid.get(pid) || 0;
-              if (alreadyInCartQty + queuedUsed + 1 > available) {
+              if (alreadyInCartQty + alreadyInStagingQty + queuedUsed + 1 > available) {
                 stockLimitedNames.push(name);
                 continue;
               }
 
-              const existingIndex = next.findIndex((item) => !item.isService && !item.isDefective && Number(item.product_id) === pid);
+              const existingIndex = next.findIndex((item) => Number(item.product?.id || 0) === pid);
               if (existingIndex >= 0) {
                 const ex = next[existingIndex];
                 const newQty = (Number(ex.quantity) || 0) + 1;
-                const exDiscount = Number(ex.discount_amount) || 0;
+                const dTk = Number(ex.discountTk) || 0;
                 next[existingIndex] = {
                   ...ex,
                   quantity: newQty,
-                  discount_amount: exDiscount,
-                  amount: Math.max(0, (price * newQty) - exDiscount),
-                  unit_price: price,
+                  amount: Math.max(0, (price * newQty) - dTk).toFixed(2),
                 };
               } else {
                 next.push({
                   id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  product_id: pid,
-                  batch_id: null,
-                  productName: name,
+                  product: p,
                   quantity: 1,
-                  unit_price: price,
-                  discount_amount: 0,
-                  amount: price,
+                  discountPercent: '',
+                  discountTk: '',
+                  amount: price.toFixed(2),
                 });
               }
 
@@ -1427,64 +1436,17 @@ export default function SocialCommercePage() {
       setIsSearching(true);
 
       try {
-        let batches: any[] = [];
-        let productMap = new Map<number, any>();
-        let relevanceMap = new Map<number, { score: number; stage: string }>();
-
-        // ✅ If there's a search query, use advancedSearch to find products first
-        if (q) {
-          const hits = await productService.advancedSearchAll(
-            {
-              query: q,
-              is_archived: false,
-              enable_fuzzy: true,
-              fuzzy_threshold: 60,
-              search_fields: ['name', 'sku', 'description', 'category', 'custom_fields'],
-              per_page: 80,
-            },
-            { max_items: 200, max_pages: 5 } // Fetching a reasonable max chunk of products
-          );
-
-          if (hits.length === 0) {
-            setSearchResults([]);
-            return;
-          }
-
-          for (const h of hits) {
-            if (!h?.id) continue;
-            const pid = Number(h.id);
-            productMap.set(pid, h);
-            relevanceMap.set(pid, {
-              score: Number((h as any)?.relevance_score ?? 0) || 0,
-              stage: String((h as any)?.search_stage ?? 'advanced'),
-            });
-          }
-
-          const productIds = Array.from(productMap.keys()).join(',');
-          
-          // Download batches *ONLY* for the matched product IDs
-          batches = await batchService.getBatchesAll({
-            store_id: storeId,
-            status: 'available',
-            product_ids: productIds,
-            min_sell_price: min,
-            max_sell_price: max,
-            exact_price: exact,
-          }, { max_items: 2000 }); // safety cap
-        } else {
-          // ✅ Price-only search
-          batches = await batchService.getBatchesAll({
-            store_id: storeId,
-            status: 'available',
-            min_sell_price: min,
-            max_sell_price: max,
-            exact_price: exact,
-          }, { max_items: 50 }); // cap size for price-only searches to keep UI fast
-        }
+        // Single unified search using batchService
+        const batches = await batchService.getBatchesAll({
+          store_id: storeId,
+          status: 'available',
+          search: q || undefined,
+          min_sell_price: min,
+          max_sell_price: max,
+          exact_price: exact,
+        }, { max_items: 2000 }); // Fast search with capped results
 
         const results = buildProductResultsFromBatches(batches, {
-          productOverrides: productMap,
-          relevanceOverrides: relevanceMap,
           defaultStage: q ? 'advanced' : 'price',
           defaultScore: 0,
         });
@@ -1498,10 +1460,8 @@ export default function SocialCommercePage() {
           return true;
         });
 
-        // Sort: best match first, then cheaper batches first
+        // Sort: cheaper batches first
         finalResults.sort((a: any, b: any) => {
-          const d = Number(b?.relevance_score ?? 0) - Number(a?.relevance_score ?? 0);
-          if (d !== 0) return d;
           return Number(a?.attributes?.Price ?? 0) - Number(b?.attributes?.Price ?? 0);
         });
 
@@ -2115,7 +2075,7 @@ export default function SocialCommercePage() {
                                                 <FileText className="h-3.5 w-3.5" />
                                                 View
                                               </button>
-                                              <p className="text-[11px] text-gray-600 dark:text-gray-200">
+                                              <p className="text-[11px] font-bold text-gray-900 dark:text-white bg-amber-100/50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded">
                                                 {formatOrderDateTime(o.order_date)}
                                               </p>
                                             </div>

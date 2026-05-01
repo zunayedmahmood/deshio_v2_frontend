@@ -29,6 +29,10 @@ export interface Product {
   selling_price?: number;
   base_price?: number; // alias for selling_price
   global_available?: number; // total available from reserved_products
+  stock_quantity?: number;
+  online_stock_quantity?: number;
+  offline_stock_quantity?: number;
+  in_stock?: boolean | number;
   created_at: string;
   updated_at: string;
 }
@@ -137,6 +141,10 @@ function transformProduct(product: any): Product {
     selling_price: product.selling_price || product.base_price,
     base_price: product.base_price || product.selling_price,
     global_available: product.global_available,
+    stock_quantity: product.stock_quantity,
+    online_stock_quantity: product.online_stock_quantity,
+    offline_stock_quantity: product.offline_stock_quantity,
+    in_stock: product.in_stock,
     created_at: product.created_at,
     updated_at: product.updated_at,
   };
@@ -182,7 +190,7 @@ export const productService = {
     /** Proposal 2: server-side price filter (BDT) */
     min_price?: number;
     max_price?: number;
-    stock_status?: 'all' | 'in_stock' | 'not_in_stock';
+    stock_status?: 'all' | 'in_stock' | 'not_in_stock' | 'available_online';
     in_stock?: string;
     is_archived?: boolean;
     no_pagination?: boolean;
@@ -288,6 +296,41 @@ export const productService = {
       // Surface as a typed error so caller can fall back to getAll
       throw error;
     }
+  },
+
+  async advancedSearchAll(
+    filters: any = {}, // Use any or ProductSearchFilters if available
+    options: { max_items?: number; max_pages?: number } = {}
+  ): Promise<Product[]> {
+    const maxItems = options.max_items ?? 500;
+    const maxPages = options.max_pages ?? 10;
+    const all: Product[] = [];
+    let page = Number(filters.page || 1) || 1;
+    let pagesRead = 0;
+
+    while (pagesRead < maxPages && all.length < maxItems) {
+      const response = await this.advancedSearch({
+        ...filters,
+        page,
+        per_page: filters.per_page || 100,
+      });
+
+      const items = Array.isArray((response as any)?.data) ? (response as any).data : [];
+      all.push(...items);
+
+      const meta: any = (response as any)?.meta || response;
+      const currentPage = Number(meta?.current_page || page);
+      const lastPage = Number(meta?.last_page || currentPage);
+
+      if (!items.length || currentPage >= lastPage) {
+        break;
+      }
+
+      page = currentPage + 1;
+      pagesRead += 1;
+    }
+
+    return all.slice(0, maxItems);
   },
 
   /** Get single product by ID */

@@ -13,6 +13,9 @@ export interface ProductVariant {
   size?: string;
   variation_suffix?: string;
   image?: string | null;
+  stockQuantity?: number | null;
+  onlineStockQuantity?: number | null;
+  offlineStockQuantity?: number | null;
 }
 
 export interface ProductGroup {
@@ -30,6 +33,8 @@ export interface ProductGroup {
   sellingPrice?: number | null;
   inStock?: boolean | null;
   stockQuantity?: number | null;
+  onlineStockQuantity?: number | null;
+  offlineStockQuantity?: number | null;
 }
 
 
