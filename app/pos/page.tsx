@@ -1287,7 +1287,7 @@ export default function POSPage() {
       // ✅ Group batches by product_id
       const batchesByProduct = new Map<number, Batch[]>();
       allBatches.forEach((batch: any) => {
-        const productId = batch.product?.id || batch.product_id;
+        const productId = Number(batch.product?.id || batch.product_id);
         if (productId) {
           if (!batchesByProduct.has(productId)) {
             batchesByProduct.set(productId, []);
@@ -1684,7 +1684,12 @@ export default function POSPage() {
                                   </option>
                                 ))}
                             </select>
-                            {manualSearchQuery && products.filter(p => p.sku?.toLowerCase().includes(manualSearchQuery.toLowerCase()) || p.name.toLowerCase().includes(manualSearchQuery.toLowerCase())).length === 0 && (
+                            {manualSearchQuery && products.filter(p => {
+                              const q = manualSearchQuery.toLowerCase().trim();
+                              return p.sku?.toLowerCase().includes(q) || 
+                                     p.name.toLowerCase().includes(q) || 
+                                     String(p.id) === q;
+                            }).length === 0 && (
                               <p className="text-[11px] text-red-500 italic">No products found matching your search.</p>
                             )}
                           </div>

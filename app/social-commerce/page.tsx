@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
-import { Search, X, Globe, AlertCircle, Eye, FileText } from 'lucide-react';
+import { Search, X, Globe, AlertCircle, Eye, FileText, RotateCcw } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import CustomerTagManager from '@/components/customers/CustomerTagManager';
@@ -280,6 +280,55 @@ export default function SocialCommercePage() {
     if (typeof window === 'undefined') return;
     sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
     localStorage.removeItem('social_commerce_queue');
+  };
+
+  const handleResetAll = () => {
+    if (typeof window === 'undefined') return;
+    if (!confirm('Are you sure you want to clear all data and start a new order? This will remove all items from cart and clear customer details.')) return;
+
+    // Clear all session storage related to SC
+    sessionStorage.removeItem(SC_DRAFT_STORAGE_KEY);
+    sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
+    sessionStorage.removeItem(SC_EDIT_PREFILL_KEY);
+    sessionStorage.removeItem(SC_EDIT_CONTEXT_KEY);
+    localStorage.removeItem('social_commerce_queue'); 
+    sessionStorage.removeItem('pendingOrder');
+
+    // Reset local states
+    setEditOrderId(null);
+    setEditOrderNumber(null);
+    setStagingQueue([]);
+    setDate(getTodayDate());
+    setSalesBy('');
+    setUserName('');
+    setUserEmail('');
+    setUserPhone('');
+    setSocialId('');
+    setOrderNotes('');
+    setIsInternational(false);
+    setPathaoCityId('');
+    setPathaoZoneId('');
+    setPathaoAreaId('');
+    setStreetAddress('');
+    setPostalCode('');
+    setCountry('');
+    setState('');
+    setInternationalCity('');
+    setInternationalPostalCode('');
+    setDeliveryAddress('');
+    setCart([]);
+    setSearchQuery('');
+    setMinPrice('');
+    setMaxPrice('');
+    setExactPrice('');
+    setSearchResults([]);
+    setSelectedProduct(null);
+    setExistingCustomer(null);
+    setRecentOrders([]);
+    setLastOrderInfo(null);
+    setDefectiveProduct(null);
+
+    showToast('All data cleared. You can start a new order.', 'success');
   };
 
   const formatOrderDateTime = (v?: any) => {
@@ -804,14 +853,21 @@ export default function SocialCommercePage() {
 
         if (mode === 'finalAmount') {
           const rawAmount = Number(String(changes.amount ?? item.amount).replace(/[^0-9.-]/g, ''));
-          const finalAmount = Number.isFinite(rawAmount) ? Math.min(baseAmount, Math.max(0, rawAmount)) : baseAmount;
-          const discountValue = Math.max(0, baseAmount - finalAmount);
+          const finalAmount = Number.isFinite(rawAmount) ? Math.max(0, rawAmount) : baseAmount;
+          const discountValue = baseAmount - finalAmount;
+
+          // NEW: Calculate discount percent so quantity changes scale the final amount correctly
+          let calcPercent = '';
+          if (baseAmount > 0) {
+            const p = (discountValue / baseAmount) * 100;
+            calcPercent = p !== 0 ? p.toFixed(2) : '';
+          }
 
           return {
             ...item,
             quantity,
-            discountPercent: '',
-            discountTk: discountValue ? discountValue.toFixed(2) : '0',
+            discountPercent: calcPercent,
+            discountTk: '', // Clear TK so Percent takes precedence in calculateAmount formula
             amount: finalAmount.toFixed(2),
           };
         }
@@ -1791,10 +1847,11 @@ export default function SocialCommercePage() {
         ? {
             name: userName,
             phone: cleanPhone,
+            address_line1: deliveryAddress,
             street: deliveryAddress,
             city: internationalCity,
             state: state || undefined,
-            country,
+            country: country || 'Bangladesh',
             postal_code: internationalPostalCode || undefined,
           }
         : (() => {
@@ -1802,7 +1859,10 @@ export default function SocialCommercePage() {
             const base: any = {
               name: userName,
               phone: cleanPhone,
+              address_line1: streetAddress,
               street: streetAddress,
+              city: cityObj?.city_name || 'Dhaka',
+              country: 'Bangladesh',
               postal_code: postalCode || undefined,
             };
 
@@ -1811,7 +1871,6 @@ export default function SocialCommercePage() {
               return {
                 ...base,
                 area: areaObj?.area_name || '',
-                city: cityObj?.city_name || '',
                 pathao_city_id: pathaoCityId ? Number(pathaoCityId) : undefined,
                 pathao_zone_id: pathaoZoneId ? Number(pathaoZoneId) : undefined,
                 pathao_area_id: pathaoAreaId ? Number(pathaoAreaId) : undefined,
@@ -1916,7 +1975,16 @@ export default function SocialCommercePage() {
           <main className="flex-1 overflow-auto p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 md:mb-6">
-                <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">Social Commerce</h1>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">Social Commerce</h1>
+                  <button
+                    onClick={handleResetAll}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 dark:bg-red-900/10 dark:text-red-400 dark:border-red-800 transition-colors shadow-sm"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset Order / Clear All
+                  </button>
+                </div>
 
                 {editOrderId && (
                   <div className="w-full flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
