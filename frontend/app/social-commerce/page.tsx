@@ -119,8 +119,12 @@ export default function SocialCommercePage() {
   const [exactPriceFilter, setExactPriceFilter] = useState('');
 
   const [searchResults, setSearchResults] = useState<CatalogGroupedProduct[]>([]);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProductInventory, setSelectedProductInventory] = useState<any>(null);
+
+  // Staging Queue State
+  const [stagingQueue, setStagingQueue] = useState<any[]>([]); 
   const [cart, setCart] = useState<CartProduct[]>([]);
   const [serviceCart, setServiceCart] = useState<ServiceItem[]>([]);
 
@@ -150,7 +154,10 @@ export default function SocialCommercePage() {
 
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [inventoryStats, setInventoryStats] = useState<any>(null);
+  const [quantity, setQuantity] = useState('');
+  const [discountPercent, setDiscountPercent] = useState('');
+  const [discountTk, setDiscountTk] = useState('');
+  const [amount, setAmount] = useState('');
 
   const { user } = useAuth();
   const router = useRouter();
@@ -322,11 +329,6 @@ export default function SocialCommercePage() {
     }
   };
 
-  // ✅ Build aggregated product cards from all matching batches.
-  // This mirrors Deshio Social Commerce behavior:
-  // - one product card per product
-  // - available = total stock across all branches / batches
-  // - batch_id is NOT selected here; it will be assigned during packing/scanning
   const buildAggregatedProductResults = (products: any[], batches: any[]): ProductSearchResult[] => {
     const productMap = new Map<number, ProductSearchResult>();
 
@@ -409,44 +411,6 @@ export default function SocialCommercePage() {
     return `${Number.isFinite(v) ? v : 0} ৳`;
   };
 
-  const performMultiStoreSearch = async (query: string): Promise<ProductSearchResult[]> => {
-    const queryLower = query.toLowerCase().trim();
-    console.log('🔍 Multi-store search for:', queryLower);
-
-    const matchedProducts = allProducts.filter((prod: any) => {
-      const productName = String(prod?.name || '').toLowerCase();
-      const productSku = String(prod?.sku || '').toLowerCase();
-
-      return (
-        productName === queryLower ||
-        productSku === queryLower ||
-        productName.startsWith(queryLower) ||
-        productSku.startsWith(queryLower) ||
-        productName.includes(queryLower) ||
-        productSku.includes(queryLower)
-      );
-    });
-
-    const results = buildAggregatedProductResults(matchedProducts, allBatches);
-
-    // Backfill images only when needed
-    const enrichedResults = await Promise.all(
-      results.map(async (product) => {
-        if (product.mainImage && product.mainImage !== '/placeholder-image.jpg') return product;
-        return {
-          ...product,
-          mainImage: await fetchPrimaryImage(product.id),
-          attributes: {
-            ...product.attributes,
-            mainImage: await fetchPrimaryImage(product.id),
-          },
-        };
-      })
-    );
-
-    return enrichedResults;
-  };
-
   const calculateAmount = (basePrice: number, qty: number, discPer: number, discTk: number) => {
     const baseAmount = basePrice * qty;
     const percentDiscount = (baseAmount * discPer) / 100;
@@ -469,14 +433,12 @@ export default function SocialCommercePage() {
       setIsCheckingCustomer(true);
       setCustomerCheckError(null);
 
-      // Prefer new endpoint (Customer Tags API): POST /customers/find-by-phone
       let customer: any = null;
       try {
         const response = await axios.post('/customers/find-by-phone', { phone });
         const payload = response.data?.data ?? response.data;
         customer = payload?.customer ?? payload;
       } catch (e: any) {
-        // Fallback for older builds: GET /customers/by-phone
         try {
           const response = await axios.get('/customers/by-phone', { params: { phone } });
           const payload = response.data?.data ?? response.data;
@@ -488,11 +450,9 @@ export default function SocialCommercePage() {
 
       if (customer?.id) {
         setExistingCustomer(customer);
-
         if (!userName && customer.name) setUserName(customer.name);
         if (!userEmail && customer.email) setUserEmail(customer.email);
 
-        // Best-effort: get last order from customer orders (if endpoint exists)
         try {
           const lastOrderRes = await axios.get(`/customers/${customer.id}/orders`, {
             params: { per_page: 1, sort_by: 'order_date', sort_order: 'desc' },
@@ -510,18 +470,8 @@ export default function SocialCommercePage() {
             setLastOrderInfo(null);
           }
         } catch (err) {
-          // Fallback to older summary endpoint if present
-          try {
-            const lastOrderRes = await axios.get(`/customers/${customer.id}/last-order-summary`);
-            if (lastOrderRes.data?.success) {
-              setLastOrderInfo(lastOrderRes.data.data);
-            } else {
-              setLastOrderInfo(null);
-            }
-          } catch {
-            console.warn('Failed to load last order info', err);
-            setLastOrderInfo(null);
-          }
+          console.warn('Failed to load last order info', err);
+          setLastOrderInfo(null);
         }
       } else {
         setExistingCustomer(null);
@@ -542,116 +492,38 @@ export default function SocialCommercePage() {
     const defectId = urlParams.get('defect');
 
     if (defectId) {
-      console.log('🔍 DEFECT ID IN URL:', defectId);
-
       const defectData = sessionStorage.getItem('defectItem');
-      console.log('📦 Checking sessionStorage:', defectData);
-
       if (defectData) {
         try {
           const defect = JSON.parse(defectData);
-          console.log('✅ Loaded defect from sessionStorage:', defect);
-
-          if (!defect.batchId) {
-            console.error('❌ Missing batch_id in defect data');
-            showToast('Error: Defect item is missing batch information', 'error');
-            return;
+          if (defect.batchId) {
+            const defectCartItem: CartProduct = {
+              id: Date.now(),
+              product_id: defect.productId,
+              batch_id: defect.batchId,
+              productName: `${defect.productName} [DEFECTIVE]`,
+              quantity: 1,
+              unit_price: defect.sellingPrice || 0,
+              discount_amount: 0,
+              amount: defect.sellingPrice || 0,
+              isDefective: true,
+              defectId: defect.id,
+              store_id: defect.store_id || 0,
+              store_name: defect.store || 'Unknown',
+            };
+            setCart(prev => [...prev, defectCartItem]);
+            fireToast(`Defective item added to cart: ${defect.productName}`, 'success');
+            sessionStorage.removeItem('defectItem');
           }
-
-          setDefectiveProduct(defect);
-
-          const defectCartItem: CartProduct = {
-            id: Date.now(),
-            product_id: defect.productId,
-            batch_id: defect.batchId,
-            productName: `${defect.productName} [DEFECTIVE]`,
-            quantity: 1,
-            unit_price: defect.sellingPrice || 0,
-            discount_amount: 0,
-            amount: defect.sellingPrice || 0,
-            isDefective: true,
-            defectId: defect.id,
-            store_id: defect.store_id || 0,
-            store_name: defect.store || 'Unknown',
-          };
-
-          setCart(prev => [...prev, defectCartItem]);
-          showToast(`Defective item added to cart: ${defect.productName}`, 'success');
-          sessionStorage.removeItem('defectItem');
         } catch (error) {
           console.error('❌ Error parsing defect data:', error);
-          showToast('Error loading defect item', 'error');
         }
-      } else {
-        console.warn('⚠️ No defect data in sessionStorage');
-        showToast('Defect item data not found. Please return to defects page.', 'error');
       }
     }
   }, []);
 
-  // Sync state with localStorage
+  // Initial data loading
   useEffect(() => {
-    // Load state from localStorage on mount - ONLY ONCE
-    const savedState = localStorage.getItem('social_commerce_state');
-    if (savedState) {
-      try {
-        const state = JSON.parse(savedState);
-        setUserName(state.userName || '');
-        setUserEmail(state.userEmail || '');
-        setUserPhone(state.userPhone || '');
-        setSocialId(state.socialId || '');
-        setStreetAddress(state.streetAddress || '');
-        setPostalCode(state.postalCode || '');
-        setIsInternational(state.isInternational || false);
-        setCountry(state.country || '');
-        setState(state.state || '');
-        setInternationalCity(state.internationalCity || '');
-        setInternationalPostalCode(state.internationalPostalCode || '');
-        setDeliveryAddress(state.deliveryAddress || '');
-        setIsPathaoAuto(state.isPathaoAuto !== undefined ? state.isPathaoAuto : true);
-        setSelectedCityId(state.selectedCityId || '');
-        setSelectedZoneId(state.selectedZoneId || '');
-        setSelectedAreaId(state.selectedAreaId || '');
-
-        // Restore cart items
-        if (state.cart && Array.isArray(state.cart)) {
-          setCart(state.cart);
-        }
-        if (state.serviceCart && Array.isArray(state.serviceCart)) {
-          setServiceCart(state.serviceCart);
-        }
-      } catch (e) {
-        console.error('Failed to load state', e);
-      }
-    }
-
-    // Load queue items from localStorage - ONLY ONCE
-    const savedQueue = localStorage.getItem('social_commerce_queue');
-    if (savedQueue) {
-      try {
-        const queueItems = JSON.parse(savedQueue);
-        if (Array.isArray(queueItems) && queueItems.length > 0) {
-          const cartItems: CartProduct[] = queueItems.map(item => ({
-            id: Date.now() + Math.random(), // Unique ID for cart
-            product_id: item.product_id,
-            batch_id: item.batch_id || null,
-            productName: item.productName,
-            sku: item.sku,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            discount_amount: item.discount_amount || 0,
-            amount: item.amount,
-            isDefective: false
-          }));
-
-          setCart(prev => [...prev, ...cartItems]);
-          localStorage.removeItem('social_commerce_queue');
-          fireToast(`Added ${cartItems.length} items from product list`, 'success');
-        }
-      } catch (e) {
-        console.error('Failed to load queue', e);
-      }
-    }
     const loadInitialData = async () => {
       try {
         setIsLoadingData(true);
@@ -666,14 +538,50 @@ export default function SocialCommercePage() {
         setIsLoadingData(false);
       }
     };
-    loadInitialData();
-  }, []); // Run only once on mount
 
-  // Separate effect for user synchronization
-  useEffect(() => {
-    if (user?.name) {
-      setSalesBy(user.name);
+    // Load state from localStorage on mount
+    const savedState = localStorage.getItem('social_commerce_state');
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.userName) setUserName(state.userName);
+        if (state.userPhone) setUserPhone(state.userPhone);
+        if (state.streetAddress) setStreetAddress(state.streetAddress);
+        if (state.cart) setCart(state.cart);
+        if (state.serviceCart) setServiceCart(state.serviceCart);
+      } catch (e) { console.error(e); }
     }
+
+    // Load queue items from localStorage
+    const savedQueue = localStorage.getItem('social_commerce_queue');
+    if (savedQueue) {
+      try {
+        const queueItems = JSON.parse(savedQueue);
+        if (Array.isArray(queueItems) && queueItems.length > 0) {
+          const cartItems: CartProduct[] = queueItems.map(item => ({
+            id: Date.now() + Math.random(),
+            product_id: item.product_id,
+            batch_id: item.batch_id || null,
+            productName: item.productName,
+            sku: item.sku,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            discount_amount: item.discount_amount || 0,
+            amount: item.amount,
+            isDefective: false
+          }));
+          setCart(prev => [...prev, ...cartItems]);
+          localStorage.removeItem('social_commerce_queue');
+          fireToast(`Added ${cartItems.length} items from product list`, 'success');
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    if (user?.name) setSalesBy(user.name);
   }, [user]);
 
   // Pathao Location Fetching
@@ -681,9 +589,7 @@ export default function SocialCommercePage() {
     try {
       const cities = await shipmentService.getPathaoCities();
       setPathaoCities(cities);
-    } catch (e) {
-      console.error('Failed to fetch cities', e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   useEffect(() => {
@@ -693,9 +599,7 @@ export default function SocialCommercePage() {
           const zones = await shipmentService.getPathaoZones(Number(selectedCityId));
           setPathaoZones(zones);
           setPathaoAreas([]);
-        } catch (e) {
-          console.error('Failed to fetch zones', e);
-        }
+        } catch (e) { console.error(e); }
       };
       fetchZones();
     }
@@ -707,39 +611,23 @@ export default function SocialCommercePage() {
         try {
           const areas = await shipmentService.getPathaoAreas(Number(selectedZoneId));
           setPathaoAreas(areas);
-        } catch (e) {
-          console.error('Failed to fetch areas', e);
-        }
+        } catch (e) { console.error(e); }
       };
       fetchAreas();
     }
   }, [selectedZoneId]);
 
-  // Save state to localStorage whenever it changes (with debounce)
+  // Save state to localStorage whenever it changes
   useEffect(() => {
     const timer = setTimeout(() => {
       const stateToSave = {
-        userName,
-        userEmail,
-        userPhone,
-        socialId,
-        streetAddress,
-        postalCode,
-        isInternational,
-        country,
-        state,
-        internationalCity,
-        internationalPostalCode,
-        deliveryAddress,
-        isPathaoAuto,
-        selectedCityId,
-        selectedZoneId,
-        selectedAreaId,
-        cart,
-        serviceCart,
+        userName, userEmail, userPhone, socialId, streetAddress, postalCode,
+        isInternational, country, state, internationalCity, internationalPostalCode,
+        deliveryAddress, isPathaoAuto, selectedCityId, selectedZoneId, selectedAreaId,
+        cart, serviceCart,
       };
       localStorage.setItem('social_commerce_state', JSON.stringify(stateToSave));
-    }, 500);
+    }, 1000);
     return () => clearTimeout(timer);
   }, [userName, userEmail, userPhone, socialId, streetAddress, postalCode, isInternational, country, state, internationalCity, internationalPostalCode, deliveryAddress, isPathaoAuto, selectedCityId, selectedZoneId, selectedAreaId, cart, serviceCart]);
 
@@ -754,13 +642,7 @@ export default function SocialCommercePage() {
     const delayDebounce = setTimeout(async () => {
       try {
         setIsLoadingData(true);
-
-        const params: any = {
-          q: searchQuery,
-          per_page: 50,
-          group_by_sku: true,
-        };
-
+        const params: any = { q: searchQuery, per_page: 50, group_by_sku: true };
         if (minPriceFilter) params.min_price = minPriceFilter;
         if (maxPriceFilter) params.max_price = maxPriceFilter;
         if (exactPriceFilter) {
@@ -769,7 +651,6 @@ export default function SocialCommercePage() {
         }
 
         const response = await catalogService.searchProducts(params);
-
         if (active && response && response.grouped_products) {
           setSearchResults(response.grouped_products);
         }
@@ -786,6 +667,89 @@ export default function SocialCommercePage() {
     };
   }, [searchQuery, minPriceFilter, maxPriceFilter, exactPriceFilter]);
 
+  const handleGroupClick = async (group: CatalogGroupedProduct) => {
+    if (expandedGroupId === group.base_name) {
+      setExpandedGroupId(null);
+      return;
+    }
+    setExpandedGroupId(group.base_name);
+    try {
+      const inv = await inventoryService.getGlobalInventory({ product_id: group.main_variant.id });
+      if (inv.success && inv.data.length > 0) {
+        setSelectedProductInventory(inv.data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch group inventory', err);
+    }
+  };
+
+  const handleVariantSelect = (variant: any, group: any) => {
+    handleAutoStageProduct({
+      ...variant,
+      base_name: group.base_name,
+      main_variant: group.main_variant
+    });
+  };
+
+  const handleAutoStageProduct = (product: any) => {
+    if (!product) return;
+    
+    setStagingQueue(prev => {
+      const existingIndex = prev.findIndex(item => item.id === product.id);
+      if (existingIndex >= 0) {
+        const copy = [...prev];
+        const nextQty = (copy[existingIndex].quantity || 0) + 1;
+        copy[existingIndex] = {
+          ...copy[existingIndex],
+          quantity: nextQty,
+          amount: (product.selling_price || product.price || 0) * nextQty
+        };
+        return copy;
+      }
+      
+      const price = Number(product.selling_price || product.price || 0);
+      return [...prev, {
+        id: product.id,
+        product_id: product.id,
+        productName: product.base_name + (product.variation_suffix ? ` - ${product.variation_suffix}` : ''),
+        sku: product.sku,
+        quantity: 1,
+        unit_price: price,
+        discount_amount: 0,
+        amount: price,
+        isDefective: false
+      }];
+    });
+    
+    fireToast(`${product.base_name} added to staged list`, 'success');
+  };
+
+  const updateStagingItem = (id: any, updates: any) => {
+    setStagingQueue(prev => prev.map(item => {
+      if (item.id === id) {
+        const updated = { ...item, ...updates };
+        const baseAmount = updated.unit_price * updated.quantity;
+        updated.amount = baseAmount - (updated.discount_amount || 0);
+        return updated;
+      }
+      return item;
+    }));
+  };
+
+  const removeFromStaging = (id: any) => {
+    setStagingQueue(prev => prev.filter(item => item.id !== id));
+  };
+
+  const addAllStagedToCart = () => {
+    if (stagingQueue.length === 0) return;
+    setCart(prev => [...prev, ...stagingQueue.map(item => ({
+      ...item,
+      id: Date.now() + Math.random()
+    }))]);
+    setStagingQueue([]);
+    fireToast('All staged items added to cart', 'success');
+  };
+
   useEffect(() => {
     if (selectedProduct && quantity) {
       const price = parseFloat(String(selectedProduct.attributes?.Price ?? selectedProduct.price ?? 0));
@@ -800,16 +764,6 @@ export default function SocialCommercePage() {
     }
   }, [selectedProduct, quantity, discountPercent, discountTk]);
 
-  const handleGroupClick = async (group: CatalogGroupedProduct) => {
-    if (expandedGroupId === group.base_name) {
-      setExpandedGroupId(null);
-      setSelectedProductInventory(null);
-    } else {
-      setExpandedGroupId(group.base_name);
-      // Fetch global inventory for the main variant's product ID as a representative
-      // The user wants a table showing stores. We can fetch for the base product or per variant.
-      // Usually, it's better to show it when a variant is selected or for the whole group.
-      // Let's fetch for the group's main variant first.
       try {
         const inv = await inventoryService.getGlobalInventory({ product_id: group.main_variant.id });
         if (inv.success && inv.data.length > 0) {
@@ -1908,68 +1862,168 @@ export default function SocialCommercePage() {
                 {/* Right Column - Cart & Search */}
                 <div className="lg:col-span-2 space-y-6">
                   {/* Search Product */}
-                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50">
+                  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden flex flex-col min-h-[600px]">
+                    <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/50 flex items-center justify-between">
                       <h2 className="text-lg font-extrabold text-gray-900 dark:text-white flex items-center gap-2">
                         <Search size={18} className="text-teal-500" />
                         Search Product
                       </h2>
+                      <button
+                        onClick={() => router.push(`/product/list?mode=social_commerce&redirect=/social-commerce`)}
+                        className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-4 py-2 rounded-xl text-xs font-bold hover:scale-105 active:scale-95 transition-all shadow-md flex items-center gap-2"
+                      >
+                        <ShoppingBag size={14} />
+                        Browse Product List
+                      </button>
                     </div>
-                    <div className="p-6 space-y-5">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Type to search product..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="flex-1 bg-white dark:bg-gray-800 px-5 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-medium focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm placeholder:text-gray-300 dark:placeholder:text-gray-600"
-                        />
+                    
+                    <div className="p-6 space-y-6 flex-1 flex flex-col min-h-0">
+                      {/* Search Bar & Filters */}
+                      <div className="flex flex-wrap gap-3">
+                        <div className="flex-1 min-w-[200px] relative">
+                          <Search size={16} className="absolute left-4 top-3.5 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Type to search product..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-gray-50 dark:bg-gray-800 pl-11 pr-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+                          />
+                        </div>
                         <input
                           type="number"
                           placeholder="Min ৳"
                           value={minPriceFilter}
                           onChange={(e) => setMinPriceFilter(e.target.value)}
-                          className="w-20 bg-white dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm text-center placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                          className="w-24 bg-gray-50 dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-center outline-none"
                         />
                         <input
                           type="number"
                           placeholder="Max ৳"
                           value={maxPriceFilter}
                           onChange={(e) => setMaxPriceFilter(e.target.value)}
-                          className="w-20 bg-white dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold focus:ring-2 focus:ring-teal-500 outline-none transition-all shadow-sm text-center placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                          className="w-24 bg-gray-50 dark:bg-gray-800 px-3 py-3 rounded-xl border border-gray-100 dark:border-gray-700 text-xs font-bold text-center outline-none"
                         />
                         <input
                           type="number"
                           placeholder="Exact ৳"
                           value={exactPriceFilter}
                           onChange={(e) => setExactPriceFilter(e.target.value)}
-                          className="w-20 bg-blue-50 dark:bg-blue-900/10 px-3 py-3 rounded-xl border border-blue-200 dark:border-blue-900 text-xs font-black focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-center text-blue-700 dark:text-blue-300 placeholder:text-blue-200 dark:placeholder:text-blue-800"
+                          className="w-24 bg-blue-50 dark:bg-blue-900/10 px-3 py-3 rounded-xl border border-blue-100 dark:border-blue-900 text-xs font-bold text-center text-blue-600 outline-none"
                         />
-                        <button className="bg-black dark:bg-white text-white dark:text-black p-3 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg flex items-center justify-center">
-                          <Search size={22} strokeWidth={2.5} />
-                        </button>
                       </div>
 
-                      <div className="p-5 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-between gap-6 transition-all hover:border-teal-400 group">
-                        <div className="flex-1">
-                          <p className="text-[11px] leading-relaxed font-semibold text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors">
-                            Click a product card to stage it instantly, or open Product List for bigger browsing.
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => router.push(`/product/list?mode=social_commerce&redirect=/social-commerce`)}
-                          className="flex-shrink-0 bg-white dark:bg-gray-900 px-5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-[11px] font-black text-gray-900 dark:text-white hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-black transition-all shadow-md whitespace-nowrap uppercase tracking-widest"
-                        >
-                          Browse Product List
-                        </button>
+                      {/* Results List */}
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-3 min-h-[300px]">
+                        {isLoadingData ? (
+                          <div className="py-10 text-center text-gray-400 animate-pulse">Searching products...</div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="py-20 text-center text-gray-300 italic text-sm">
+                            {searchQuery ? `No products found for "${searchQuery}"` : 'Type to search products above...'}
+                          </div>
+                        ) : (
+                          searchResults.map((group) => (
+                            <div key={group.base_name} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden group hover:border-teal-400 transition-all">
+                              <div
+                                onClick={() => handleGroupClick(group)}
+                                className="p-4 flex items-center justify-between cursor-pointer group-hover:bg-gray-50 dark:group-hover:bg-gray-900/20"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-14 h-14 bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden shadow-sm">
+                                    <img
+                                      src={group.main_variant.images?.[0]?.url || '/placeholder-image.jpg'}
+                                      alt={group.base_name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-bold text-sm text-gray-900 dark:text-white leading-tight">{group.base_name}</h3>
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                      <span className="text-xs font-black text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-2 py-0.5 rounded-md">{group.min_price} ৳</span>
+                                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                        Stock: {group.total_available ?? group.total_stock}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <ChevronDown size={16} className={`text-gray-400 transition-transform duration-300 ${expandedGroupId === group.base_name ? 'rotate-180' : ''}`} />
+                              </div>
+
+                              {expandedGroupId === group.base_name && (
+                                <div className="border-t border-gray-50 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/10 animate-in slide-in-from-top-1 duration-200">
+                                  {[group.main_variant, ...group.variants].map((variant) => (
+                                    <div
+                                      key={variant.id}
+                                      onClick={() => handleVariantSelect(variant, group)}
+                                      className="p-3.5 flex items-center justify-between border-b last:border-0 border-gray-50 dark:border-gray-800 cursor-pointer hover:bg-white dark:hover:bg-gray-800 group/var"
+                                    >
+                                      <div>
+                                        <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{variant.variation_suffix || 'Standard Variant'}</p>
+                                        <p className="text-[10px] font-mono text-gray-400 uppercase mt-0.5">{variant.sku}</p>
+                                      </div>
+                                      <div className="flex items-center gap-4">
+                                        <span className="text-sm font-black text-gray-900 dark:text-white">{variant.selling_price} ৳</span>
+                                        <div className="bg-teal-500 p-1.5 rounded-lg text-white opacity-0 group-hover/var:opacity-100 transition-all transform translate-x-2 group-hover/var:translate-x-0">
+                                          <Plus size={14} strokeWidth={3} />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
                       </div>
 
-                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-start gap-3">
-                        <div className="bg-indigo-500/10 p-1 rounded-md text-indigo-600 dark:text-indigo-400">
-                          <Info size={14} />
+                      {/* Staging Queue */}
+                      {stagingQueue.length > 0 && (
+                        <div className="pt-4 border-t border-gray-100 dark:border-gray-800 animate-in slide-in-from-bottom-2 duration-300">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                              <RefreshCw size={12} className="animate-spin-slow" />
+                              Staged ({stagingQueue.length})
+                            </h3>
+                            <button
+                              onClick={addAllStagedToCart}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+                            >
+                              Add All to Cart <ChevronRight size={12} />
+                            </button>
+                          </div>
+                          
+                          <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
+                            {stagingQueue.map((item) => (
+                              <div key={item.id} className="bg-indigo-50/50 dark:bg-indigo-900/10 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between group">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{item.productName}</p>
+                                  <div className="flex items-center gap-3 mt-1">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={item.quantity}
+                                      onChange={(e) => updateStagingItem(item.id, { quantity: parseInt(e.target.value) || 1 })}
+                                      className="w-12 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold text-center rounded-md"
+                                    />
+                                    <span className="text-[10px] font-bold text-indigo-600">{item.amount.toLocaleString()} ৳</span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => removeFromStaging(item.id)}
+                                  className="p-1.5 text-indigo-300 hover:text-red-500 transition-colors"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 leading-tight">
-                          Instant stage mode is on. Click any product card to add it to the staged list, then edit quantity, discount, or final amount there before adding everything to cart.
+                      )}
+
+                      <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-start gap-3">
+                        <Info size={14} className="text-teal-500 mt-0.5" />
+                        <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 leading-tight">
+                          Click a product card to stage it instantly. You can edit quantity and discounts in the staged list before adding to cart.
                         </p>
                       </div>
                     </div>
