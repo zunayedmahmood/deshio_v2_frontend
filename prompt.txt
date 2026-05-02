@@ -360,6 +360,19 @@ Since the system is in production, we can not afford to break anything. so, plea
 We do not want any change to the backend.
 
 
-Currently, for 5 variation of 1 sku, we get 5 entries in the SKU coloumn and product name coloumn. instead, for 1 sku, these rows should be merged to 1. the same for SKU total. (do this instead of hiding the value).
+Currently, for 5 variation of 1 sku, we get 5 entries in the SKU col
+
+oumn and product name coloumn. instead, for 1 sku, these rows should be merged to 1. the same for SKU total. (do this instead of hiding the value).
 
 
+see /home/zunayed-mahmood/storage/Dev/deshio-front . this is an old version of this project.
+there, look at product list page and its components.
+there was a staging query option. when we opened "browse product list" from social-commerce page,
+we used this feature.
+we want this feature in our current product list page supported with social-commerce page.
+
+
+
+
+see /home/zunayed-mahmood/storage/Dev/deshio-front . this is an old version of this project.
+copy the POS receipt, barcode template and invoice from there to our current version.

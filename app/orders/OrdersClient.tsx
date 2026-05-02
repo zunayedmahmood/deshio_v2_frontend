@@ -1593,7 +1593,20 @@ export default function OrdersDashboard() {
         internationalCity: shippingAddress.city || '',
         internationalPostalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
         deliveryAddress: shippingAddress.address || shippingAddress.street || '',
-        cart: fullOrder.items || []
+        cart: [
+          ...(fullOrder.items || []),
+          ...(fullOrder.services || []).map((s: any) => ({
+            ...s,
+            isService: true,
+            serviceId: s.service_id,
+            serviceCategory: s.category,
+            productName: s.service_name,
+            amount: s.total_price,
+            unit_price: s.unit_price,
+            discount_amount: s.discount_amount,
+            quantity: s.quantity,
+          }))
+        ]
       };
 
       sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));

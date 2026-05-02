@@ -1780,6 +1780,15 @@ export default function POSPage() {
                     </div>
                   )}
 
+                  {/* Service Selector */}
+                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <ServiceSelector 
+                      onAddService={addServiceToCart}
+                      darkMode={darkMode}
+                      allowManualPrice={true}
+                    />
+                  </div>
+
                   {/* Customer Details */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">

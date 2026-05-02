@@ -375,6 +375,7 @@ export default function AmountDetailsPage() {
           shipping_address: shippingPayload,
           discount_amount: orderDiscount,
           shipping_amount: transport,
+          services: orderData.services || [],
           ...(String(orderData.notes || '').trim() ? { notes: String(orderData.notes).trim() } : {}),
         };
 

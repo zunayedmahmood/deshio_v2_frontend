@@ -978,9 +978,10 @@ export default function SocialCommercePage() {
         return;
       }
 
-      // Otherwise, treat as international if fields exist
-      const hasInternational = !!shipping?.country || !!shipping?.state || !!shipping?.city;
-      if (hasInternational) {
+      // Otherwise, check if it's explicitly international
+      const isActuallyIntl = !!(shipping?.country && String(shipping.country).toLowerCase() !== 'bangladesh');
+      
+      if (isActuallyIntl) {
         if (!isInternational) setIsInternational(true);
         if (!country && shipping?.country) setCountry(String(shipping.country));
         if (!state && shipping?.state) setState(String(shipping.state));
@@ -991,6 +992,17 @@ export default function SocialCommercePage() {
         if (!deliveryAddress && (shipping?.street || shipping?.address)) {
           setDeliveryAddress(String(shipping?.street || shipping?.address));
         }
+        setLastPrefilledOrderId(orderId);
+      } else {
+        // It's a domestic order without Pathao IDs (auto location)
+        if (isInternational) setIsInternational(false);
+        if (!streetAddress && (shipping?.street || shipping?.address)) {
+          setStreetAddress(String(shipping?.street || shipping?.address));
+        }
+        if (!postalCode && shipping?.postal_code) {
+          setPostalCode(String(shipping.postal_code));
+        }
+        setUsePathaoAutoLocation(true);
         setLastPrefilledOrderId(orderId);
       }
     } catch (e) {
