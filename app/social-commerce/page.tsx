@@ -854,12 +854,16 @@ export default function SocialCommercePage() {
           const finalAmount = Number.isFinite(rawAmount) ? Math.max(0, rawAmount) : baseAmount;
           const discountValue = baseAmount - finalAmount;
 
-          // Reverse-calculate discountTk so the discount persists during quantity changes
+          // Reverse-calculate discountPercent so the discount persists during quantity changes
+          const calculatedDiscountPercent = (baseAmount > 0 && discountValue > 0) 
+            ? ((discountValue / baseAmount) * 100).toFixed(2) 
+            : '';
+
           return {
             ...item,
             quantity,
-            discountPercent: '',
-            discountTk: discountValue > 0 ? discountValue.toFixed(2) : '',
+            discountPercent: calculatedDiscountPercent,
+            discountTk: '',
             amount: rawInput, // Preserve the exact string user types (to allow decimals like "100.")
           };
         }

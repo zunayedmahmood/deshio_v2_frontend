@@ -12,6 +12,7 @@ import {
   Download,
   X,
   Loader2,
+  Search,
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -118,6 +119,8 @@ export default function POSPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   // User Info
   const [userRole, setUserRole] = useState<string>('');
@@ -148,6 +151,17 @@ export default function POSPage() {
   const [minPriceFilter, setMinPriceFilter] = useState('');
   const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+
+  const employeeDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target as Node)) {
+        setShowEmployeeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -1447,27 +1461,91 @@ export default function POSPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Employee <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => {
-                      if (e.target.value === 'add_new') {
-                        setShowAddEmployeeModal(true);
-                        setSelectedEmployee('');
-                      } else {
-                        setSelectedEmployee(e.target.value);
-                      }
-                    }}
-                    disabled={role === 'pos-salesman'}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-75 disabled:bg-gray-200 dark:disabled:bg-gray-800"
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} - {emp.role}
-                      </option>
-                    ))}
-                    {role !== 'pos-salesman' && <option value="add_new">+ Add New Employee</option>}
-                  </select>
+                  <div className="relative" ref={employeeDropdownRef}>
+                    <div
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center justify-between cursor-pointer ${
+                        role === 'pos-salesman' ? 'opacity-75 bg-gray-200 dark:bg-gray-800 cursor-not-allowed' : ''
+                      }`}
+                      onClick={() => role !== 'pos-salesman' && setShowEmployeeDropdown(!showEmployeeDropdown)}
+                    >
+                      <span className="truncate">
+                        {selectedEmployee 
+                          ? employees.find(e => e.id === selectedEmployee)?.name || 'Select Employee'
+                          : 'Select Employee'}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    </div>
+
+                    {showEmployeeDropdown && (
+                      <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+                        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                          <input
+                            type="text"
+                            placeholder="Search employee..."
+                            autoFocus
+                            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={employeeSearchQuery}
+                            onChange={(e) => setEmployeeSearchQuery(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="max-h-60 overflow-y-auto">
+                          <div
+                            className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                            onClick={() => {
+                              setSelectedEmployee('');
+                              setShowEmployeeDropdown(false);
+                              setEmployeeSearchQuery('');
+                            }}
+                          >
+                            Select Employee
+                          </div>
+                          {employees
+                            .filter(emp => 
+                              emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+                              emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
+                            )
+                            .map((emp) => (
+                              <div
+                                key={emp.id}
+                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
+                                  selectedEmployee === emp.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'
+                                }`}
+                                onClick={() => {
+                                  setSelectedEmployee(emp.id);
+                                  setShowEmployeeDropdown(false);
+                                  setEmployeeSearchQuery('');
+                                }}
+                              >
+                                <div className="font-medium">{emp.name}</div>
+                                <div className="text-[11px] text-gray-500 dark:text-gray-400">{emp.role}</div>
+                              </div>
+                            ))}
+                          {role !== 'pos-salesman' && (
+                            <div
+                              className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 font-medium border-t border-gray-100 dark:border-gray-700/50 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                              onClick={() => {
+                                setShowAddEmployeeModal(true);
+                                setSelectedEmployee('');
+                                setShowEmployeeDropdown(false);
+                                setEmployeeSearchQuery('');
+                              }}
+                            >
+                              + Add New Employee
+                            </div>
+                          )}
+                          {employees.filter(emp => 
+                            emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
+                            emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
+                          ).length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center italic">
+                              No employees found
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
