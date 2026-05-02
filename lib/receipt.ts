@@ -221,19 +221,27 @@ export function normalizeOrderForReceipt(order: any): ReceiptOrder {
     }
   }
 
-  // Totals
-  const subtotal =
-    parseMoney(order?.amounts?.subtotal) ||
-    parseMoney(order?.subtotal_amount) ||
-    parseMoney(order?.subtotal) ||
-    items.reduce((s, i) => s + i.lineTotal, 0);
+  // Totals Normalization
+  // 1. Gross Subtotal: Sum of (Qty * Price) for all items
+  const grossSubtotal = items.reduce((s, i) => s + (i.qty * i.unitPrice), 0);
 
-  const discount =
-    parseMoney(order?.amounts?.totalDiscount) ||
-    parseMoney(order?.discount_amount) ||
-    parseMoney(order?.discount) ||
-    0;
+  // 2. Item Discounts: Sum of individual item discounts
+  const itemDiscounts = items.reduce((s, i) => s + (i.discount || 0), 0);
 
+  // 3. Global Discount: The order-level discount amount
+  const globalDiscount = 
+    parseMoney(order?.discount_amount) || 
+    parseMoney(order?.discount) || 
+    parseMoney(order?.amounts?.discount) || 0;
+
+  // 4. Combined Discount: Sum of both (prioritize backend total_discount if available)
+  const combinedDiscount = 
+    parseMoney(order?.total_discount) || 
+    parseMoney(order?.amounts?.totalDiscount) || 
+    (itemDiscounts + globalDiscount);
+
+  const subtotal = parseMoney(order?.subtotal) || grossSubtotal;
+  const discount = combinedDiscount;
   const tax = parseMoney(order?.amounts?.vat) || parseMoney(order?.tax_amount) || 0;
   const shipping =
     parseMoney(order?.amounts?.transportCost) ||

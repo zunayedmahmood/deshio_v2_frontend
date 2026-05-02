@@ -102,7 +102,9 @@ export interface Order {
   };
   subtotal: string;
   tax_amount: string;
+  item_discount?: string;
   discount_amount: string;
+  total_discount?: string;
   shipping_amount: string;
   total_amount: string;
   paid_amount: string;

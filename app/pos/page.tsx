@@ -859,19 +859,41 @@ export default function POSPage() {
 
           const paymentSplits: any[] = [];
 
-          // ✅ FIXED: If there's overpayment, reduce it from cash first
+          // ✅ SEQUENTIAL NORMALIZATION: subtract "change" from all payment methods until change is 0
+          // Priority for reduction: Cash -> Nagad -> Bkash -> Card
+          let remainingChange = change;
+          
           let adjustedCashPaid = cashPaid;
-          let adjustedCardPaid = cardPaid;
-          let adjustedBkashPaid = bkashPaid;
           let adjustedNagadPaid = nagadPaid;
+          let adjustedBkashPaid = bkashPaid;
+          let adjustedCardPaid = cardPaid;
 
-          if (change > 0) {
-            // Customer overpaid - reduce cash payment by the change amount
-            adjustedCashPaid = Math.max(0, cashPaid - change);
-            console.log(
-              `⚠️ Overpayment detected. Reducing cash from ৳${cashPaid} to ৳${adjustedCashPaid}`
-            );
+          if (remainingChange > 0 && adjustedCashPaid > 0) {
+            const reduction = Math.min(adjustedCashPaid, remainingChange);
+            adjustedCashPaid -= reduction;
+            remainingChange -= reduction;
           }
+          if (remainingChange > 0 && adjustedNagadPaid > 0) {
+            const reduction = Math.min(adjustedNagadPaid, remainingChange);
+            adjustedNagadPaid -= reduction;
+            remainingChange -= reduction;
+          }
+          if (remainingChange > 0 && adjustedBkashPaid > 0) {
+            const reduction = Math.min(adjustedBkashPaid, remainingChange);
+            adjustedBkashPaid -= reduction;
+            remainingChange -= reduction;
+          }
+          if (remainingChange > 0 && adjustedCardPaid > 0) {
+            const reduction = Math.min(adjustedCardPaid, remainingChange);
+            adjustedCardPaid -= reduction;
+            remainingChange -= reduction;
+          }
+
+          console.log(`💰 Payment normalization:`, {
+            original: { cashPaid, cardPaid, bkashPaid, nagadPaid, totalPaid },
+            adjusted: { adjustedCashPaid, adjustedCardPaid, adjustedBkashPaid, adjustedNagadPaid, totalToCharge: amountToCharge },
+            changeReturned: change
+          });
 
           // Save exact split for receipt printing
           receiptPaymentBreakdown = {

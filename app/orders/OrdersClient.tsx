@@ -461,6 +461,7 @@ export default function OrdersDashboard() {
   const [serviceResults, setServiceResults] = useState<any[]>([]);
   const [isServiceLoading, setIsServiceLoading] = useState(false);
   const [servicesTouched, setServicesTouched] = useState(false);
+  const [itemsTouched, setItemsTouched] = useState(false);
 
   // 🖼️ Product thumbnails (used in View Details / Edit Order / Packing-like tables)
   const [productThumbsById, setProductThumbsById] = useState<Record<number, string>>({});
@@ -988,7 +989,9 @@ export default function OrdersDashboard() {
       services,
 
       subtotal: parseMoney(order.subtotal),
-      discount: parseMoney(order.discount_amount),
+      itemDiscount: parseMoney(order.item_discount ?? 0),
+      discount: parseMoney(order.discount_amount), // This remains the global discount for editing
+      totalDiscount: parseMoney(order.total_discount ?? order.discount_amount),
       shipping: parseMoney(order.shipping_amount),
       amounts: {
         total: total,
@@ -1050,6 +1053,8 @@ export default function OrdersDashboard() {
     return {
       ...order,
       subtotal,
+      itemDiscount: totalItemDiscount,
+      totalDiscount: totalItemDiscount + globalDiscount,
       amounts: {
         ...order.amounts,
         total,
@@ -3233,6 +3238,16 @@ export default function OrdersDashboard() {
             })),
           }
           : {}),
+        ...(itemsTouched
+          ? {
+            items: (editableOrder.items || []).map((it) => ({
+              id: it.id,
+              quantity: it.quantity,
+              unit_price: it.price,
+              discount_amount: it.discount ?? 0,
+            })),
+          }
+          : {}),
       };
 
       const payloadWithShipping =
@@ -3262,6 +3277,8 @@ export default function OrdersDashboard() {
         const updated = transformOrder(response.data.data);
         setSelectedOrder(updated);
         setEditableOrder(updated);
+        setServicesTouched(false);
+        setItemsTouched(false);
         await loadOrders();
         alert('Order updated successfully.');
         setShowEditModal(false);
@@ -4708,10 +4725,10 @@ export default function OrdersDashboard() {
                           <span className="text-gray-500">Subtotal</span>
                           <span className="font-medium text-black dark:text-white">৳{selectedOrder.subtotal.toFixed(2)}</span>
                         </div>
-                        {selectedOrder.discount > 0 && (
+                        {selectedOrder.totalDiscount > 0 && (
                           <div className="flex justify-between items-center text-xs">
                             <span className="text-gray-500">Total Discount</span>
-                            <span className="font-bold text-red-500">-৳{selectedOrder.discount.toFixed(2)}</span>
+                            <span className="font-bold text-red-500">-৳{selectedOrder.totalDiscount.toFixed(2)}</span>
                           </div>
                         )}
                         <div className="flex justify-between items-center text-xs">
@@ -5316,6 +5333,7 @@ export default function OrdersDashboard() {
                                   items[index] = { ...items[index], quantity: val };
                                   return recalcOrderTotals({ ...prev, items });
                                 });
+                                setItemsTouched(true);
                               }}
                               className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-black dark:text-white text-sm"
                             />
@@ -5335,6 +5353,27 @@ export default function OrdersDashboard() {
                                   items[index] = { ...items[index], price: val };
                                   return recalcOrderTotals({ ...prev, items });
                                 });
+                                setItemsTouched(true);
+                              }}
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-black dark:text-white text-sm"
+                            />
+                          </div>
+
+                          <div className="w-28">
+                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Discount</label>
+                            <input
+                              type="number"
+                              value={item.discount || 0}
+                              step="0.01"
+                              onChange={(e) => {
+                                const val = Math.max(0, Number(e.target.value || 0));
+                                setEditableOrder((prev) => {
+                                  if (!prev) return prev;
+                                  const items = [...prev.items];
+                                  items[index] = { ...items[index], discount: val };
+                                  return recalcOrderTotals({ ...prev, items });
+                                });
+                                setItemsTouched(true);
                               }}
                               className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-black dark:text-white text-sm"
                             />
