@@ -478,6 +478,7 @@ export default function POSPage() {
               ...item,
               qty: newQty,
               amount: baseAmount - discountValue,
+              discount: discountValue,
             };
           }
         }
@@ -1205,77 +1206,15 @@ export default function POSPage() {
 
     try {
       console.log('🔄 Fetching products and batches for store:', selectedOutlet);
+      setIsFetchingBatches(true);
 
-      let allBatches: Batch[] = [];
+      // ✅ Use the robust getBatchesAll which handles pagination automatically (up to 2000 items)
+      const allBatches = await batchService.getBatchesAll({
+        store_id: parseInt(selectedOutlet),
+        status: 'available',
+      }, { max_items: 5000 });
 
-      // ✅ ROBUST: Try multiple batch fetching methods with fallbacks (like social commerce)
-
-      // Method 1: Try getAvailableBatches
-      try {
-        const batchesData = await batchService.getAvailableBatches(parseInt(selectedOutlet));
-        console.log('✅ Raw batches from getAvailableBatches:', batchesData);
-
-        if (batchesData && batchesData.length > 0) {
-          allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-          console.log('✅ Fetched', allBatches.length, 'batches (method: getAvailableBatches)');
-        }
-      } catch (err) {
-        console.warn('⚠️ getAvailableBatches failed, trying getBatchesArray...', err);
-      }
-
-      // Method 2: Try getBatchesArray if Method 1 failed
-      if (allBatches.length === 0) {
-        try {
-          const batchesData = await batchService.getBatchesArray({
-            store_id: parseInt(selectedOutlet),
-            status: 'available',
-          });
-          console.log('✅ Raw batches from getBatchesArray:', batchesData);
-
-          if (batchesData && batchesData.length > 0) {
-            allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-            console.log('✅ Fetched', allBatches.length, 'batches (method: getBatchesArray)');
-          }
-        } catch (err) {
-          console.warn('⚠️ getBatchesArray failed, trying getBatchesByStore...', err);
-        }
-      }
-
-      // Method 3: Try getBatchesByStore if Method 2 failed
-      if (allBatches.length === 0) {
-        try {
-          const batchesData = await batchService.getBatchesByStore(parseInt(selectedOutlet));
-          console.log('✅ Raw batches from getBatchesByStore:', batchesData);
-
-          if (batchesData && batchesData.length > 0) {
-            allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-            console.log('✅ Fetched', allBatches.length, 'batches (method: getBatchesByStore)');
-          }
-        } catch (err) {
-          console.warn('⚠️ getBatchesByStore failed, trying getBatches...', err);
-        }
-      }
-
-      // Method 4: Fall back to getBatches (standard method) if all else failed
-      if (allBatches.length === 0) {
-        try {
-          const batchResponse = await batchService.getBatches({
-            store_id: parseInt(selectedOutlet),
-            status: 'available',
-            per_page: 5000,
-          });
-
-          allBatches = batchResponse.success && batchResponse.data?.data
-            ? batchResponse.data.data.filter((batch: Batch) => batch.quantity > 0)
-            : [];
-
-          console.log('✅ Fetched', allBatches.length, 'batches (method: getBatches)');
-        } catch (err) {
-          console.error('❌ All batch fetch methods failed:', err);
-          showToast('Failed to load product batches', 'error');
-          return;
-        }
-      }
+      console.log('✅ Fetched', allBatches.length, 'total available batches');
 
       if (allBatches.length === 0) {
         console.log('⚠️ No batches found for store:', selectedOutlet);
@@ -1335,6 +1274,8 @@ export default function POSPage() {
     } catch (error) {
       console.error('❌ Error fetching products:', error);
       showToast('Failed to load products', 'error');
+    } finally {
+      setIsFetchingBatches(false);
     }
   };
 

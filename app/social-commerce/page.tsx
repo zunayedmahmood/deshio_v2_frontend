@@ -812,10 +812,7 @@ export default function SocialCommercePage() {
 
   const normalizeQtyForProduct = (product: any, rawQty: any) => {
     const parsedQty = Math.max(1, Math.floor(Number(rawQty) || 1));
-    if (product?.isDefective) return parsedQty;
-    const available = Math.max(0, Number(product?.available ?? 0) || 0);
-    if (available <= 0) return 1;
-    return Math.min(parsedQty, available);
+    return parsedQty; // Remove hard-cap to allow flexible manual entry
   };
 
   const buildStagingItem = (product: any, overrides: Partial<StagingItem> = {}): StagingItem => {
@@ -852,23 +849,18 @@ export default function SocialCommercePage() {
         const baseAmount = getProductUnitPrice(item.product) * quantity;
 
         if (mode === 'finalAmount') {
-          const rawAmount = Number(String(changes.amount ?? item.amount).replace(/[^0-9.-]/g, ''));
+          const rawInput = changes.amount !== undefined ? String(changes.amount) : item.amount;
+          const rawAmount = Number(rawInput.replace(/[^0-9.-]/g, ''));
           const finalAmount = Number.isFinite(rawAmount) ? Math.max(0, rawAmount) : baseAmount;
           const discountValue = baseAmount - finalAmount;
 
-          // NEW: Calculate discount percent so quantity changes scale the final amount correctly
-          let calcPercent = '';
-          if (baseAmount > 0) {
-            const p = (discountValue / baseAmount) * 100;
-            calcPercent = p !== 0 ? p.toFixed(2) : '';
-          }
-
+          // Reverse-calculate discountTk so the discount persists during quantity changes
           return {
             ...item,
             quantity,
-            discountPercent: calcPercent,
-            discountTk: '', // Clear TK so Percent takes precedence in calculateAmount formula
-            amount: finalAmount.toFixed(2),
+            discountPercent: '',
+            discountTk: discountValue > 0 ? discountValue.toFixed(2) : '',
+            amount: rawInput, // Preserve the exact string user types (to allow decimals like "100.")
           };
         }
 
@@ -1025,8 +1017,8 @@ export default function SocialCommercePage() {
     }
 
     const lo: any = customerLookup.lastOrder;
-    const ros = Array.isArray((customerLookup as any)?.recentOrders)
-      ? ((customerLookup as any).recentOrders as RecentOrder[])
+    const ros = Array.isArray(customerLookup.recentOrders)
+      ? (customerLookup.recentOrders as RecentOrder[])
       : [];
     setRecentOrders(ros);
 
@@ -1055,7 +1047,7 @@ export default function SocialCommercePage() {
       prefillDeliveryFromOrder(Number(lo.last_order_id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerLookup.customer, customerLookup.lastOrder, (customerLookup as any).recentOrders, customerLookup.loading, customerLookup.error]);
+  }, [customerLookup.customer, customerLookup.lastOrder, customerLookup.recentOrders, customerLookup.loading, customerLookup.error]);
 
   // 🖼️ Warm cache: thumbnails for items in the recent orders list
   useEffect(() => {
@@ -2734,12 +2726,18 @@ export default function SocialCommercePage() {
                                   <div>
                                     <label className="block text-[11px] text-gray-700 dark:text-gray-300 mb-1">Sell At / Final Amount</label>
                                     <input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
+                                      type="text"
+                                      inputMode="decimal"
                                       value={s.amount}
                                       onChange={(e) => updateStagingItem(s.id, { amount: e.target.value }, 'finalAmount')}
-                                      className="w-full px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                      onBlur={() => {
+                                        // Format nicely on blur
+                                        const n = parseFloat(s.amount);
+                                        if (!isNaN(n)) {
+                                          updateStagingItem(s.id, { amount: n.toFixed(2) }, 'finalAmount');
+                                        }
+                                      }}
+                                      className="w-full px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                   </div>
                                 </div>

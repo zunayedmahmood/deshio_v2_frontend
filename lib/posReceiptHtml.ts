@@ -231,6 +231,17 @@ function posReceiptBody(order: any) {
   const r: ReceiptOrder = normalizeOrderForReceipt(order);
   const branch = resolveStoreDisplay(order, r);
 
+  let finalNotes = r.notes || '';
+  let returnedItemsText = '';
+
+  if (finalNotes.includes('EXCHANGE TRACE')) {
+    const returnedItemsMatch = finalNotes.match(/Returned Items:\s*([^\n]+)/);
+    if (returnedItemsMatch) {
+      returnedItemsText = returnedItemsMatch[1].trim();
+      finalNotes = finalNotes.replace(/Returned Items:\s*[^\n]+/, '').trim();
+    }
+  }
+
   const rows = (r.items || [])
     .map((it) => {
       const name = it.variant ? `${it.name} (${it.variant})` : it.name;
@@ -256,6 +267,18 @@ function posReceiptBody(order: any) {
       </tr>`;
     })
     .join('');
+
+  const returnItemsRow = returnedItemsText
+    ? `
+      <tr>
+        <td colspan="4" style="padding-top: 8px; padding-bottom: 6px; border-bottom: none;">
+          <div style="font-size: 12px; color: #444; background: #fdfdfd; padding: 6px 8px; border: 1px dashed #888; border-radius: 4px;">
+            <span style="font-weight: 800; color: #111; display: block; margin-bottom: 3px;">&#8634; EXCHANGED ITEMS (RETURNED)</span>
+            ${escapeHtml(returnedItemsText)}
+          </div>
+        </td>
+      </tr>`
+    : '';
 
   const subtotal = Number(r.totals?.subtotal ?? 0);
   const discount = Number(r.totals?.discount ?? 0);
@@ -342,6 +365,7 @@ function posReceiptBody(order: any) {
       </thead>
       <tbody>
         ${rows || `<tr><td colspan="4" class="center">No items</td></tr>`}
+        ${returnItemsRow}
       </tbody>
     </table>
 
@@ -363,7 +387,11 @@ function posReceiptBody(order: any) {
 
     ${paymentInfoHtml}
 
-    ${r.notes ? `<div class="note">Note: ${escapeHtml(r.notes)}</div>` : ''}
+    ${finalNotes ? `
+    <div class="note ${finalNotes.includes('EXCHANGE TRACE') ? 'exchange-note' : ''}">
+      <span class="lbl">${finalNotes.includes('EXCHANGE TRACE') ? 'Exchange Information:' : 'Note:'}</span><br/>
+      ${escapeHtml(finalNotes).replace(/EXCHANGE TRACE:?\s*/, '')}
+    </div>` : ''}
 
     <div class="policy">
       Items sold cannot be returned but may only be exchanged in their unworn condition with tags and original receipt within 7 days. Discount &amp; Offer items cannot be exchanged.
@@ -478,9 +506,18 @@ function wrapHtml(title: string, inner: string, opts?: { embed?: boolean }) {
     .muted { color: #444; }
 
     .note {
-      margin-top: 8px;
-      font-size: 12px;
+      margin-top: 10px;
+      font-size: 11px;
       font-weight: 700;
+      white-space: pre-wrap;
+      line-height: 1.3;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .exchange-note {
+      background: #f9f9f9;
+      border: 1px dashed #999;
+      margin-bottom: 8px;
     }
 
     .policy {

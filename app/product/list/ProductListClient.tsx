@@ -463,9 +463,9 @@ export default function ProductPage() {
             size: getColorAndSize(product).size,
             variation_suffix: (product as any).variation_suffix,
             image: primaryImageUrl,
-            stockQuantity: product.stock_quantity ?? 0,
-            onlineStockQuantity: product.online_stock_quantity ?? 0,
-            offlineStockQuantity: product.offline_stock_quantity ?? 0,
+            stockQuantity: Number(product.stock_quantity) || 0,
+            onlineStockQuantity: Number(product.online_stock_quantity) || 0,
+            offlineStockQuantity: Number(product.offline_stock_quantity) || 0,
           },
           ...serverVariants.map((v: any) => {
             const vImg = v.images?.[0];
@@ -483,9 +483,9 @@ export default function ProductPage() {
               size: vColorSize.size,
               variation_suffix: v.variation_suffix,
               image: vImgUrl,
-              stockQuantity: v.stock_quantity ?? 0,
-              onlineStockQuantity: v.online_stock_quantity ?? 0,
-              offlineStockQuantity: v.offline_stock_quantity ?? 0,
+              stockQuantity: Number(v.stock_quantity) || 0,
+              onlineStockQuantity: Number(v.online_stock_quantity) || 0,
+              offlineStockQuantity: Number(v.offline_stock_quantity) || 0,
             };
           }),
         ];
@@ -501,9 +501,9 @@ export default function ProductPage() {
           hasVariations: allVariants.length > 1,
           vendorId: product.vendor_id,
           vendorName: vendorsById[product.vendor_id] ?? null,
-          stockQuantity: allVariants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0),
-          onlineStockQuantity: allVariants.reduce((sum, v) => sum + (v.onlineStockQuantity || 0), 0),
-          offlineStockQuantity: allVariants.reduce((sum, v) => sum + (v.offlineStockQuantity || 0), 0),
+          stockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.stockQuantity) || 0), 0),
+          onlineStockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.onlineStockQuantity) || 0), 0),
+          offlineStockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.offlineStockQuantity) || 0), 0),
         };
       });
     }
@@ -553,9 +553,9 @@ export default function ProductPage() {
         size,
         variation_suffix: (product as any).variation_suffix,
         image: variantImageUrl,
-        stockQuantity: product.stock_quantity ?? 0,
-        onlineStockQuantity: product.online_stock_quantity ?? 0,
-        offlineStockQuantity: product.offline_stock_quantity ?? 0,
+        stockQuantity: Number(product.stock_quantity) || 0,
+        onlineStockQuantity: Number(product.online_stock_quantity) || 0,
+        offlineStockQuantity: Number(product.offline_stock_quantity) || 0,
       });
     });
 
@@ -563,9 +563,9 @@ export default function ProductPage() {
       group.baseName = getGroupBaseName(group.variants, group.baseName);
       group.totalVariants = group.variants.length;
       group.hasVariations = group.variants.length > 1;
-      group.stockQuantity = group.variants.reduce((sum, v) => sum + (v.stockQuantity || 0), 0);
-      group.onlineStockQuantity = group.variants.reduce((sum, v) => sum + (v.onlineStockQuantity || 0), 0);
-      group.offlineStockQuantity = group.variants.reduce((sum, v) => sum + (v.offlineStockQuantity || 0), 0);
+      group.stockQuantity = group.variants.reduce((sum, v) => sum + (Number(v.stockQuantity) || 0), 0);
+      group.onlineStockQuantity = group.variants.reduce((sum, v) => sum + (Number(v.onlineStockQuantity) || 0), 0);
+      group.offlineStockQuantity = group.variants.reduce((sum, v) => sum + (Number(v.offlineStockQuantity) || 0), 0);
       if (!group.primaryImage) {
         group.primaryImage = group.variants.find(v => v.image)?.image || null;
       }
@@ -1216,11 +1216,12 @@ export default function ProductPage() {
                   {paginatedGroups.map((group) => (
                     <ProductListItem
                       key={`${group.sku}-${group.variants[0].id}`}
+                      stockFilter={stockStatus}
                       productGroup={{
                         ...group,
                         sellingPrice: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.selling_price ?? null : null,
                         inStock: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.in_stock ?? null : null,
-                        stockQuantity: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.stock_quantity ?? null : null,
+                        stockQuantity: group.variants?.[0]?.id ? Number(catalogMetaById[group.variants[0].id]?.stock_quantity ?? 0) : null,
                       }}
                       onDelete={canDeleteProducts ? handleDelete : undefined}
                       onEdit={canEditProducts ? handleEdit : undefined}
