@@ -1027,12 +1027,23 @@ export default function OrdersDashboard() {
   };
 
   const recalcOrderTotals = (order: Order): Order => {
-    const productsSubtotal = order.items.reduce((sum, item) => sum + (item.price - item.discount) * item.quantity, 0);
-    const servicesSubtotal = (order.services || []).reduce((sum, s) => sum + (s.price - s.discount) * s.quantity, 0);
-    const subtotal = productsSubtotal + servicesSubtotal;
-    const discount = order.discount ?? 0;
+    // 1. Gross Subtotal (Sum of Qty * Unit Price)
+    const productsGrossSubtotal = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const servicesGrossSubtotal = (order.services || []).reduce((sum, s) => sum + s.price * s.quantity, 0);
+    const subtotal = productsGrossSubtotal + servicesGrossSubtotal;
+    
+    // 2. Sum of all item-level discounts
+    const totalItemDiscount = order.items.reduce((sum, item) => sum + (item.discount || 0), 0) + 
+                             (order.services || []).reduce((sum, s) => sum + (s.discount || 0), 0);
+    
+    // 3. Global Order Discount
+    const globalDiscount = order.discount ?? 0;
     const shipping = order.shipping ?? 0;
-    const total = subtotal - discount + shipping;
+    
+    // 4. Final Total = GrossSubtotal - ItemDiscounts - GlobalDiscount + Shipping
+    // Note: This logic assumes TAX_MODE=inclusive as standard for UI display here
+    const total = subtotal - totalItemDiscount - globalDiscount + shipping;
+    
     const paid = order.amounts.paid ?? 0;
     const due = total - paid;
 

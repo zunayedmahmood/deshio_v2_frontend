@@ -749,8 +749,9 @@ export default function POSPage() {
             category: item.serviceCategory,
           })),
 
-        // ✅ FIXED: Add totals correctly
-        discount_amount: totalDiscount,
+        // ✅ FIXED: Global discount_amount should be 0 because item discounts are already sent in the items array.
+        // If a global discount field is added to the UI later, it should be sent here.
+        discount_amount: 0,
         shipping_amount: transportCost,
 
         // ✅ FIXED: start_date should be undefined instead of null
