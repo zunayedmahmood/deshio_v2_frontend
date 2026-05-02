@@ -2,7 +2,6 @@
 // POS receipt template used by POS and Purchase History prints.
 
 import { normalizeOrderForReceipt, type ReceiptOrder } from '@/lib/receipt';
-import { CLIENT_ADDRESS, CLIENT_MOBILE, CLIENT_BIN } from '@/lib/constants';
 
 function escapeHtml(s: string) {
   return String(s)
@@ -69,7 +68,9 @@ type PaymentMap = {
   OTHERS: Array<{ name: string; amount: number }>;
 };
 
-function normalizeMethodLabel(raw: unknown): 'CASH' | 'CARD' | 'BKASH' | 'NAGAD' | '' {
+type KnownPaymentLabel = 'CASH' | 'CARD' | 'BKASH' | 'NAGAD';
+
+function normalizeMethodLabel(raw: unknown): KnownPaymentLabel | '' {
   const m = String(raw || '').toLowerCase().trim();
   if (!m) return '';
 
@@ -102,7 +103,7 @@ function extractPaymentBreakdown(order: any, paidFallback: number): PaymentMap {
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return 0;
 
     let added = 0;
-    const pairs: Array<[keyof PaymentMap, any]> = [
+    const pairs: Array<[KnownPaymentLabel, any]> = [
       ['CASH', obj.cash ?? obj.cash_paid ?? obj.cashPaid],
       ['CARD', obj.card ?? obj.card_paid ?? obj.cardPaid],
       ['BKASH', obj.bkash ?? obj.bkash_paid ?? obj.bkashPaid],
@@ -169,79 +170,8 @@ function extractPaymentBreakdown(order: any, paidFallback: number): PaymentMap {
   return out;
 }
 
-
-function pickFirstNonEmpty(...vals: unknown[]): string {
-  for (const v of vals) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === 'string') {
-      const t = v.trim();
-      if (t) return t;
-      continue;
-    }
-    if (typeof v === 'number') {
-      const t = String(v).trim();
-      if (t) return t;
-      continue;
-    }
-  }
-  return '';
-}
-
-function pickAddressFromObject(obj: any): string {
-  if (!obj || typeof obj !== 'object') return '';
-
-  const direct = pickFirstNonEmpty(
-    obj?.address,
-    obj?.full_address,
-    obj?.fullAddress,
-    obj?.location,
-    obj?.street,
-    obj?.street_address,
-    obj?.streetAddress,
-    obj?.line1,
-    obj?.line_1
-  );
-  if (direct) return direct;
-
-  const composed = [
-    obj?.area,
-    obj?.zone,
-    obj?.city,
-    obj?.district,
-    obj?.division,
-    obj?.postal_code || obj?.postalCode,
-  ]
-    .filter(Boolean)
-    .join(', ')
-    .trim();
-
-  return composed;
-}
-
-function resolveStoreDisplay(order: any, r: ReceiptOrder): { brand: string; tagline: string; address: string; phone: string; bin: string } {
-  const brand = 'DESHIO';
-  const tagline = r.storeName && r.storeName !== 'Main Store' ? r.storeName : 'Deshio-দেশীয়';
-  const address = r.storeAddress || CLIENT_ADDRESS;
-  const phone = r.storePhone || CLIENT_MOBILE;
-  const bin = CLIENT_BIN;
-
-  return { brand, tagline, address, phone, bin };
-}
-
 function posReceiptBody(order: any) {
   const r: ReceiptOrder = normalizeOrderForReceipt(order);
-  const branch = resolveStoreDisplay(order, r);
-
-  let finalNotes = r.notes || '';
-  let returnedItemsText = '';
-
-  if (finalNotes.includes('EXCHANGE TRACE')) {
-    const returnedItemsMatch = finalNotes.match(/Returned Items:\s*([^\n]+)/);
-    if (returnedItemsMatch) {
-      returnedItemsText = returnedItemsMatch[1].trim();
-      finalNotes = finalNotes.replace(/Returned Items:\s*[^\n]+/, '').trim();
-    }
-  }
 
   const rows = (r.items || [])
     .map((it) => {
@@ -268,18 +198,6 @@ function posReceiptBody(order: any) {
       </tr>`;
     })
     .join('');
-
-  const returnItemsRow = returnedItemsText
-    ? `
-      <tr>
-        <td colspan="4" style="padding-top: 8px; padding-bottom: 6px; border-bottom: none;">
-          <div style="font-size: 12px; color: #444; background: #fdfdfd; padding: 6px 8px; border: 1px dashed #888; border-radius: 4px;">
-            <span style="font-weight: 800; color: #111; display: block; margin-bottom: 3px;">&#8634; EXCHANGED ITEMS (RETURNED)</span>
-            ${escapeHtml(returnedItemsText)}
-          </div>
-        </td>
-      </tr>`
-    : '';
 
   const subtotal = Number(r.totals?.subtotal ?? 0);
   const discount = Number(r.totals?.discount ?? 0);
@@ -333,11 +251,11 @@ function posReceiptBody(order: any) {
 
   return `
     <div class="top-center">
-      <div class="brand">${escapeHtml(branch.brand)}</div>
-      <div class="tagline">${escapeHtml(branch.tagline)}</div>
-      ${branch.address ? `<div class="addr">${escapeHtml(branch.address)}</div>` : ''}
-      <div class="hotline">Mobile: ${escapeHtml(branch.phone)}</div>
-      ${branch.bin ? `<div class="hotline">BIN : ${escapeHtml(branch.bin)}</div>` : ''}
+      <div class="brand">DESHIO</div>
+      <div class="tagline">Deshio-দেশীয়</div>
+      <div class="addr">House: 4, Road: 1, Dhaka Housing, Adabor, Mohammadpur, Dhaka-1207.</div>
+      <div class="hotline">Mobile: 01711-585400</div>
+      <div class="hotline">BIN : 007243936-0402</div>
       <div class="underline"></div>
       <div class="order-no">Order No : ${escapeHtml(String(r.orderNo || r.id || '—'))}</div>
     </div>
@@ -367,7 +285,6 @@ function posReceiptBody(order: any) {
       </thead>
       <tbody>
         ${rows || `<tr><td colspan="4" class="center">No items</td></tr>`}
-        ${returnItemsRow}
       </tbody>
     </table>
 
@@ -377,7 +294,6 @@ function posReceiptBody(order: any) {
       <tbody>
         <tr><td>Subtotal</td><td class="right">${escapeHtml(money(subtotal))}</td></tr>
         <tr><td>VAT</td><td class="right">Inclusive</td></tr>
-        ${vat > 0 ? `<tr><td class="small muted">(Included VAT)</td><td class="right small muted">${escapeHtml(money(vat))}</td></tr>` : ''}
         <tr><td>Discount</td><td class="right">-${escapeHtml(money(discount))}</td></tr>
         ${shipping > 0 ? `<tr><td>Shipping</td><td class="right">${escapeHtml(money(shipping))}</td></tr>` : ''}
         <tr class="strong"><td>Net Amount</td><td class="right">${escapeHtml(money(netAmount))}</td></tr>
@@ -389,14 +305,10 @@ function posReceiptBody(order: any) {
 
     ${paymentInfoHtml}
 
-    ${finalNotes ? `
-    <div class="note ${finalNotes.includes('EXCHANGE TRACE') ? 'exchange-note' : ''}">
-      <span class="lbl">${finalNotes.includes('EXCHANGE TRACE') ? 'Exchange Information:' : 'Note:'}</span><br/>
-      ${escapeHtml(finalNotes).replace(/EXCHANGE TRACE:?\s*/, '')}
-    </div>` : ''}
+    ${r.notes ? `<div class="note">Note: ${escapeHtml(r.notes)}</div>` : ''}
 
     <div class="policy">
-      Items sold cannot be returned but may only be exchanged in their unworn condition with tags and original receipt within 7 days. Discount &amp; Offer items cannot be exchanged.
+      Items sold cannot be returned but may only be exchanged in their unworn condition with tags and original receipt within 7 days. Discount &amp; Offer items cannot be exchanged.Jewellery items & Jamdani sarees cannot be exchanged.
     </div>
 
     <div class="footer">
@@ -508,18 +420,9 @@ function wrapHtml(title: string, inner: string, opts?: { embed?: boolean }) {
     .muted { color: #444; }
 
     .note {
-      margin-top: 10px;
-      font-size: 11px;
+      margin-top: 8px;
+      font-size: 12px;
       font-weight: 700;
-      white-space: pre-wrap;
-      line-height: 1.3;
-      padding: 4px;
-      border-radius: 4px;
-    }
-    .exchange-note {
-      background: #f9f9f9;
-      border: 1px dashed #999;
-      margin-bottom: 8px;
     }
 
     .policy {
@@ -541,8 +444,8 @@ function wrapHtml(title: string, inner: string, opts?: { embed?: boolean }) {
     .credits {
       margin-top: 4px;
       text-align: center;
-      font-size: 10px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       color: #444;
     }
 

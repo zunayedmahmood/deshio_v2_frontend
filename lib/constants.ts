@@ -1,5 +1,6 @@
-export const CLIENT_NAME = "DESHIO" as const;
-export const CLIENT_NAME_CAP = "Deshio" as const;
+export const CLIENT_NAME = "Deshio" as const;
+export const CLIENT_NAME_CAP = "DESHIO" as const;
+export const CLIENT_NAME_BN = "দেশীয়" as const;
 export const CLIENT_WEBSITE = "deshio.com.bd" as const;
 
 // Public contact channels (e-commerce)

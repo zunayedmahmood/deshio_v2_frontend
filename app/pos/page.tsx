@@ -994,11 +994,11 @@ export default function POSPage() {
                 : {}),
             };
 
-            await printReceipt(printableOrder, undefined, { template: 'pos_receipt' });
-            showToast('✅ Receipt printed', 'success');
+            await printReceipt(printableOrder, undefined, { template: 'social_invoice' });
+            showToast('✅ Invoice printed', 'success');
           } catch (e: any) {
-            console.error('❌ Receipt auto-print failed:', e);
-            showToast(`Receipt print failed: ${e?.message || 'Unknown error'}`, 'error');
+            console.error('❌ Invoice auto-print failed:', e);
+            showToast(`Invoice print failed: ${e?.message || 'Unknown error'}`, 'error');
           }
         })();
       }
@@ -1077,8 +1077,8 @@ export default function POSPage() {
         showToast('QZ Tray offline - opening receipt preview (Print → Save as PDF)', 'error');
       }
       const fullOrder = await orderService.getById(lastCompletedOrderId);
-      await printReceipt(fullOrder, undefined, { template: 'pos_receipt' });
-      showToast('✅ Receipt printed', 'success');
+      await printReceipt(fullOrder, undefined, { template: 'social_invoice' });
+      showToast('✅ Invoice printed', 'success');
     } catch (e: any) {
       console.error('❌ Receipt print failed:', e);
       showToast(`Receipt print failed: ${e?.message || 'Unknown error'}`, 'error');
