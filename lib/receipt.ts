@@ -92,7 +92,8 @@ export function normalizeOrderForReceipt(order: any): ReceiptOrder {
   const orderNo =
     safeString(order?.order_number) ||
     safeString(order?.orderNumber) ||
-    safeString(order?.order_number) ||
+    safeString(order?.orderNo) ||
+    safeString(order?.invoice_no) ||
     (id ? String(id) : '');
 
   const dateTime =
