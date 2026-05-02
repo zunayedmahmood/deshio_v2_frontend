@@ -21,14 +21,7 @@ interface ProductListItemProps {
   selectable?: boolean;
   stockFilter?: string;
 }
-export default function ProductListItem({
-  productGroup,
-  onDelete,
-  onEdit,
-  onArchive,
-  onView,
-  onAddVariation,
-  onSelect,
+
   selectable,
   stockFilter,
 }: ProductListItemProps) {

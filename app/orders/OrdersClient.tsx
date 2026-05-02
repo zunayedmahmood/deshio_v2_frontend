@@ -129,6 +129,7 @@ interface Order {
   shipping_address?: any;
 
   createdAt?: string;
+  updatedAt?: string;
   orderDateRaw?: string;
 }
 
@@ -332,6 +333,7 @@ export default function OrdersDashboard() {
   const [dateFilter, setDateFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dateFilterType, setDateFilterType] = useState<'order_date' | 'updated_at'>('order_date');
 
   // ✅ NEW: Order type filter (All / Social / E-Com)
   const [orderTypeFilter, setOrderTypeFilter] = useState('All Types');
@@ -1019,6 +1021,7 @@ export default function OrdersDashboard() {
       shipping_address: order.shipping_address ?? null,
 
       createdAt: order.created_at,
+      updatedAt: order.updated_at,
       orderDateRaw: order.order_date,
     };
   };
@@ -1169,9 +1172,10 @@ export default function OrdersDashboard() {
       let allOrders: any[] = [];
       const commonParams: any = {
         store_id: storeFilter === 'All Stores' ? undefined : storeFilter,
-        sort_by: 'created_at',
+        sort_by: dateFilterType === 'updated_at' ? 'updated_at' : 'created_at',
         sort_order: 'desc',
         per_page: 1000,
+        date_filter_type: dateFilterType,
       };
 
       if (viewMode === 'installments') {
@@ -1280,7 +1284,11 @@ export default function OrdersDashboard() {
 
     if (dateFilter.trim()) {
       filtered = filtered.filter((o) => {
-        const orderDate = o.date;
+        let orderDate = o.date;
+        if (dateFilterType === 'updated_at' && o.updatedAt) {
+          const ud = new Date(o.updatedAt);
+          orderDate = `${String(ud.getDate()).padStart(2, '0')}/${String(ud.getMonth() + 1).padStart(2, '0')}/${ud.getFullYear()}`;
+        }
         let filterDateFormatted = dateFilter;
         if (dateFilter.includes('-') && dateFilter.split('-')[0].length === 4) {
           const [year, month, day] = dateFilter.split('-');
@@ -1293,7 +1301,7 @@ export default function OrdersDashboard() {
       const end = endDate.trim() ? new Date(endDate.trim() + "T23:59:59") : null;
 
       filtered = filtered.filter((o) => {
-        const oDateStr = o.orderDateRaw || o.createdAt;
+        const oDateStr = dateFilterType === 'updated_at' ? o.updatedAt : (o.orderDateRaw || o.createdAt);
         if (!oDateStr) return false;
         const oTime = new Date(oDateStr).getTime();
         if (start && oTime < start.getTime()) return false;
@@ -3425,6 +3433,34 @@ export default function OrdersDashboard() {
                 </div>
               )}
 
+              {/* ✅ Status Quick Filters */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase mr-1">Status:</span>
+                <button
+                  onClick={() => setOrderStatusFilter('All Order Status')}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                    orderStatusFilter === 'All Order Status'
+                      ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                      : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                  }`}
+                >
+                  All
+                </button>
+                {quickStatusTabs.filter(t => t.value !== 'All Order Status').map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setOrderStatusFilter(t.value)}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
+                      orderStatusFilter === t.value
+                        ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
+                        : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
               {/* Main Search & Primary Filters */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 <div className="relative flex-1">
@@ -3439,17 +3475,6 @@ export default function OrdersDashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={orderStatusFilter}
-                    onChange={(e) => setOrderStatusFilter(e.target.value)}
-                    className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
-                  >
-                    <option value="All Order Status">All Status</option>
-                    {quickStatusTabs.filter(t => t.value !== 'All Order Status').map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-
                   {!isRole('branch-manager') && (
                     <select
                       value={storeFilter}
@@ -3506,7 +3531,19 @@ export default function OrdersDashboard() {
 
               {/* Expanded Filters */}
               {showMoreFilters && (
-                <div className="mt-3 p-4 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="mt-3 p-4 bg-gray-50/50 dark:bg-gray-900/30 border border-gray-100 dark:border-gray-800 rounded-xl grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Date Based On</label>
+                    <select
+                      value={dateFilterType}
+                      onChange={(e) => setDateFilterType(e.target.value as 'order_date' | 'updated_at')}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                    >
+                      <option value="order_date">Order Placed</option>
+                      <option value="updated_at">Last Updated</option>
+                    </select>
+                  </div>
+
                   <div>
                     <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Date</label>
                     <input
