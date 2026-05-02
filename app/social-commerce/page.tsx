@@ -1926,10 +1926,7 @@ export default function SocialCommercePage() {
             category: item.serviceCategory,
           })),
         shipping_amount: 0,
-        notes: [
-          orderNotes?.trim(),
-          `Social Commerce. ${socialId ? `ID: ${socialId}. ` : ''}${isInternational ? 'International' : 'Domestic'} delivery.`
-        ].filter(Boolean).join(' '),
+        notes: orderNotes?.trim() || '',
       };
 
       sessionStorage.setItem(

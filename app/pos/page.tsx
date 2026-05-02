@@ -764,12 +764,7 @@ export default function POSPage() {
           }
           : {}),
 
-        // ✅ Combine manual notes with automated info (address/change)
-        notes: [
-          orderNotes.trim(),
-          address ? `Address: ${address}` : null,
-          change > 0 ? `Change Given: ৳${change.toFixed(2)}` : null,
-        ].filter(Boolean).join(' | '),
+        notes: orderNotes.trim(),
       };
 
       console.log('═══════════════════════════════════');
