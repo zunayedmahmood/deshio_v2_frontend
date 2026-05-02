@@ -2558,7 +2558,7 @@ export default function SocialCommercePage() {
                         type="button"
                         onClick={() => {
                           saveDraftToSession();
-                          window.location.href = `/product/list?selectMode=true&redirect=${encodeURIComponent('/social-commerce')}`;
+                          window.location.href = `/product/list?selectMode=true&mode=social_commerce&redirect=${encodeURIComponent('/social-commerce')}`;
                         }}
                         disabled={!selectedStore}
                         className="px-3 py-1.5 text-xs font-semibold rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"

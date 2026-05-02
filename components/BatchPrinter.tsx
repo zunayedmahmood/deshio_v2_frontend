@@ -224,7 +224,7 @@ async function renderLabelBase64(opts: {
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.font = `900 ${Math.round(hPx * 0.11)}px Arial`;
-  ctx.fillText("ERRUM BD", centerX, topPad);
+  ctx.fillText("Deshio", centerX, topPad);
 
   // Product name — up to 3 lines, shrinking font as needed
   const nameY = topPad + Math.round(hPx * 0.14);
@@ -301,7 +301,7 @@ async function renderLabelBase64(opts: {
   ctx.drawImage(bcCanvas, bcX, bcY, drawW, drawH);
 
   // Price
-  const priceText = `BDT ৳${Number(opts.price || 0).toLocaleString("en-BD")}`;
+  const priceText = `Price (VAT inc.): ৳${Number(opts.price || 0).toLocaleString("en-BD")}`;
   ctx.textBaseline = "bottom";
   const priceFontSize = Math.round(hPx * 0.1);
   // Use a mono-style numeric font stack for clearer digit differentiation (e.g., 6 vs 8)
@@ -480,7 +480,7 @@ export default function BatchPrinter({ batch, product, barcodes: externalBarcode
             productName: product?.name || "Product",
             price: batch.sellingPrice,
             dpi,
-            brandName: "ERRUM BD",
+            brandName: "Deshio",
           });
 
           data.push({

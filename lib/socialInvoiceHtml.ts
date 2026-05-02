@@ -91,9 +91,10 @@ function wrapHtml(title: string, inner: string, opts?: { embed?: boolean }) {
 function companyInfoBlock(r: any) {
   return `
     <div class="company">
-      <div class="name">${escapeHtml(r.storeName || 'Errum BD')}</div>
-      <div class="line">${escapeHtml(r.storeAddress || '')}</div>
-      <div class="line">Mobile: ${escapeHtml(r.storePhone || '')}</div>
+      <div class="name">${escapeHtml(r.storeName && r.storeName !== 'Main Store' ? r.storeName : 'Deshio')}</div>
+      <div class="line">${escapeHtml(r.storeAddress || 'House: 4, Road: 1, Dhaka Housing, Adabor, Mohammadpur, Dhaka-1207.')}</div>
+      <div class="line">Mobile: ${escapeHtml(r.storePhone || '01711-585400')}</div>
+      <div class="line">BIN: 007243936-0402</div>
     </div>
   `;
 }

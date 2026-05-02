@@ -867,7 +867,7 @@ export default function ProductPage() {
             toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           />
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className={`flex-1 overflow-y-auto p-6 ${isSocialCommerceMode ? 'pb-[440px]' : ''}`}>
             <div className="max-w-7xl mx-auto">
               {/* Header */}
               <div className="mb-6">
@@ -877,7 +877,9 @@ export default function ProductPage() {
                       {selectMode ? 'Select a Product' : 'Products'}
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                      {selectMode
+                      {isSocialCommerceMode
+                        ? 'Click a variant to add it to the Social Commerce queue, then use the queue drawer to return'
+                        : selectMode
                         ? 'Choose a product variant to add to your operation'
                         : `Manage your store's product catalog`}
                     </p>
@@ -931,6 +933,25 @@ export default function ProductPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Social Commerce Mode Banner */}
+                {isSocialCommerceMode && (
+                  <div className="mb-4 flex items-center gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-4 py-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-base">🛒</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Social Commerce – Queue Mode</p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
+                        Click <span className="font-semibold">Select</span> on any product variant to add it to the queue. Adjust quantities in the drawer (bottom-right), then click <span className="font-semibold">Back to Social Commerce</span>.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleReturnToSocialCommerce}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+                    >
+                      ← Back ({queueItems.length})
+                    </button>
+                  </div>
+                )}
 
                 {/* Stats Bar */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

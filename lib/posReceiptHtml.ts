@@ -1,8 +1,8 @@
 // lib/posReceiptHtml.ts
 // POS receipt template used by POS and Purchase History prints.
-// Styled template with ERRUM branding/details.
 
 import { normalizeOrderForReceipt, type ReceiptOrder } from '@/lib/receipt';
+import { CLIENT_ADDRESS, CLIENT_MOBILE, CLIENT_BIN } from '@/lib/constants';
 
 function escapeHtml(s: string) {
   return String(s)
@@ -218,13 +218,14 @@ function pickAddressFromObject(obj: any): string {
   return composed;
 }
 
-function resolveStoreDisplay(order: any, r: ReceiptOrder): { brand: string; tagline: string; address: string; phone: string } {
-  const brand = 'ERRUM BD';
-  const tagline = r.storeName || brand;
-  const address = r.storeAddress || '';
-  const phone = r.storePhone || '';
+function resolveStoreDisplay(order: any, r: ReceiptOrder): { brand: string; tagline: string; address: string; phone: string; bin: string } {
+  const brand = 'DESHIO';
+  const tagline = r.storeName && r.storeName !== 'Main Store' ? r.storeName : 'Deshio-দেশীয়';
+  const address = r.storeAddress || CLIENT_ADDRESS;
+  const phone = r.storePhone || CLIENT_MOBILE;
+  const bin = CLIENT_BIN;
 
-  return { brand, tagline, address, phone };
+  return { brand, tagline, address, phone, bin };
 }
 
 function posReceiptBody(order: any) {
@@ -334,8 +335,9 @@ function posReceiptBody(order: any) {
     <div class="top-center">
       <div class="brand">${escapeHtml(branch.brand)}</div>
       <div class="tagline">${escapeHtml(branch.tagline)}</div>
-      <div class="addr">${escapeHtml(branch.address)}</div>
+      ${branch.address ? `<div class="addr">${escapeHtml(branch.address)}</div>` : ''}
       <div class="hotline">Mobile: ${escapeHtml(branch.phone)}</div>
+      ${branch.bin ? `<div class="hotline">BIN : ${escapeHtml(branch.bin)}</div>` : ''}
       <div class="underline"></div>
       <div class="order-no">Order No : ${escapeHtml(String(r.orderNo || r.id || '—'))}</div>
     </div>
@@ -398,7 +400,7 @@ function posReceiptBody(order: any) {
     </div>
 
     <div class="footer">
-      Thank you for shopping at Errum BD.
+      Thank you for shopping at Deshio.
     </div>
     <div class="credits">Software solution from mADestic Digital</div>
   `;

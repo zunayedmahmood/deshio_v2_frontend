@@ -372,7 +372,10 @@ we used this feature.
 we want this feature in our current product list page supported with social-commerce page.
 
 
-
-
 see /home/zunayed-mahmood/storage/Dev/deshio-front . this is an old version of this project.
 copy the POS receipt, barcode template and invoice from there to our current version.
+
+
+i want you to check all the backend and frontend code and understand the workflow
+see the discount related amount fields in payment amounts in POS, Social_commerce amounts detail, edit order 
+check if all of them are working and there's no descrepencies.
