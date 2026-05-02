@@ -755,11 +755,6 @@ export default function PurchaseOrdersPage() {
       setLoading(false);
     }
   };
-  const updateReceiveItem = (index: number, field: string, value: string) => {
-    const newItems = [...receiveForm.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setReceiveForm({ items: newItems });
-  };
   const getTotalOrderedQty = (items?: any[]) =>
     (Array.isArray(items) ? items : []).reduce((sum, it) => sum + Number(it?.quantity_ordered ?? 0), 0);
   return (
