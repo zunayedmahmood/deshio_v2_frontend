@@ -5,11 +5,11 @@ import { ChevronLeft, ChevronRight, Instagram } from 'lucide-react';
 import InstagramEmbed from './InstagramEmbed';
 
 const REEL_URLS = [
-  'https://www.instagram.com/reel/DW6uSbkERA9/',
-  'https://www.instagram.com/p/DW6DQUGk-ho/',
-  'https://www.instagram.com/reel/DW323H0EboK/',
-  'https://www.instagram.com/reel/DWtnHXJkSSA/',
-  'https://www.instagram.com/reel/DWmUzxuE5OZ/'
+  'https://www.instagram.com/reel/DXuLQ16DuEr/',
+  'https://www.instagram.com/reel/DXs4c_fkyfi/',
+  'https://www.instagram.com/reel/DXdbpF-kfTg/',
+  'https://www.instagram.com/reel/DXdbpF-kfTg/',
+  'https://www.instagram.com/reel/DXOALPBDArO/'
 ];
 
 export default function InstagramReelViewer() {
