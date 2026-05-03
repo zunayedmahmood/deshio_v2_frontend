@@ -2,7 +2,6 @@
 // Social commerce invoice (A5 / Half A4), clean two-column header and compact items table.
 
 import { normalizeOrderForReceipt } from '@/lib/receipt';
-import { CLIENT_NAME_CAP, CLIENT_NAME_BN, CLIENT_ADDRESS, CLIENT_MOBILE, CLIENT_BIN } from '@/lib/constants';
 
 function escapeHtml(s: any) {
   return String(s ?? '')
@@ -51,7 +50,7 @@ function wrapHtml(title: string, inner: string, opts?: { embed?: boolean }) {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .page { width: 100%; padding: 0; }
+    .page { width: 100%; }
     .topRow {
       display: grid;
       grid-template-columns: 1fr 1.15fr;
@@ -163,20 +162,15 @@ ${inner}
 </html>`;
 }
 
-function companyInfoBlock(r: any) {
-  const brand = r.storeName && r.storeName !== 'Main Store' ? r.storeName : `${CLIENT_NAME_CAP} - ${CLIENT_NAME_BN}`;
-  const address = r.storeAddress || CLIENT_ADDRESS;
-  const phone = r.storePhone || CLIENT_MOBILE;
-  const bin = CLIENT_BIN;
-
+function companyInfoBlock() {
   return `
     <div class="seller">
       <div class="sellerTitle">Seller</div>
       <div class="sellerBody">
-        <b>${escapeHtml(brand)}</b><br/>
-        ${escapeHtml(address)}<br/>
-        Mobile: ${escapeHtml(phone)}<br/>
-        BIN: ${escapeHtml(bin)}
+        <b>Deshio-দেশীয়</b><br/>
+        House: 4, Road: 1, Dhaka Housing, Adabor, Mohammadpur, Dhaka-1207.<br/>
+        Mobile: 01711-585400<br/>
+        BIN: 007243936-0402
       </div>
     </div>
   `;
@@ -214,12 +208,12 @@ function render(order: any) {
         <div class="brandBlock">
           <div class="brandLine">
             <img class="logo" src="/logo.png" alt="Logo" />
-            <div class="brandText">${escapeHtml(CLIENT_NAME_CAP)} - ${escapeHtml(CLIENT_NAME_BN)}</div>
+            <div class="brandText">দেশীয়</div>
           </div>
           <h1 class="title">INVOICE</h1>
           <div class="subtitle">Social Commerce Order</div>
         </div>
-        ${companyInfoBlock(r)}
+        ${companyInfoBlock()}
       </div>
 
       <div class="infoGrid">

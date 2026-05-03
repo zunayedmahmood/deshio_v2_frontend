@@ -56,6 +56,7 @@ import refundService, { type CreateRefundRequest } from '@/services/refundServic
 
 import shipmentService from '@/services/shipmentService';
 import { checkQZStatus, printReceipt, printBulkReceipts, getPrinters, savePreferredPrinter } from '@/lib/qz-tray';
+import { withPrintableServiceFallback } from '@/lib/receipt';
 
 interface Order {
   id: number;
@@ -2430,7 +2431,7 @@ export default function OrdersDashboard() {
 
         try {
           const fullOrder = await orderService.getById(o.id);
-          fullOrders.push(fullOrder);
+          fullOrders.push(withPrintableServiceFallback(fullOrder, o.services));
         } catch (e) {
           console.error('Failed to fetch order for invoice:', o.id, e);
           setBulkPrintProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
@@ -2441,7 +2442,7 @@ export default function OrdersDashboard() {
 
       // If QZ is offline, open ONE bulk preview window (Print → Save as PDF).
       if (!status.connected) {
-        await printBulkReceipts(fullOrders, undefined, { template: 'pos_receipt', title: 'Invoices' });
+        await printBulkReceipts(fullOrders, undefined, { template: 'social_invoice', title: 'Social Invoices' });
         alert('Opened invoice preview. Use Print → Save as PDF.');
         return;
       }
@@ -2455,7 +2456,7 @@ export default function OrdersDashboard() {
         setBulkPrintProgress((prev) => ({ ...prev, current: i + 1 }));
 
         try {
-          await printReceipt(fullOrder as any, selectedPrinter, { template: 'pos_receipt', title: 'Invoice' });
+          await printReceipt(fullOrder as any, selectedPrinter, { template: 'social_invoice', title: 'Invoice' });
           successCount++;
           setBulkPrintProgress((prev) => ({ ...prev, success: successCount }));
         } catch {
@@ -2526,7 +2527,7 @@ export default function OrdersDashboard() {
 
         try {
           const fullOrder = await orderService.getById(o.id);
-          fullOrders.push(fullOrder);
+          fullOrders.push(withPrintableServiceFallback(fullOrder, o.services));
         } catch (e) {
           console.error('Failed to fetch order for receipt:', o.id, e);
           setBulkPrintProgress((prev) => ({ ...prev, failed: prev.failed + 1 }));
@@ -2662,7 +2663,8 @@ export default function OrdersDashboard() {
       }
 
       const fullOrder = await orderService.getById(order.id);
-      await printReceipt(fullOrder as any, status.connected ? selectedPrinter : undefined);
+      const printableOrder = withPrintableServiceFallback(fullOrder, order.services);
+      await printReceipt(printableOrder as any, status.connected ? selectedPrinter : undefined);
 
       alert('✅ Receipt ready (printed or opened in preview)!');
     } catch (error: any) {
@@ -2696,13 +2698,20 @@ export default function OrdersDashboard() {
         status = await checkQZStatus();
       } catch { }
 
+      if (status.connected && !selectedPrinter) {
+        setShowPrinterSelect(true);
+        alert('Please select a printer first.');
+        return;
+      }
+
       if (!status.connected) {
         alert('QZ Tray is offline. Opening invoice preview (Print → Save as PDF).');
       }
 
       const fullOrder = await orderService.getById(order.id);
-      await printReceipt(fullOrder as any, status.connected ? selectedPrinter : undefined, {
-        template: 'pos_receipt',
+      const printableOrder = withPrintableServiceFallback(fullOrder, order.services);
+      await printReceipt(printableOrder as any, status.connected ? selectedPrinter : undefined, {
+        template: 'social_invoice',
         title: 'Invoice',
       });
 
