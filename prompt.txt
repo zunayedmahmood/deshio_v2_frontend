@@ -379,3 +379,32 @@ copy the POS receipt, barcode template and invoice from there to our current ver
 i want you to check all the backend and frontend code and understand the workflow
 see the discount related amount fields in payment amounts in POS, Social_commerce amounts detail, edit order 
 check if all of them are working and there's no descrepencies.
+
+
+### add "today" button on orders page.
+the orders page already has filters for "social_commerce" "e-commerce" and all.
+they are under a "more filters" dropdown.
+instead, we want this "type:" filter like the top selections like "Markers" "Status".
+
+we want a toggle button below that, that says "Today".
+when on, it should filter the orders to only show today's orders.
+make sure the orders returned (for all types of filtering and or querying) are filtered first then paginated instead of a filtering a paginated response.
+
+
+###dispatch issue 
+
+see the dispatch workflow and logic in storage/Dev/errum_v2/errum_be 
+
+we are having issues with dispatch:
+currently, scanning a barcode immediately reduces stock from the origin store.
+cancelling a dispatch doesn't update stock
+
+update the  logic so that stock is deducted only when dispatch is sent for approval.
+cancelling or rejecting a dispatch should update the stock back.
+the reserve_product table should also be updated accordingly.
+
+a dispatch can be filled in, left like that, user comes back and scans some more products.
+for these reasons, i want you to make an exact replica of the dispatch workflow created in storage/Dev/errum_v2/errum_be to here. 
+update frontend accordingly.
+
+###
