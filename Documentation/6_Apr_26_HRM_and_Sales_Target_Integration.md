@@ -1,7 +1,7 @@
 # HRM and Sales Target Integration - Technical Documentation (6 Apr 2026)
 
 ## Overview
-This document details the architecture, data flow, and implementation of the **Human Resource Management (HRM)** and **Sales Target Tracking** systems within Errum V2. These modules are designed to automate attendance management, overtime calculation, and performance-based sales tracking for store employees.
+This document details the architecture, data flow, and implementation of the **Human Resource Management (HRM)** and **Sales Target Tracking** systems within Deshio V2. These modules are designed to automate attendance management, overtime calculation, and performance-based sales tracking for store employees.
 
 ---
 

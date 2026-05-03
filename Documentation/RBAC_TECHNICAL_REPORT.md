@@ -1,4 +1,4 @@
-# Errum V2: Role-Based Access Control (RBAC) Technical Implementation Report - Phase 1
+# Deshio V2: Role-Based Access Control (RBAC) Technical Implementation Report - Phase 1
 
 ## Date: March 30, 2026
 ## Status: Finalized (Phase 1)
@@ -7,7 +7,7 @@
 ---
 
 ## 1. Executive Summary
-This report details the implementation of Phase 1 of the Role-Based Access Control (RBAC) system for Errum V2. The objective was to provide secure, scoped access for `online-moderator` and `pos-salesman` roles while maintaining full administrative oversight for global roles (`super-admin`, `admin`, `branch-manager`).
+This report details the implementation of Phase 1 of the Role-Based Access Control (RBAC) system for Deshio V2. The objective was to provide secure, scoped access for `online-moderator` and `pos-salesman` roles while maintaining full administrative oversight for global roles (`super-admin`, `admin`, `branch-manager`).
 
 The implementation covers three main technical layers:
 1.  **Backend Compatibility**: Adjusting core controllers to support partial data submission and role-based validation.
@@ -122,7 +122,7 @@ Salesmen are restricted to their assigned physical branch. Their view of the enr
 ---
 
 ## 8. Conclusion
-The RBAC Phase 1 rollout successfully bridges the gap between hardware-level integration (POS/Printers) and high-level administrative management. By combining backend validation flexibility with frontend interceptor-driven scoping, we have created a robust, scalable security architecture for Errum V2.
+The RBAC Phase 1 rollout successfully bridges the gap between hardware-level integration (POS/Printers) and high-level administrative management. By combining backend validation flexibility with frontend interceptor-driven scoping, we have created a robust, scalable security architecture for Deshio V2.
 
 ---
 *End of Report*
@@ -130,7 +130,7 @@ The RBAC Phase 1 rollout successfully bridges the gap between hardware-level int
 ---
 
 ### Appendix A: Modified Files List
-- `errum_be/app/Http/Controllers/PurchaseOrderController.php`
+- `Deshio_be/app/Http/Controllers/PurchaseOrderController.php`
 - `lib/axios.ts`
 - `contexts/AuthContext.tsx`
 - `components/AccessControl.tsx`

@@ -1,7 +1,7 @@
-# Errum V2: Comprehensive Finance & Accounting Implementation Plan (7 Apr 2026)
+# Deshio V2: Comprehensive Finance & Accounting Implementation Plan (7 Apr 2026)
 
 ## 1. Executive Summary
-This document outlines the strategic workplan to transition the Errum V2 accounting module from a basic transaction logger to a full-scale double-entry bookkeeping system. The goal is to ensure that every business event (Purchase, Sale, Return, Exchange) correctly affects the General Ledger across multiple accounts (Cash, Inventory, COGS, Revenue, Tax).
+This document outlines the strategic workplan to transition the Deshio V2 accounting module from a basic transaction logger to a full-scale double-entry bookkeeping system. The goal is to ensure that every business event (Purchase, Sale, Return, Exchange) correctly affects the General Ledger across multiple accounts (Cash, Inventory, COGS, Revenue, Tax).
 
 ## 2. Theoretical Framework (Double-Entry Logic)
 Based on the provided requirements and standard accounting principles, the following logic will be implemented:

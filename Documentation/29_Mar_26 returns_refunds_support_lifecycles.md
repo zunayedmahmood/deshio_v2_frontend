@@ -1,6 +1,6 @@
 # Returns, Refunds & Support Lifecycles
 
-This document outlines the workflows for post-purchase operations in Errum V2. These lifecycles are crucial for maintaining customer satisfaction, managing defective inventory, and ensuring accurate accounting.
+This document outlines the workflows for post-purchase operations in Deshio V2. These lifecycles are crucial for maintaining customer satisfaction, managing defective inventory, and ensuring accurate accounting.
 
 ## Table of Contents
 1. [Product Return Lifecycle](#product-return-lifecycle)

@@ -21,10 +21,10 @@ Fullfilment in that social-commerce/package page is not working properly for the
 ## 2. Technical Implementation Plan (Antigravity Prompts)
 
 ### Step 1: Remove Batch Assignment from Store Routing
-> **Prompt:** "Modify `errum_be/app/Http/Controllers/OrderManagementController.php`. In the `assignStore` method, remove the logic that loops through `$order->items` and updates `product_batch_id`. The system should only update the `store_id` and the order `status` to `assigned_to_store`. Stock batches will be determined dynamically during the barcode scanning phase.
+> **Prompt:** "Modify `Deshio_be/app/Http/Controllers/OrderManagementController.php`. In the `assignStore` method, remove the logic that loops through `$order->items` and updates `product_batch_id`. The system should only update the `store_id` and the order `status` to `assigned_to_store`. Stock batches will be determined dynamically during the barcode scanning phase.
 
 ### Step 2: Fix Social Commerce Creation Status
-> **Prompt:** "Modify `errum_be/app/Http/Controllers/OrderController.php`. In the `create` method, update the initial status logic. If the `order_type` is `social_commerce` and a `store_id` is provided in the request, set the `initialStatus` to `assigned_to_store` instead of `pending`. This ensures the order immediately appears in the branch's fulfillment queue."
+> **Prompt:** "Modify `Deshio_be/app/Http/Controllers/OrderController.php`. In the `create` method, update the initial status logic. If the `order_type` is `social_commerce` and a `store_id` is provided in the request, set the `initialStatus` to `assigned_to_store` instead of `pending`. This ensures the order immediately appears in the branch's fulfillment queue."
 
 ### Step 3: Refine Scanning Permissions
 > **Prompt:** "check the backend for social commerce package page for methods allow scanning for orders with all statuses. Also, verify that if an order item already has a `product_batch_id` assigned, it is overwritten by the batch associated with the physical barcode being scanned."

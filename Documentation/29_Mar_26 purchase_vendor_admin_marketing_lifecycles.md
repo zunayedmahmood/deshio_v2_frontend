@@ -37,7 +37,7 @@ stateDiagram-v2
 - **Cancel:** Voiding the order before it arrives.
 
 ### Examples
-- **Example A:** Errum orders 1000 plain t-shirts. 500 arrive on Monday (*Partially Received*). The remaining 500 arrive on Wednesday (*Received*). Stock is updated iteratively.
+- **Example A:** Deshio orders 1000 plain t-shirts. 500 arrive on Monday (*Partially Received*). The remaining 500 arrive on Wednesday (*Received*). Stock is updated iteratively.
 
 ### Integrity Issues & Suggested Fixes
 - **Issue:** Changing the cost price of an item in a PO after some units have already been received, leading to skewed COGS (Cost of Goods Sold) accounting.
@@ -67,7 +67,7 @@ stateDiagram-v2
 - **Refund:** Vendor failed to deliver and returns the advance.
 
 ### Edge Cases
-- **Credit Notes:** A vendor owes Errum money from a previous defective batch. This credit note must be applied against a new vendor payment to reduce the cash outflow.
+- **Credit Notes:** A vendor owes Deshio money from a previous defective batch. This credit note must be applied against a new vendor payment to reduce the cash outflow.
 
 ---
 
@@ -88,7 +88,7 @@ Managing the relationship and status of suppliers.
 
 ## 4. Employee Lifecycle
 
-Managing staff access, roles, and security within the Errum system.
+Managing staff access, roles, and security within the Deshio system.
 
 ### Flowchart
 ```mermaid

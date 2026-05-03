@@ -1,7 +1,7 @@
-# Errum V2: Return and Exchange Lifecycle Audit
+# Deshio V2: Return and Exchange Lifecycle Audit
 
 ## 1. Overview
-This document provides a comprehensive audit of the return and exchange lifecycle in Errum V2, covering both the Laravel backend (`errum_be/`) and the Next.js frontend. The audit focuses on the logical flow, data integrity, potential bugs, and performance bottlenecks identified during the code review.
+This document provides a comprehensive audit of the return and exchange lifecycle in Deshio V2, covering both the Laravel backend (`Deshio_be/`) and the Next.js frontend. The audit focuses on the logical flow, data integrity, potential bugs, and performance bottlenecks identified during the code review.
 
 ## 2. Return & Exchange Lifecycle
 
@@ -186,7 +186,7 @@ const res = await refundService.create({
 
 ## 8. Deep Dive: Barcode & Batch Lifecycle during Return
 
-The integrity of Errum V2's inventory relies heavily on the `ProductBarcode` and `ProductBatch` models. When a return occurs, several state changes happen that are critical for accurate stock tracking.
+The integrity of Deshio V2's inventory relies heavily on the `ProductBarcode` and `ProductBatch` models. When a return occurs, several state changes happen that are critical for accurate stock tracking.
 
 ### 8.1. Barcode Status Transitions
 When an item is sold, its barcode status changes from `in_warehouse` or `in_shop` to `sold` or `with_customer`. The return process reverses this, but with additional metadata.
@@ -203,7 +203,7 @@ When an item is sold, its barcode status changes from `in_warehouse` or `in_shop
     - A record is created in the `defective_products` table.
 
 ### 8.2. Batch Quantity Adjustments
-A significant complexity in Errum V2 is multi-store batching.
+A significant complexity in Deshio V2 is multi-store batching.
 - **Original Store Return**: If returned to the same store where it was bought, the `quantity` of the original `ProductBatch` is incremented.
 - **Cross-Store Return**: If returned to a different store, the system must either find an existing batch for that product in the receiving store or create a new one (`ProductBatch::firstOrCreate`).
     - **Risk**: Creating a new batch using the original batch's `cost_price` and `sell_price` assumes that pricing is consistent across stores. If Store A sells a product for 1000 BDT and Store B sells it for 1200 BDT, returning Store A's product to Store B and adding it to Store B's batch might cause a margin mismatch.
@@ -300,7 +300,7 @@ private function generateReturnNumber(): string
 
 ## 14. Accounting Integration: Double-Entry Bookkeeping
 
-When a refund is completed, Errum V2 performs a crucial accounting step to ensure the books balance.
+When a refund is completed, Deshio V2 performs a crucial accounting step to ensure the books balance.
 
 ### 14.1. The Transaction Flow
 A single refund creates **two** transaction entries:
@@ -329,7 +329,7 @@ If the refund method is `store_credit`, the flow changes:
 
 ## 15. Conclusion of Audit
 
-The return and exchange system in Errum V2 is robust but suffers from:
+The return and exchange system in Deshio V2 is robust but suffers from:
 1.  **Technical Debt**: Inefficient quantity calculations.
 2.  **User Experience Gaps**: Manual exchange processes.
 3.  **Scalability Risks**: High-volume return processing might strain the database.

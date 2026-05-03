@@ -1,6 +1,6 @@
 # Workplan: Fixing Social Commerce Issues (Discount, Payment, Stock, Pathao)
 
-This workplan addresses four critical issues identified in the Social Commerce module of Errum V2.
+This workplan addresses four critical issues identified in the Social Commerce module of Deshio V2.
 
 ## Issues and Root Causes
 
@@ -24,7 +24,7 @@ This workplan addresses four critical issues identified in the Social Commerce m
 ### 4. Pathao Collectable Amount 0
 *   **Problem:** When sending to Pathao, the "Collectable Amount" became 0.
 *   **Root Cause:** `Shipment::createFromOrder` (Line 680) only sets `cod_amount` if `payment_status` is exactly `pending`. If the order is `partial` or `unpaid`, it sets `cod_amount` to `null`, which Pathao interprets as 0.
-*   **File:** `errum_be/app/Models/Shipment.php`
+*   **File:** `Deshio_be/app/Models/Shipment.php`
 
 ---
 
@@ -33,24 +33,24 @@ This workplan addresses four critical issues identified in the Social Commerce m
 ### Phase 1: Backend Fixes (Laravel)
 
 #### Step 1: Fix Pathao Collectable Amount
-**File:** `errum_be/app/Models/Shipment.php`
+**File:** `Deshio_be/app/Models/Shipment.php`
 *   Locate `createFromOrder` method.
 *   Change `'cod_amount' => $order->payment_status === 'pending' ? $order->total_amount : null,`
 *   To: `'cod_amount' => $order->outstanding_amount,`
 
 #### Step 2: Fix Stock Reservation Logic
-**File:** `errum_be/app/Observers/OrderItemObserver.php`
+**File:** `Deshio_be/app/Observers/OrderItemObserver.php`
 *   Update `created`, `updated`, and `deleted` methods.
 *   Change status check from `=== 'pending_assignment'` to `in_array($order->status, ['pending_assignment', 'pending'])` for `ecommerce` and `social_commerce` order types.
 *   This ensures that even if a store is selected (status = `pending`), the global stock is still reserved until physical scanning.
 
 #### Step 3: Fix Order Creation Payment Access
-**File:** `errum_be/app/Http/Controllers/OrderController.php`
+**File:** `Deshio_be/app/Http/Controllers/OrderController.php`
 *   In the `create` method, locate the payment processing block (around Line 660).
 *   Change `$request->payment_type` to `$request->payment['payment_type']`.
 
 #### Step 4: Add Stock Check for Specific Store Assignment
-**File:** `errum_be/app/Http/Controllers/OrderController.php`
+**File:** `Deshio_be/app/Http/Controllers/OrderController.php`
 *   In the `create` method, before creating the order, if `store_id` is provided for `social_commerce`, perform a sum of stock for that product across all batches in that store to ensure at least one branch has it, and there's enough available_inventory from reserved products.
 *   Actually, ensuring the `OrderItemObserver` handles `pending` status is the most important part for reservation.
 

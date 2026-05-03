@@ -1,12 +1,12 @@
 # HRM Implementation & Enhancement Workplan (6 Apr 2026)
 
-This document outlines the detailed steps required to complete and robustify the Human Resource Management (HRM) system in Errum V2.
+This document outlines the detailed steps required to complete and robustify the Human Resource Management (HRM) system in Deshio V2.
 
 ## 1. Database & Model Schema Updates
 
 ### 1.1 Store Attendance Policy
 Add fields to `store_attendance_policies` to support automated financial calculations.
-- **File**: `errum_be/app/Models/StoreAttendancePolicy.php`
+- **File**: `Deshio_be/app/Models/StoreAttendancePolicy.php`
 - **Migration**: Create a migration to add:
     - `late_fee_per_minute` (decimal, default 0)
     - `overtime_rate_per_hour` (decimal, default 0)
@@ -14,15 +14,15 @@ Add fields to `store_attendance_policies` to support automated financial calcula
 
 ### 1.2 Orders Table
 Enable tracking of the actual salesperson responsible for a sale, separate from the user who created the record.
-- **File**: `errum_be/app/Models/Order.php`
+- **File**: `Deshio_be/app/Models/Order.php`
 - **Migration**: Create a migration to add `salesman_id` (nullable, foreign key to `employees.id`).
 
 ### 1.3 Attendance & Overtime
 Ensure calculations are stored for historical accuracy even if policies change.
-- **File**: `errum_be/app/Models/EmployeeAttendance.php`
+- **File**: `Deshio_be/app/Models/EmployeeAttendance.php`
     - Add `late_minutes` (integer)
     - Add `late_fee` (decimal)
-- **File**: `errum_be/app/Models/EmployeeOvertime.php`
+- **File**: `Deshio_be/app/Models/EmployeeOvertime.php`
     - Add `overtime_pay` (decimal)
 
 ---
@@ -31,7 +31,7 @@ Ensure calculations are stored for historical accuracy even if policies change.
 
 ### 2.1 Automated Late & Overtime Calculation
 Update the attendance marking logic to automatically calculate financial impacts.
-- **File**: `errum_be/app/Http/Controllers/AttendanceController.php`
+- **File**: `Deshio_be/app/Http/Controllers/AttendanceController.php`
 - **Logic**:
     - In `markAttendance`, if `status` is `late`, calculate `late_minutes` (Actual In - Schedule Start).
     - If `late_minutes > grace_period_minutes`, calculate `late_fee = (late_minutes - grace_period_minutes) * late_fee_per_minute`.
@@ -39,12 +39,12 @@ Update the attendance marking logic to automatically calculate financial impacts
 
 ### 2.2 Sales Performance Tracking
 Shift performance tracking from "who created the order" to "who is the assigned salesman".
-- **File**: `errum_be/app/Services/SalesTargetAggregationService.php`
+- **File**: `Deshio_be/app/Services/SalesTargetAggregationService.php`
 - **Change**: In `recomputeDailySales`, change the query to filter by `salesman_id` instead of `created_by`. Fallback to `created_by` if `salesman_id` is null (for backward compatibility).
 
 ### 2.3 Sales Target Management
 Simplify monthly target setting for managers.
-- **File**: `errum_be/app/Http/Controllers/SalesTargetController.php`
+- **File**: `Deshio_be/app/Http/Controllers/SalesTargetController.php`
 - **Feature**: Add `copyLastMonthTargets(Request $request)` method.
     - Input: `store_id`, `target_month`.
     - Logic: Fetch targets for `target_month - 1` and `updateOrCreate` for the current month.
@@ -103,14 +103,14 @@ Fix the mismatch between frontend "Clock In/Out" and backend bulk marking.
 ## 5. File List for Implementation
 
 ### Backend
-- `errum_be/app/Http/Controllers/AttendanceController.php`
-- `errum_be/app/Http/Controllers/SalesTargetController.php`
-- `errum_be/app/Http/Controllers/EmployeePanelController.php`
-- `errum_be/app/Services/SalesTargetAggregationService.php`
-- `errum_be/app/Models/StoreAttendancePolicy.php`
-- `errum_be/app/Models/Order.php`
-- `errum_be/app/Models/EmployeeAttendance.php`
-- `errum_be/app/Models/EmployeeOvertime.php`
+- `Deshio_be/app/Http/Controllers/AttendanceController.php`
+- `Deshio_be/app/Http/Controllers/SalesTargetController.php`
+- `Deshio_be/app/Http/Controllers/EmployeePanelController.php`
+- `Deshio_be/app/Services/SalesTargetAggregationService.php`
+- `Deshio_be/app/Models/StoreAttendancePolicy.php`
+- `Deshio_be/app/Models/Order.php`
+- `Deshio_be/app/Models/EmployeeAttendance.php`
+- `Deshio_be/app/Models/EmployeeOvertime.php`
 
 ### Frontend
 - `app/hrm/branch/page.tsx`

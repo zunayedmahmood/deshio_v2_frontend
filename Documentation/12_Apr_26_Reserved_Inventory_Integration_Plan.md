@@ -15,14 +15,14 @@ Currently, the system uses `total_stock` (sum of batch quantities) as the primar
 ### 2.1. `EcommerceCatalogController.php`
 - **Modify `formatProductForApi`**:
     - Include `reserved_inventory` in the returned array.
-    - Path: `errum_be/app/Http/Controllers/EcommerceCatalogController.php`
+    - Path: `Deshio_be/app/Http/Controllers/EcommerceCatalogController.php`
 - **Modify `getGroupedProducts`**:
     - When aggregating variants, calculate `total_available_inventory` and `total_reserved_inventory` across the SKU group.
 
 ### 2.2. `InventoryController.php`
 - **Verify `getGlobalInventory`**:
     - Ensure it consistently returns `available_quantity` and `reserved_quantity` for both product-level and store-level breakdowns.
-    - Path: `errum_be/app/Http/Controllers/InventoryController.php`
+    - Path: `Deshio_be/app/Http/Controllers/InventoryController.php`
 
 ---
 

@@ -1,7 +1,7 @@
 # Frontend Reserve Stock Changes (27 March 2026)
 
 ## Overview
-This document summarizes the frontend adjustments made to align the `errum_v2` UI with the newly introduced **Backend Reservation Model**. The objective was to ensure that global reservations block overselling while preserving existing API structures and workflows.
+This document summarizes the frontend adjustments made to align the `Deshio_v2` UI with the newly introduced **Backend Reservation Model**. The objective was to ensure that global reservations block overselling while preserving existing API structures and workflows.
 
 ## 1. Payload Verifications (No Architectural Rewrites Required)
 A comprehensive audit confirmed the frontend naturally triggers the correct behaviors in the new backend architecture:

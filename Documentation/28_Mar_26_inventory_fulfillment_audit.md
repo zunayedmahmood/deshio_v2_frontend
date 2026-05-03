@@ -1,9 +1,9 @@
 # Inventory & Fulfillment Audit: Strict Reservation Integrity
 **Date**: March 28, 2026
-**Author**: Errum V2 System Architect (Antigravity)
+**Author**: Deshio V2 System Architect (Antigravity)
 
 ## 1. Executive Summary
-This audit documents the refined inventory management system for Errum V2. The primary objective is to ensure data integrity and prevent overselling by strictly protecting online reservations. All transactions, including Physical Point of Sale (POS) and Counter sales, are subject to global availability checks. If `available_inventory` reaches 0, no further sales (online or physical) are permitted until stock is replenished or reservations are released. This ensures that customers who have already purchased or reserved items online are guaranteed fulfillment.
+This audit documents the refined inventory management system for Deshio V2. The primary objective is to ensure data integrity and prevent overselling by strictly protecting online reservations. All transactions, including Physical Point of Sale (POS) and Counter sales, are subject to global availability checks. If `available_inventory` reaches 0, no further sales (online or physical) are permitted until stock is replenished or reservations are released. This ensures that customers who have already purchased or reserved items online are guaranteed fulfillment.
 
 ---
 
@@ -93,7 +93,7 @@ sequenceDiagram
 ---
 
 ## 8. Conclusion
-The current inventory system prioritizes the integrity of online promises. By strictly enforcing reservations and prohibiting negative inventory, Errum V2 guarantees that once an item is purchased or reserved online, it is digitally locked and unavailable for physical sale at any storefront until the online order is either fulfilled or cancelled.
+The current inventory system prioritizes the integrity of online promises. By strictly enforcing reservations and prohibiting negative inventory, Deshio V2 guarantees that once an item is purchased or reserved online, it is digitally locked and unavailable for physical sale at any storefront until the online order is either fulfilled or cancelled.
 
 ---
 *End of Audit Report*

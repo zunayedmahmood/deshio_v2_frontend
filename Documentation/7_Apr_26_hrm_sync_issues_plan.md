@@ -1,4 +1,4 @@
-# Errum V2: HRM & Attendance Sync Workplan (7 Apr 2026)
+# Deshio V2: HRM & Attendance Sync Workplan (7 Apr 2026)
 
 This document outlines the identified inconsistencies and architectural gaps in the HRM (Human Resource Management) system, specifically regarding attendance marking, bulk actions, and payroll integration.
 
@@ -61,8 +61,8 @@ This document outlines the identified inconsistencies and architectural gaps in 
 ## 3. Files to Modify
 
 ### Backend
-- `errum_be/app/Http/Controllers/AttendanceController.php`: Fix `markAttendance` logic.
-- `errum_be/app/Http/Controllers/PayrollController.php`: Ensure all attendance-related fees are caught.
+- `Deshio_be/app/Http/Controllers/AttendanceController.php`: Fix `markAttendance` logic.
+- `Deshio_be/app/Http/Controllers/PayrollController.php`: Ensure all attendance-related fees are caught.
 
 ### Frontend
 - `app/hrm/branch/page.tsx`: Fix `handleBulkMark` and table action buttons.

@@ -28,7 +28,7 @@ All major mobile overlays have been standardized to follow a right-to-left "Draw
 - **Category Filters ([slug] Page)**: Updated to match the refined drawer layout and styling.
 
 ### 2. Premium Styling
-The drawers in [Search](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/app/e-commerce/search/page.tsx#8-18) and `Category ([slug])` now use the same high-end visual language as the [Products](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Http/Controllers/EcommerceCatalogController.php#17-66) feed:
+The drawers in [Search](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/app/e-commerce/search/page.tsx#8-18) and `Category ([slug])` now use the same high-end visual language as the [Products](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Http/Controllers/EcommerceCatalogController.php#17-66) feed:
 - **Glass Backdrop**: Uses `bg-black/60` with a `backdrop-blur-md` for a modern, OS-like feel.
 - **Consistent Headers**: Drawer headers are now uniform, with uppercase tracking, bold typography, and a subtle border-bottom separator.
 - **Close Buttons**: Standardized circular focusable close buttons with smooth hover/active states.
@@ -39,7 +39,7 @@ The drawers in [Search](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-La
 
 To handle large category trees gracefully on mobile, we've extended the scrollable feature from the Search page to all other catalog sidebars.
 
-- **[CategorySidebar.tsx](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/components/ecommerce/category/CategorySidebar.tsx)**: Nested subcategory containers now have a `max-h-[400px]` limit and internal vertical scrolling (`overflow-y-auto`).
+- **[CategorySidebar.tsx](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/components/ecommerce/category/CategorySidebar.tsx)**: Nested subcategory containers now have a `max-h-[400px]` limit and internal vertical scrolling (`overflow-y-auto`).
 - **Scrollbar Styling**: We use the custom `ec-scrollbar` utility for a minimal, non-intrusive scrollbar that disappears when not in use.
 
 ---

@@ -1,6 +1,6 @@
-# Errum V2 - E-commerce Frontend Architecture
+# Deshio V2 - E-commerce Frontend Architecture
 
-This document provides an exhaustive, structured overview of the `app/e-commerce` directory and the supporting `components/ecommerce` library. Errum V2's e-commerce frontend is designed as a premium, high-performance storefront that prioritizes mobile UX, visual storytelling, and seamless variation handling.
+This document provides an exhaustive, structured overview of the `app/e-commerce` directory and the supporting `components/ecommerce` library. Deshio V2's e-commerce frontend is designed as a premium, high-performance storefront that prioritizes mobile UX, visual storytelling, and seamless variation handling.
 
 ---
 
@@ -26,7 +26,7 @@ The `CartContext` acts as the orchestrator for all shopping bag operations.
 
 ## 2. Discovery & Catalog Interfaces
 
-Errum V2 uses a sophisticated discovery system that balances deep filtering for power users with high-end visual "Collections" for casual browsers.
+Deshio V2 uses a sophisticated discovery system that balances deep filtering for power users with high-end visual "Collections" for casual browsers.
 
 ### 2.1 The Landing Experience (`app/e-commerce/page.tsx`)
 The home page is built using `next/dynamic` to ensure fast initial paint times for critical hero content while lazy-loading secondary sections.
@@ -55,7 +55,7 @@ The search page provides a high-end search-as-you-type experience.
 The PDP (`app/e-commerce/product/[id]/page.tsx`) is the core conversion engine of the storefront, handling highly complex variation and inventory logic.
 
 ### 3.1 Variation Parsing & Normalization
-Errum's backend data can sometimes contain inconsistent naming conventions for sizes and colors. The PDP uses a robust parsing engine:
+Deshio's backend data can sometimes contain inconsistent naming conventions for sizes and colors. The PDP uses a robust parsing engine:
 - **`parseMarketSizePairs`**: Uses Regex to extract standard sizes like "US 7", "EU 40", or "UK 6.5" from concatenated strings.
 - **`deriveVariantMeta`**: Consolidates information from `variation_suffix`, `option_label`, and product `attributes` to build a clean UI label for the variant selector.
 
@@ -100,7 +100,7 @@ The standalone cart page is deprecated. The system now uses a `GlobalCartSidebar
 - **`order-confirmation`**: The full digital receipt, fetching the latest status from the database. It allows users to print receipts or jump directly to tracking.
 
 ### 5.2 Order Tracking
-Errum provides two ways to track an order:
+Deshio provides two ways to track an order:
 - **By Order Number**: A vertical timeline view showing the order's progression through internal statuses (Pending → Processing → Shipped → Delivered).
 - **By Phone Number**: Designed for guests. It fetches all recent orders associated with a phone number, allowing users to track multiple deliveries without an account.
 
@@ -109,7 +109,7 @@ Errum provides two ways to track an order:
 ## 6. Key Business Logic Mechanisms
 
 ### 6.1 SKU-Based Product Grouping
-To maintain a high-end catalog feel, Errum avoids showing repetitive variations.
+To maintain a high-end catalog feel, Deshio avoids showing repetitive variations.
 - **The "Mother" Concept**: Products are grouped by a shared "Base Name."
 - **Representative Logic**: The system automatically picks the most relevant variant to show in the feed (prioritizing in-stock items).
 - **Variant Counting**: Cards show labels like "+4 more colors" using `getAdditionalVariantCount`.
@@ -145,4 +145,4 @@ The frontend doesn't just show discounts; it calculates them defensively.
 | `Paymentstatuschecker` | Recovers payment state after external redirects. |
 
 ---
-*Generated: April 18, 2026 | Errum Frontend Architecture Documentation*
+*Generated: April 18, 2026 | Deshio Frontend Architecture Documentation*

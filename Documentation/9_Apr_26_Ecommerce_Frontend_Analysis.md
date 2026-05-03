@@ -1,4 +1,4 @@
-# Errum V2 E-Commerce Module: Definitive Frontend Technical Manual
+# Deshio V2 E-Commerce Module: Definitive Frontend Technical Manual
 
 **Date:** April 9, 2026  
 **Revision:** 1.4 (Comprehensive Engineering Reference)  
@@ -8,7 +8,7 @@
 ---
 
 ## 1. Architectural Philosophy
-The Errum V2 E-Commerce module is engineered for high-intent shopping. The architecture prioritizes **Performance**, **Aesthetics**, and **Variant Management**. Unlike traditional flat-catalog structures, Errum V2 treats "Products" as logical groups of SKUs (Mother-Child variants), necessitating a sophisticated frontend grouping and resolution engine.
+The Deshio V2 E-Commerce module is engineered for high-intent shopping. The architecture prioritizes **Performance**, **Aesthetics**, and **Variant Management**. Unlike traditional flat-catalog structures, Deshio V2 treats "Products" as logical groups of SKUs (Mother-Child variants), necessitating a sophisticated frontend grouping and resolution engine.
 
 ---
 
@@ -133,7 +133,7 @@ This core utility is responsible for the unique Mother-Child experience:
 
 ## 9. Inventory Hardware Bridge (`FindStockClient.tsx`)
 
-A unique feature for Errum V2 is the store employe-accessible Stock Finder:
+A unique feature for Deshio V2 is the store employe-accessible Stock Finder:
 - **Technology:** `html5-qrcode` integration.
 - **Scanning Flow:**
   - Requests camera permissions on-demand.
@@ -179,6 +179,6 @@ When contributing to the e-commerce module, developers MUST adhere to:
 ---
 
 ## 13. Conclusion
-The e-commerce frontend of Errum V2 is a feature-rich, visually stunning application. By merging fashion-grade aesthetics with rigorous engineering, it provides a scalable foundation for Errum's nationwide digital presence. The module is designed to feel "alive"—responsive to stock changes, user interactions, and promotional cycles.
+The e-commerce frontend of Deshio V2 is a feature-rich, visually stunning application. By merging fashion-grade aesthetics with rigorous engineering, it provides a scalable foundation for Deshio's nationwide digital presence. The module is designed to feel "alive"—responsive to stock changes, user interactions, and promotional cycles.
 
 ---

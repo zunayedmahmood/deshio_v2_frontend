@@ -1,6 +1,6 @@
 # Payment & Financial Lifecycles
 
-This document details the financial plumbing of Errum V2. It explains how money is tracked, from simple POS payments to complex split installments, vendor advances, and SSLCommerz gateway interactions.
+This document details the financial plumbing of Deshio V2. It explains how money is tracked, from simple POS payments to complex split installments, vendor advances, and SSLCommerz gateway interactions.
 
 ## Table of Contents
 1. [Payment Status Lifecycle](#payment-status-lifecycle)
@@ -120,20 +120,20 @@ The standard lifecycle for digital payments via the primary gateway.
 ```mermaid
 sequenceDiagram
     participant User
-    participant Errum
+    participant Deshio
     participant SSLCommerz
     
-    User->>Errum: Click Pay
-    Errum->>SSLCommerz: Initiate (Generate URL)
+    User->>Deshio: Click Pay
+    Deshio->>SSLCommerz: Initiate (Generate URL)
     SSLCommerz-->>User: Redirect to Gateway
     User->>SSLCommerz: Enter OTP/Card Details
     alt Success
-        SSLCommerz->>Errum: IPN Webhook (Success)
-        Errum->>DB: Mark Paid
+        SSLCommerz->>Deshio: IPN Webhook (Success)
+        Deshio->>DB: Mark Paid
         SSLCommerz-->>User: Redirect to Success Page
     else Failure/Cancel
-        SSLCommerz->>Errum: IPN Webhook (Fail)
-        Errum->>DB: Mark Failed
+        SSLCommerz->>Deshio: IPN Webhook (Fail)
+        Deshio->>DB: Mark Failed
         SSLCommerz-->>User: Redirect to Fail Page
     end
 ```

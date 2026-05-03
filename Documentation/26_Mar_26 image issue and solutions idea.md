@@ -33,7 +33,7 @@ Linux filesystems are case-sensitive.
 - **Analysis**: However, the probe shows that both working and failing URLs use `.jpeg`, and the code uses `getClientOriginalExtension()`. If the user confirmed "exact name", this is less likely but should be checked.
 
 ### Theory D: Disk Configuration Inconsistency (Code Bug)
-In `errum_be/app/Models/ProductImage.php`:
+In `Deshio_be/app/Models/ProductImage.php`:
 ```php
 public function getImageUrlAttribute() {
     return $this->image_path ? Storage::url($this->image_path) : null;
@@ -47,7 +47,7 @@ The model uses `Storage::url()` which defaults to the disk set in `FILESYSTEM_DI
 
 ### Phase 1: Infrastructure Fix (Immediate)
 1. **Fix the Symlink**:
-    - SSH into the server and navigate to the `errum_be` directory.
+    - SSH into the server and navigate to the `Deshio_be` directory.
     - Run: `ls -la public/storage`. 
     - If it says `drwxr-xr-x` (a directory) instead of `lrwxrwxrwx` (a link), this is the problem.
     - **Action**:

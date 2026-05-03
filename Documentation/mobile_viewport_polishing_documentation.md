@@ -1,10 +1,10 @@
 # Mobile Viewport Polishing for E-commerce Pages
 
-This document details the enhancements made to the mobile user experience across the Errum e-commerce platform. The goal was to provide a premium, structured, and seamless flow for mobile users.
+This document details the enhancements made to the mobile user experience across the Deshio e-commerce platform. The goal was to provide a premium, structured, and seamless flow for mobile users.
 
 ## 🌟 Global Design System
 
-We introduced a set of utility classes and animations in [globals.css](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/app/globals.css) to standardize the "premium" feel across all components.
+We introduced a set of utility classes and animations in [globals.css](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/app/globals.css) to standardize the "premium" feel across all components.
 
 ### 1. Unified Animation System
 - **`ec-anim-fade-up`**: Smooth reveal from bottom (used for page sections and list items).
@@ -27,7 +27,7 @@ We introduced a set of utility classes and animations in [globals.css](file:///h
 
 ### 🔍 Search & Feed
 - **Mobile Filters**: Refactored the filter modal to a "Bottom Sheet" style (`ec-modal-bottom`) with a blurred backdrop and slide-up animation. 
-- **Product Cards**: The [PremiumProductCard](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/components/ecommerce/ui/PremiumProductCard.tsx#19-148) was polished to show a condensed wishlist button and subtle view indicators which remain accessible without hover interactions.
+- **Product Cards**: The [PremiumProductCard](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/components/ecommerce/ui/PremiumProductCard.tsx#19-148) was polished to show a condensed wishlist button and subtle view indicators which remain accessible without hover interactions.
 
 ### 👕 Product Detail Page
 - **Breadcrumbs**: Hidden on mobile to reduce clutter and focus on the product.

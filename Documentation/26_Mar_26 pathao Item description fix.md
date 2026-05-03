@@ -30,13 +30,13 @@ The objective was to fix the `item_description` field in Pathao shipments to sho
 ## Files Modified
 
 ### Backend (Laravel)
-- **`errum_be/app/Models/Shipment.php`**:
+- **`Deshio_be/app/Models/Shipment.php`**:
     - Updated `getPackageDescription()` for detailed item listing and truncation.
-- **`errum_be/app/Services/PathaoService.php`**:
+- **`Deshio_be/app/Services/PathaoService.php`**:
     - Fixed `delivery_type` mapping (12 vs 48).
-- **`errum_be/app/Http/Controllers/ShipmentController.php`**:
+- **`Deshio_be/app/Http/Controllers/ShipmentController.php`**:
     - Adjusted minimum weight calculation to `0.5kg`.
-- **`errum_be/app/Http/Controllers/MultiStoreShipmentController.php`**:
+- **`Deshio_be/app/Http/Controllers/MultiStoreShipmentController.php`**:
     - Updated `item_description` to include quantities and newlines.
 
 ## Verification Checklist

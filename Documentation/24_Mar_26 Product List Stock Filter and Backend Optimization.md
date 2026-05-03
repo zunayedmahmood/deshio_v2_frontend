@@ -21,13 +21,13 @@ This update implements a new "Stock Status" filter on the administrative Product
 - **Updated Interfaces**: Added `stock_status` parameter to the `getAll` and `advancedSearch` method signatures.
 
 ### 3. Backend: Standard Product Listing
-- **File**: `errum_be/app/Http/Controllers/ProductController.php`
+- **File**: `Deshio_be/app/Http/Controllers/ProductController.php`
 - **Filter Implementation**: Added logic to the `index` method to filter by batch availability.
     - **In Stock**: Products having at least one active batch with `availability = true` and `stock_qty > 0`.
     - **Out of Stock**: Products that do not have any active, available batches with positive stock.
 
 ### 4. Backend: Advanced Search Optimization
-- **File**: `errum_be/app/Http/Controllers/ProductSearchController.php`
+- **File**: `Deshio_be/app/Http/Controllers/ProductSearchController.php`
 - **Advanced Filtering**: Integrated the `stock_status` filter into the multi-stage search pipeline.
 - **Affected Stages**:
     - `searchExact`
@@ -54,8 +54,8 @@ The new dropdown is placed between the Vendor and Price filters in the expandabl
 ## Affected Files
 - `app/product/list/ProductListClient.tsx`
 - `services/productService.ts`
-- `errum_be/app/Http/Controllers/ProductController.php`
-- `errum_be/app/Http/Controllers/ProductSearchController.php`
+- `Deshio_be/app/Http/Controllers/ProductController.php`
+- `Deshio_be/app/Http/Controllers/ProductSearchController.php`
 
 ## Verification Steps
 1. Navigate to the Product List page.

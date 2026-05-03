@@ -1,6 +1,6 @@
 # Product & Stock Management: A Business Owner's Guide
 
-This document explains how Errum V2 manages your physical products and inventory. For a business owner, the goal is "Right Product, Right Place, Right Time." This guide walks through the life of a product from the moment you decide to sell it until it leaves your shelf.
+This document explains how Deshio V2 manages your physical products and inventory. For a business owner, the goal is "Right Product, Right Place, Right Time." This guide walks through the life of a product from the moment you decide to sell it until it leaves your shelf.
 
 ## 1. The Product Lifecycle: From Idea to Sale
 
@@ -27,7 +27,7 @@ graph TD
 
 ## 2. Inventory: The Heart of Your Cash Flow
 
-Inventory is money sitting on a shelf. Errum V2 tracks every single unit so you never lose a sale due to "ghost stock" or overselling.
+Inventory is money sitting on a shelf. Deshio V2 tracks every single unit so you never lose a sale due to "ghost stock" or overselling.
 
 ### How Stock Moves (The Lifecycle)
 1.  **Available Stock:** These are units sitting on your shelf ready for a customer.

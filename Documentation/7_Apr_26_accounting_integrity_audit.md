@@ -1,4 +1,4 @@
-# Errum V2: Accounting & Finance Integrity Audit (7 Apr 2026)
+# Deshio V2: Accounting & Finance Integrity Audit (7 Apr 2026)
 
 This document lists identified integrity issues, reporting discrepancies, and edge cases found after the implementation of the "7_Apr_26_accounting_plan". These issues must be resolved to ensure the General Ledger remains the single source of truth.
 

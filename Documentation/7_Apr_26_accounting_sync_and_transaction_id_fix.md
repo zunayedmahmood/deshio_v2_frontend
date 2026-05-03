@@ -1,7 +1,7 @@
 # Implementation Plan: Accounting and Transaction Synchronization (Updated)
 
 **Date:** April 7, 2026
-**Focus:** Human-readable Transaction IDs, Global (Errum) vs Store-specific scoping, Manual Entry Modal, Transaction Detail Page, and Accounting Sync.
+**Focus:** Human-readable Transaction IDs, Global (Deshio) vs Store-specific scoping, Manual Entry Modal, Transaction Detail Page, and Accounting Sync.
 
 ---
 
@@ -20,9 +20,9 @@
     *   `Manual` -> "Manual Entry"
 
 ### 1.2. Transaction Controller Enhancements (`TransactionController.php`)
-*   **Store Scoping for "Errum":**
-    *   **Admins:** Can select any `store_id` OR "Errum" (represented as `store_id: null` in DB).
-    *   **Branch Managers:** `store_id` is automatically set to their assigned store and is **mandatory/unchangeable**. They cannot select "Errum".
+*   **Store Scoping for "Deshio":**
+    *   **Admins:** Can select any `store_id` OR "Deshio" (represented as `store_id: null` in DB).
+    *   **Branch Managers:** `store_id` is automatically set to their assigned store and is **mandatory/unchangeable**. They cannot select "Deshio".
 *   **Manual Entry with Images:**
     *   Ensure `store()` accepts `receipt_image` (Base64) and `note`/`reference` fields.
     *   Save images to storage and link via `metadata` or `attachments`.
@@ -30,7 +30,7 @@
     *   Default `index()` to `transaction_date DESC, id DESC` (Flat list, newest first).
 
 ### 1.3. Accounting Report Sync (`AccountingReportController.php`)
-*   Ensure `getJournalEntries` and other reports respect the `store_id: null` (Global Errum) filter for Admins.
+*   Ensure `getJournalEntries` and other reports respect the `store_id: null` (Global Deshio) filter for Admins.
 
 ---
 
@@ -39,8 +39,8 @@
 ### 2.1. Manual Entry Modal (`app/transaction/ManualEntryModal.tsx`)
 *   **Refactor:** Instead of `/transaction/new` page, create a reusable `ManualEntryModal` component.
 *   **Store Selection:**
-    *   **Admins:** Dropdown with all stores + "Errum" (Global).
-    *   **Branch Managers:** Pre-selected store, dropdown is **disabled/hidden**. "Errum" option is excluded.
+    *   **Admins:** Dropdown with all stores + "Deshio" (Global).
+    *   **Branch Managers:** Pre-selected store, dropdown is **disabled/hidden**. "Deshio" option is excluded.
 *   **Features:** Support for image upload, notes, and references.
 
 ### 2.2. Transaction Detail Page (`app/transaction/[id]/page.tsx`)
@@ -61,14 +61,14 @@
 ## 3. Data Integrity & Validation
 
 *   **Scoping:** Backend must reject `store_id: null` requests from non-admin users.
-*   **Consistency:** "Errum" (Global) expenses should be excluded from branch-specific profit/loss reports but included in company-wide reports.
+*   **Consistency:** "Deshio" (Global) expenses should be excluded from branch-specific profit/loss reports but included in company-wide reports.
 
 ---
 
 ## 4. Execution Order
 
-1.  **Backend:** Implement `reference_label` mapping and "Errum" scoping in `TransactionController`.
+1.  **Backend:** Implement `reference_label` mapping and "Deshio" scoping in `TransactionController`.
 2.  **Frontend:** Create `ManualEntryModal` and integrate into `app/transaction/page.tsx`.
 3.  **Frontend:** Implement the `app/transaction/[id]/page.tsx` detail view.
 4.  **Frontend:** Sync the Accounting dashboard with the new backend labels and grouping logic.
-5.  **Validation:** Test Admin vs Branch Manager views for "Errum" vs Branch data.
+5.  **Validation:** Test Admin vs Branch Manager views for "Deshio" vs Branch data.

@@ -1,6 +1,6 @@
 # Customer Support & Returns: A Business Owner's Guide
 
-In modern retail, how you handle a problem is more important than how you handle a sale. Errum V2 provides professional tools to manage returns, refunds, and customer inquiries with ease.
+In modern retail, how you handle a problem is more important than how you handle a sale. Deshio V2 provides professional tools to manage returns, refunds, and customer inquiries with ease.
 
 ## 1. The Return Lifecycle: Turning a Problem into a Win
 

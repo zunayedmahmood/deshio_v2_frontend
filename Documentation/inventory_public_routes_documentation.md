@@ -2,7 +2,7 @@
 
 ## Overview
 
-The inventory retrieval logic has been refactored to unify the retrieval of stock across different physical outlets (stores). This change replaces the legacy `getBranchStockForProduct` method in the [EcommerceCatalogController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Http/Controllers/EcommerceCatalogController.php#13-995) with the more comprehensive and efficient [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/inventoryService.ts#147-157) system in the [InventoryController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Http/Controllers/InventoryController.php#13-382).
+The inventory retrieval logic has been refactored to unify the retrieval of stock across different physical outlets (stores). This change replaces the legacy `getBranchStockForProduct` method in the [EcommerceCatalogController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Http/Controllers/EcommerceCatalogController.php#13-995) with the more comprehensive and efficient [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/inventoryService.ts#147-157) system in the [InventoryController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Http/Controllers/InventoryController.php#13-382).
 
 Crucially, some inventory-related routes have been moved to a **Public Catalog Group**, allowing frontend pages (like the E-commerce Product Details page) to display accurate, real-time stock levels at physical locations without requiring user authentication.
 
@@ -11,10 +11,10 @@ Crucially, some inventory-related routes have been moved to a **Public Catalog G
 ## Backend Refactor
 
 ### 1. Controllers and Logic
-- **[EcommerceCatalogController.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Http/Controllers/EcommerceCatalogController.php)**: The method `getBranchStockForProduct` has been removed. Its functionality was redundant and less feature-rich than the global inventory system.
-- **[InventoryController.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Http/Controllers/InventoryController.php)**: The [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/inventoryService.ts#147-157) method was updated to include the `store_address` field in its response. This allows the frontend to show where exactly a product is available.
+- **[EcommerceCatalogController.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Http/Controllers/EcommerceCatalogController.php)**: The method `getBranchStockForProduct` has been removed. Its functionality was redundant and less feature-rich than the global inventory system.
+- **[InventoryController.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Http/Controllers/InventoryController.php)**: The [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/inventoryService.ts#147-157) method was updated to include the `store_address` field in its response. This allows the frontend to show where exactly a product is available.
 
-### 2. Route Changes ([api.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/routes/api.php))
+### 2. Route Changes ([api.php](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/routes/api.php))
 Inventory routes previously protected behind the `auth:sanctum` middleware have been moved to a public group prefixed with `/catalog/inventory`.
 
 | Old Protected Route | New Public Route | Purpose |
@@ -33,11 +33,11 @@ Inventory routes previously protected behind the `auth:sanctum` middleware have 
 ### 1. Service Layer Refactoring
 The refactoring was handled at the service layer to prevent breaking any existing UI components across the app.
 
-- **[inventoryService.ts](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/inventoryService.ts)**: Updated to use the new `/catalog/inventory` paths. The [Store](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/errum_be/app/Models/Store.php#11-125) type now includes `store_address`.
-- **[catalogService.ts](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/catalogService.ts)**: The [getBranchStock(productId)](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/catalogService.ts#1209-1230) method was rewritten to internally call `inventoryService.getGlobalInventory({ product_id: productId })`. This ensures that the public e-commerce site uses the same API as the internal inventory management view.
+- **[inventoryService.ts](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/inventoryService.ts)**: Updated to use the new `/catalog/inventory` paths. The [Store](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/Deshio_be/app/Models/Store.php#11-125) type now includes `store_address`.
+- **[catalogService.ts](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/catalogService.ts)**: The [getBranchStock(productId)](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/catalogService.ts#1209-1230) method was rewritten to internally call `inventoryService.getGlobalInventory({ product_id: productId })`. This ensures that the public e-commerce site uses the same API as the internal inventory management view.
 
 ### 2. Response Mapping
-The `catalogService` automatically maps the [GlobalInventoryItem](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/inventoryService.ts#15-24) format from the inventory controller to the [BranchStock](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/catalogService.ts#121-127) format expected by the Product details page.
+The `catalogService` automatically maps the [GlobalInventoryItem](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/inventoryService.ts#15-24) format from the inventory controller to the [BranchStock](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/catalogService.ts#121-127) format expected by the Product details page.
 - `quantity` → `total_quantity`
 - `store_address` → `store_address`
 
@@ -60,7 +60,7 @@ The `catalogService` automatically maps the [GlobalInventoryItem](file:///home/z
       "stores": [
         {
           "store_id": 1,
-          "store_name": "Errum Main Outlet",
+          "store_name": "Deshio Main Outlet",
           "store_code": "ERR-01",
           "store_address": "Dhanmondi, Dhaka",
           "quantity": 10
@@ -82,7 +82,7 @@ The `catalogService` automatically maps the [GlobalInventoryItem](file:///home/z
 
 ## Edge Cases and Behavior
 
-- **Out of Stock**: If a product has no active batches with quantity > 0, the [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum/services/inventoryService.ts#147-157) filter will exclude it from the results, and the frontend will correctly show "Out of Stock" or an empty branch availability table.
+- **Out of Stock**: If a product has no active batches with quantity > 0, the [getGlobalInventory](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio/services/inventoryService.ts#147-157) filter will exclude it from the results, and the frontend will correctly show "Out of Stock" or an empty branch availability table.
 - **Multiple Stores**: The system now supports a limitless number of physical locations. Each store is listed with its own isolated quantity.
 - **Store-Scoped Access**: While these catalog inventory routes are public, other management routes (like `transactions` or `dispatches`) remain strictly protected and scoped to the user's assigned store.
 - **Authentication**: When a user is logged in (as a customer or admin), the `axios` interceptor will still add the `Authorization` header, but the backend will treat these specific routes as publicly accessible if the token is missing.

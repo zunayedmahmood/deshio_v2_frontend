@@ -1,9 +1,9 @@
 {
-  "source_url": "https://www.errumbd.com",
+  "source_url": "https://www.Deshiobd.com",
   "pages_crawled": 10,
   "note": "These are the LOCKED UI texts for this site. When applying a new design, AI tools must preserve all text values exactly as listed here. Only layout, styling, and positioning may change.",
   "pages": {
-    "https://www.errumbd.com": {
+    "https://www.Deshiobd.com": {
       "section": [
         {
           "tag": "p",
@@ -138,7 +138,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce": {
+    "https://www.Deshiobd.com/e-commerce": {
       "section": [
         {
           "tag": "p",
@@ -273,7 +273,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/about": {
+    "https://www.Deshiobd.com/e-commerce/about": {
       "section": [
         {
           "tag": "h1",
@@ -415,7 +415,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/contact": {
+    "https://www.Deshiobd.com/e-commerce/contact": {
       "section": [
         {
           "tag": "h1",
@@ -540,7 +540,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/search": {
+    "https://www.Deshiobd.com/e-commerce/search": {
       "footer": [
         {
           "tag": "span",
@@ -680,7 +680,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/login": {
+    "https://www.Deshiobd.com/e-commerce/login": {
       "footer": [
         {
           "tag": "span",
@@ -778,7 +778,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/cart": {
+    "https://www.Deshiobd.com/e-commerce/cart": {
       "footer": [
         {
           "tag": "span",
@@ -876,7 +876,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/products": {
+    "https://www.Deshiobd.com/e-commerce/products": {
       "footer": [
         {
           "tag": "span",
@@ -974,7 +974,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/categories": {
+    "https://www.Deshiobd.com/e-commerce/categories": {
       "section": [
         {
           "tag": "h1",
@@ -1084,7 +1084,7 @@
         }
       ]
     },
-    "https://www.errumbd.com/e-commerce/order-tracking": {
+    "https://www.Deshiobd.com/e-commerce/order-tracking": {
       "form": [
         {
           "tag": "label",

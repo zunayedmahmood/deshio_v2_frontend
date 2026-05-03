@@ -1,6 +1,6 @@
 # Product & Inventory Lifecycles
 
-This document provides an exhaustive breakdown of the various lifecycles involved in product and inventory management within the Errum V2 system. It outlines the state machines, transition rules, edge cases, and integrity checks required to maintain accurate stock and product data across a multi-store architecture.
+This document provides an exhaustive breakdown of the various lifecycles involved in product and inventory management within the Deshio V2 system. It outlines the state machines, transition rules, edge cases, and integrity checks required to maintain accurate stock and product data across a multi-store architecture.
 
 ## Table of Contents
 1. [Product Lifecycle](#product-lifecycle)

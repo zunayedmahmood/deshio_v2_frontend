@@ -6,13 +6,13 @@ The "Reserve Stock" system was introduced to prevent double-selling of inventory
 ## 2. Identified Critical Bugs & Gaps
 
 ### A. Missing Reservation in Social Commerce Creation
-- **File**: `errum_be/app/Http/Controllers/OrderController.php` (Method: `create`)
+- **File**: `Deshio_be/app/Http/Controllers/OrderController.php` (Method: `create`)
 - **Issue**: Reservation logic is wrapped in an `else if ($batch)` block.
 - **Problem**: When employees create Social Commerce orders via the Social Commerce page, they often do NOT select a specific batch (`batch_id: null`).
 - **Result**: The order is created as `pending_assignment`, but `reserved_inventory` is NOT incremented. This allows POS to sell the stock that should have been reserved for this order.
 
 ### B. Broken Order Editing (Add/Update/Remove Item)
-- **File**: `errum_be/app/Http/Controllers/OrderController.php` (Methods: `addItem`, `updateItem`, `removeItem`)
+- **File**: `Deshio_be/app/Http/Controllers/OrderController.php` (Methods: `addItem`, `updateItem`, `removeItem`)
 - **Issue**: These methods validate global availability but **never update** the `ReservedProduct` counts.
 - **Problem**:
     - Adding an item to a `pending_assignment` order doesn't increment `reserved_inventory`.
@@ -21,24 +21,24 @@ The "Reserve Stock" system was introduced to prevent double-selling of inventory
 - **Result**: Persistent inventory "leaks" or "phantom reservations" that never clear, causing `available_inventory` to become inaccurate over time.
 
 ### C. Legacy Code in Ecommerce Cancellation
-- **File**: `errum_be/app/Http/Controllers/EcommerceOrderController.php` (Method: `cancel`)
+- **File**: `Deshio_be/app/Http/Controllers/EcommerceOrderController.php` (Method: `cancel`)
 - **Issue**: Still attempts to call `$item->product->increment('stock_quantity', $item->quantity)`.
 - **Problem**: The `stock_quantity` column does not exist on the `products` table (inventory is batch-based). This code will throw an exception if executed.
 - **Note**: `OrderObserver` handles reservation release, but this legacy code should be removed or refactored.
 
 ### D. Stuck Reservations on Direct Order Completion
-- **File**: `errum_be/app/Http/Controllers/OrderController.php` (Method: `complete`)
+- **File**: `Deshio_be/app/Http/Controllers/OrderController.php` (Method: `complete`)
 - **Issue**: If an employee "completes" a `pending_assignment` order directly (bypassing Store Assignment), the batch stock is deducted, but the `reserved_inventory` is **not** decremented.
 - **Result**: `available_inventory` drops double (once from batch deduction, and once because the reservation remains "stuck").
 
 ### E. Missing Observer Automation
-- **File**: `errum_be/app/Observers/OrderObserver.php`
+- **File**: `Deshio_be/app/Observers/OrderObserver.php`
 - **Issue**: Only handles `updated` event (specifically `cancelled`/`refunded`).
 - **Problem**: It lacks a `created` event.
 - **Solution**: Moving reservation logic to the `created` and `deleted` (for items) events would eliminate the need for manual (and buggy) logic in individual controllers.
 
 ### F. Inconsistent API "In Stock" Logic
-- **File**: `errum_be/app/Http/Controllers/EcommerceCatalogController.php`
+- **File**: `Deshio_be/app/Http/Controllers/EcommerceCatalogController.php`
 - **Issue**: `in_stock` is calculated as `stock_quantity > 0`.
 - **Problem**: If 1 unit is left and it is reserved, `stock_quantity` is 1 but `available_inventory` is 0.
 - **Result**: The product shows as "In Stock" on the website, but the "Add to Cart" button will be disabled or throw an error, leading to poor UX.

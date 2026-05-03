@@ -1,11 +1,11 @@
 # Technical Proposal: RBAC & Access Control Modernization
-**Errum V2** — 30 Mar 2026
+**Deshio V2** — 30 Mar 2026
 
 ---
 
 ## 1. Executive Summary
 
-This proposal outlines a comprehensive strategy to refactor the Role-Based Access Control (RBAC) system in Errum V2. The primary goal is to shift from a backend-heavy permission-middleware architecture to a streamlined, frontend-driven **"Role & Feature" responsiveness model**. By removing hierarchical "levels" and transitioning to a fixed set of business-aligned roles, we will simplify system management while enhancing the user experience through contextual UI adaptation.
+This proposal outlines a comprehensive strategy to refactor the Role-Based Access Control (RBAC) system in Deshio V2. The primary goal is to shift from a backend-heavy permission-middleware architecture to a streamlined, frontend-driven **"Role & Feature" responsiveness model**. By removing hierarchical "levels" and transitioning to a fixed set of business-aligned roles, we will simplify system management while enhancing the user experience through contextual UI adaptation.
 
 The refactor will focus on three pillars:
 
@@ -305,4 +305,4 @@ The Employees page (`app/employees/page.tsx`) currently lists all employees. Wit
 
 ## 12. Conclusion
 
-The proposed refactor will transform Errum V2 into a more robust and scalable ERP system. By aligning the software architecture with real-world business roles — **Super Admin, Admin, Branch Manager, Online Moderator, POS Salesman, Employee** — we eliminate technical debt and provide a superior development and user experience.
+The proposed refactor will transform Deshio V2 into a more robust and scalable ERP system. By aligning the software architecture with real-world business roles — **Super Admin, Admin, Branch Manager, Online Moderator, POS Salesman, Employee** — we eliminate technical debt and provide a superior development and user experience.

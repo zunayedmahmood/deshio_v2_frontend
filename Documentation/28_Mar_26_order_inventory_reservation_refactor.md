@@ -2,7 +2,7 @@
 **Document Revision**: 4.0 (Enhanced Ultimate Edition)
 **Date**: March 28, 2026
 **Author**: Antigravity AI Code Assistant
-**Organization**: Errum V2 Development Team
+**Organization**: Deshio V2 Development Team
 
 ---
 
@@ -22,7 +22,7 @@ This document provides an exhaustive technical breakdown of the architectural sh
 Administrators reported a frequent failure in the "Edit Order" modal. When searching for a product to add to an existing order, the modal was displaying `৳0` for the price and `0` for stock. If added, the order would record a zero-value transaction.
 
 ### 2.2 Technical Root Cause
-The `ProductSearchController` initially queried the `products` table in isolation. However, Errum V2's stock data is stored in the `reserved_products` table, while pricing is managed dynamically through `product_batches`. Without a relational join and price subquery, the search API was missing these critical business fields.
+The `ProductSearchController` initially queried the `products` table in isolation. However, Deshio V2's stock data is stored in the `reserved_products` table, while pricing is managed dynamically through `product_batches`. Without a relational join and price subquery, the search API was missing these critical business fields.
 
 ### 2.3 The Fix: Multi-Source Data Aggregation
 The backend lookup logic was upgraded to aggregate stock and price data from multiple sources:

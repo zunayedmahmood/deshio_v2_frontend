@@ -1,6 +1,6 @@
-# Errum V2 Frontend Page to Backend Controller Mapping
+# Deshio V2 Frontend Page to Backend Controller Mapping
 
-This document provides a comprehensive mapping of frontend pages (Next.js) to their respective backend controller methods (Laravel) in the Errum V2 project.
+This document provides a comprehensive mapping of frontend pages (Next.js) to their respective backend controller methods (Laravel) in the Deshio V2 project.
 
 ---
 

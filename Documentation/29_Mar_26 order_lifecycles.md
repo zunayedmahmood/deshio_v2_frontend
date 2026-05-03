@@ -1,6 +1,6 @@
 # Order Lifecycles (Social, E-commerce, POS)
 
-This document provides a comprehensive analysis of the lifecycles governing customer orders across all sales channels in Errum V2. It covers the progression of statuses, fulfillment logic, and multi-store handling.
+This document provides a comprehensive analysis of the lifecycles governing customer orders across all sales channels in Deshio V2. It covers the progression of statuses, fulfillment logic, and multi-store handling.
 
 ## Table of Contents
 1. [Order Status Lifecycle](#order-status-lifecycle)

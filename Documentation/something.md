@@ -2,7 +2,7 @@
 
   Product Return, Refund, and Exchange Integrity Audit
 
-  This document provides a detailed technical analysis of the return and refund logic within the Errum V2 ERP
+  This document provides a detailed technical analysis of the return and refund logic within the Deshio V2 ERP
   system. It covers the lifecycle of a return, the financial implications of refunds, and identifies potential
   integrity risks and edge cases.
 

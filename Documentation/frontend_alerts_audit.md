@@ -1,6 +1,6 @@
 # Browser Alerts Audit - Frontend
 
-This document contains a comprehensive list of all native `alert()` calls found in the Errum V2 frontend code. These should be replaced with consistent, stylish pop-up modals or toast notifications to improve the user experience.
+This document contains a comprehensive list of all native `alert()` calls found in the Deshio V2 frontend code. These should be replaced with consistent, stylish pop-up modals or toast notifications to improve the user experience.
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Date:** 28 Mar 2026  
 **Files Changed:**
-- `errum_be/app/Http/Controllers/EcommerceCatalogController.php`
+- `Deshio_be/app/Http/Controllers/EcommerceCatalogController.php`
 - `app/e-commerce/product/[id]/page.tsx`
 
 ---

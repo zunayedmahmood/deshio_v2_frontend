@@ -1,4 +1,4 @@
-# 🎯 Errum V2 — Campaign & Coupon System: Complete Scenario Map
+# 🎯 Deshio V2 — Campaign & Coupon System: Complete Scenario Map
 
 > **Purpose:** This document maps every meaningful user-facing scenario for the Promotions system across the storefront. It is intended as a living reference for both the product owner and the implementing engineer. Each scenario includes trigger conditions, expected behavior per component, edge cases, and implementation notes.
 
@@ -555,4 +555,4 @@ Admin uses PromotionController@applyToOrder to retroactively add a discount to a
 
 ---
 
-*Document Version 1.0 — Errum V2 Campaign System*
+*Document Version 1.0 — Deshio V2 Campaign System*

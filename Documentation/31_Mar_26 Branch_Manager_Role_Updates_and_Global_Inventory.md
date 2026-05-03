@@ -1,6 +1,6 @@
 # Documentation: Branch Manager Role Refinement & Global RBAC Cleanup (31 Mar 2026)
 
-This document summarizes the changes made to the Errum V2 platform to tighten the `branch-manager` role's access, standardize administrative page security, and implement global visibility for key operations like returns and inventory.
+This document summarizes the changes made to the Deshio V2 platform to tighten the `branch-manager` role's access, standardize administrative page security, and implement global visibility for key operations like returns and inventory.
 
 ## 1. Branch Manager Role Refinement
 

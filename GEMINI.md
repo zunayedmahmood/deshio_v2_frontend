@@ -1,7 +1,7 @@
-# Errum V2 - Project Context
+# Deshio V2 - Project Context
 
 ## Project Overview
-Errum V2 is a full-stack e-commerce and inventory management system designed for multi-store operations. It features a modern Next.js frontend and a large-scale Laravel backend. The system handles everything from customer-facing e-commerce to administrative tasks like inventory management, POS (Point of Sale), order fulfillment, accounting, and marketing campaigns.
+Deshio V2 is a full-stack e-commerce and inventory management system designed for multi-store operations. It features a modern Next.js frontend and a large-scale Laravel backend. The system handles everything from customer-facing e-commerce to administrative tasks like inventory management, POS (Point of Sale), order fulfillment, accounting, and marketing campaigns.
 
 ### Key Technologies
 - **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 4, Radix UI, Lucide Icons.
@@ -24,7 +24,7 @@ Errum V2 is a full-stack e-commerce and inventory management system designed for
 - `public/`: Static assets.
 - `types/`: Global TypeScript type definitions.
 
-### Backend (`errum_be/`)
+### Backend (`Deshio_be/`)
 - `app/Http/Controllers/`: Large set of controllers handling business logic for all modules (Orders, Inventory, Customers, Accounting, Campaigns).
 - `app/Models/`: Database models representing the core entities.
 - `routes/`: API route definitions (e.g., `api.php`).
@@ -73,6 +73,6 @@ Refer to the `Documentation/` directory for specific implementation details on:
 - SQL performance fixes for catalog and search.
 
 # Deployment Context
-- Backend API: https://backend2.errumbd.com/
-- Frontend: https://errum-v2.vercel.app/
+- Backend API: https://backend2.Deshiobd.com/
+- Frontend: https://Deshio-v2.vercel.app/
 - Rules: Always use `web_fetch` to check live status.

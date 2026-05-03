@@ -1,7 +1,7 @@
 # Inventory Integrity & Sales Priority Audit Report (29-Mar-2026)
 
 ## Overview
-This audit examines how the Errum V2 system handles inventory across three distinct sales channels: **POS (Counter Sale)**, **Social Commerce**, and **E-commerce**. The goal is to ensure POS sales take priority over online reservations and that the system accurately reflects over-committed stock by allowing `available_inventory` to go negative.
+This audit examines how the Deshio V2 system handles inventory across three distinct sales channels: **POS (Counter Sale)**, **Social Commerce**, and **E-commerce**. The goal is to ensure POS sales take priority over online reservations and that the system accurately reflects over-committed stock by allowing `available_inventory` to go negative.
 
 ## Current System Architecture
 
@@ -91,7 +91,7 @@ graph TD
 Modify the `create` method to bypass the global inventory check for `counter` orders.
 
 ```php
-// errum_be/app/Http/Controllers/OrderController.php
+// Deshio_be/app/Http/Controllers/OrderController.php
 
 // Find the global check block:
 if ($batch) {
@@ -115,7 +115,7 @@ if ($batch) {
 Ensure POS items do not increment the reservation counter.
 
 ```php
-// errum_be/app/Observers/OrderItemObserver.php
+// Deshio_be/app/Observers/OrderItemObserver.php
 
 public function created(OrderItem $orderItem): void
 {
@@ -131,7 +131,7 @@ public function created(OrderItem $orderItem): void
 Remove the `max(0, ...)` constraint.
 
 ```php
-// errum_be/app/Observers/ProductBatchObserver.php
+// Deshio_be/app/Observers/ProductBatchObserver.php
 
 protected function syncReservedProduct(int $productId): void
 {

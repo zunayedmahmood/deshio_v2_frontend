@@ -9,7 +9,7 @@ This document outlines the strict technical alignments pushed to the Store Assig
 - **Implemented Fix**: Severed and deleted the `bySku` aggregators entirely. The logic now strictly relies on strict variant identities (`const available = byPid`), mapping identical variations correctly at checkout to the assignment process.
 
 ## 2. Backend: Variant Verification
-**File Modified**: `errum_be/app/Http/Controllers/OrderManagementController.php`
+**File Modified**: `Deshio_be/app/Http/Controllers/OrderManagementController.php`
 - **Issue Discovered**: Although `ProductBatch` is uniquely tied to variant `product_id`, the system was theoretically susceptible to binding to Master Group IDs or Soft-Deleted products.
 - **Implemented Fix**: Injected an active variant verifier locally inside `getAvailableStores()` and `assignOrderToStore()`.
   ```php
@@ -18,7 +18,7 @@ This document outlines the strict technical alignments pushed to the Store Assig
   If an assigned requirement does not match a hard physical variant instance, the fulfillment capability is automatically voided (returned as `400` during physical assignment or forced to `0` capacity during lookup).
 
 ## 3. Backend: FIFO Weighted Recommendations
-**File Modified**: `errum_be/app/Http/Controllers/OrderManagementController.php`
+**File Modified**: `Deshio_be/app/Http/Controllers/OrderManagementController.php`
 - **Issue Discovered**: The assignment recommendation previously suggested any store with a `100%` generic capacity for the required group without considering which store needed to divest the batch first based on expiration guidelines.
 - **Implemented Fix**: Extensively rewrote the `getRecommendation()` subset. Rather than just returning the first capable payload, the algorithm searches vertically across capable stores to evaluate `['batches']['expiry_date']`. It then formally selects the optimal `bestStore` based on the earliest expiry benchmark, significantly lowering physical waste metrics. 
 

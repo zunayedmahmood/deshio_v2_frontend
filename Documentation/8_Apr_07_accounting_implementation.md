@@ -13,7 +13,7 @@ Implemented the full double-entry bookkeeping workplan from `7_Apr_26_accounting
 
 ## Changes Made
 
-### 1. `errum_be/app/Models/Transaction.php`
+### 1. `Deshio_be/app/Models/Transaction.php`
 
 #### `createFromVendorPayment()` — **FIXED**
 - **Before:** Only created a single Credit entry to Cash (money going out).
@@ -42,7 +42,7 @@ Implemented the full double-entry bookkeeping workplan from `7_Apr_26_accounting
 
 ---
 
-### 2. `errum_be/app/Observers/RefundObserver.php`
+### 2. `Deshio_be/app/Observers/RefundObserver.php`
 
 #### **REWRITTEN**
 - Added `createCOGSReversalIfApplicable()` private helper method.
@@ -52,7 +52,7 @@ Implemented the full double-entry bookkeeping workplan from `7_Apr_26_accounting
 
 ---
 
-### 3. `errum_be/app/Http/Controllers/ProductReturnController.php`
+### 3. `Deshio_be/app/Http/Controllers/ProductReturnController.php`
 
 #### `exchange()` — **WIRED**
 - Added `use App\Models\Transaction;` import.
@@ -64,7 +64,7 @@ Implemented the full double-entry bookkeeping workplan from `7_Apr_26_accounting
 
 ---
 
-### 4. `errum_be/app/Http/Controllers/AccountingReportController.php`
+### 4. `Deshio_be/app/Http/Controllers/AccountingReportController.php`
 
 #### `getTAccount()` — **BUG FIX**
 - **Before:** Used `'Debit'` and `'Credit'` (capitalized) in comparisons and DB `CASE WHEN` queries.

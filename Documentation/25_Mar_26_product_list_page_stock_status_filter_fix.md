@@ -6,7 +6,7 @@ This update fixes the non-functional `stock_status` filter on the Administrative
 ## Implementation Details
 
 ### 1. Backend Synchronization
-Both [ProductController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum_v2/errum_be/app/Http/Controllers/ProductController.php#16-1010) and [ProductSearchController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum_v2/errum_be/app/Http/Controllers/ProductSearchController.php#12-1110) have been updated to support the new `in_stock` parameter while maintaining backward compatibility for `stock_status`.
+Both [ProductController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio_v2/Deshio_be/app/Http/Controllers/ProductController.php#16-1010) and [ProductSearchController](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio_v2/Deshio_be/app/Http/Controllers/ProductSearchController.php#12-1110) have been updated to support the new `in_stock` parameter while maintaining backward compatibility for `stock_status`.
 
 - **Supported Parameters**: `in_stock` (preferred) and `stock_status` (legacy fallback).
 - **Supported Values**:

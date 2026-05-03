@@ -39,6 +39,6 @@ Removed the non-existent `pending_payment` status and replaced it with `pending_
 - **New Behavior**: Order status set to `pending_assignment`. Order correctly remains in the assignment queue, allowing for later payment correction or recovery.
 
 ## Files Affected
-1. `errum_be/app/Http/Controllers/GuestCheckoutController.php`
-2. `errum_be/app/Http/Controllers/SslcommerzController.php`
+1. `Deshio_be/app/Http/Controllers/GuestCheckoutController.php`
+2. `Deshio_be/app/Http/Controllers/SslcommerzController.php`
 3. `Documentation/24_Mar_26 E-commerce order status fix.md` (this file)

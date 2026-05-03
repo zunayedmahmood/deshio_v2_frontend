@@ -1,6 +1,6 @@
 # Staff & Business Growth: A Business Owner's Guide
 
-As your business grows, you need to manage more people and more marketing. Errum V2 provides the tools to manage your team and drive your sales to the next level.
+As your business grows, you need to manage more people and more marketing. Deshio V2 provides the tools to manage your team and drive your sales to the next level.
 
 ## 1. Employee Management: Your Team, Controlled
 
@@ -93,4 +93,4 @@ With these Growth Lifecycles, you get:
 ---
 
 ## 8. Final Word on Growth
-Errum V2 isn't just a tool to *record* what happened; it's a tool to *predict* what should happen next. Use your reports, trust your data, and watch your business thrive!
+Deshio V2 isn't just a tool to *record* what happened; it's a tool to *predict* what should happen next. Use your reports, trust your data, and watch your business thrive!

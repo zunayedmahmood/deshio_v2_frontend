@@ -1,6 +1,6 @@
 # The Sales & Ordering Process: A Business Owner's Guide
 
-This document explains how your customers buy from you—whether they are standing in your shop, browsing your website, or chatting with you on Facebook. Errum V2 handles all three channels in one unified system.
+This document explains how your customers buy from you—whether they are standing in your shop, browsing your website, or chatting with you on Facebook. Deshio V2 handles all three channels in one unified system.
 
 ## 1. One Business, Three Sales Channels
 
@@ -53,7 +53,7 @@ stateDiagram-v2
 
 ## 3. The "Smart" Fulfillment System
 
-If you have multiple stores, which one should ship the order? Errum V2 decides this for you.
+If you have multiple stores, which one should ship the order? Deshio V2 decides this for you.
 
 ### Scenario: The Split Order
 A customer orders a **Dress** (Available in Store A) and a **Bag** (Available only in Store B).

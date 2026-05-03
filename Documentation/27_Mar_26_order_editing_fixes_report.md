@@ -3,7 +3,7 @@
 ## Overview
 This report documents the fixes implemented to resolve critical errors during order editing, specifically addressing issues with unassigned orders (status: `pending_assignment`) and decoupled store-level inventory constraints for online orders.
 
-## Backend Changes (`errum_be/app/Http/Controllers/OrderController.php`)
+## Backend Changes (`Deshio_be/app/Http/Controllers/OrderController.php`)
 
 ### 1. Resolved Property Access on Null & Strict Stock Control in `updateItem`
 - **Issue**: Updating an item on an order without an assigned store batch caused a crash. Also, updates exceeding global availability were previously only logged.

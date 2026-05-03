@@ -1,6 +1,6 @@
 # Money, Payments & Accounting: A Business Owner's Guide
 
-Running a business is about more than just sales—it's about collecting the money and knowing your profit. Errum V2 handles the complex "financial plumbing" so you can focus on growth.
+Running a business is about more than just sales—it's about collecting the money and knowing your profit. Deshio V2 handles the complex "financial plumbing" so you can focus on growth.
 
 ## 1. Payment Lifecycle: Tracking Every Taka
 
@@ -33,7 +33,7 @@ We use SSLCommerz, the industry standard in Bangladesh, to handle Credit Cards, 
 1.  **Click Pay:** Customer clicks the "Pay Now" button on your site.
 2.  **The Portal:** They are sent to a secure page (SSLCommerz). Your staff *never* sees their card or PIN details.
 3.  **The Magic Hook:** Once they pay, the gateway sends a "Secret Message" (IPN) to your system.
-4.  **Auto-Update:** Errum V2 receives the message and marks the order as "Paid" automatically. You don't have to check your phone or bank.
+4.  **Auto-Update:** Deshio V2 receives the message and marks the order as "Paid" automatically. You don't have to check your phone or bank.
 
 ---
 
@@ -104,5 +104,5 @@ With this Financial Lifecycle, you get:
 - **Monthly Check:** Review the "Expense Report" to see where you can save money.
 - **Vendor Audit:** Check the "Vendor Balance" once a month to ensure you aren't overpaying.
   
-*Note: Transactions in Errum V2 are permanent. If a mistake is made, we use "Adjustment Entries" rather than deleting records, ensuring your history is always honest and accurate.*
+*Note: Transactions in Deshio V2 are permanent. If a mistake is made, we use "Adjustment Entries" rather than deleting records, ensuring your history is always honest and accurate.*
   

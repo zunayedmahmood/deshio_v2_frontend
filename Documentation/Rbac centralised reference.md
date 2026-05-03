@@ -1,4 +1,4 @@
-# Errum V2 RBAC Centralized Reference
+# Deshio V2 RBAC Centralized Reference
 
 ## Scoped Access Control Strategy (Phase 1)
 Effective: 30 Mar 2026

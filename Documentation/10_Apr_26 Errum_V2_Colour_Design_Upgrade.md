@@ -1,4 +1,4 @@
-# Errum V2 E-Commerce: Colour Palette Overhaul & Design Upgrade Guide
+# Deshio V2 E-Commerce: Colour Palette Overhaul & Design Upgrade Guide
 
 **Date:** April 10, 2026  
 **Scope:** Full E-Commerce Module — `app/e-commerce/**` + `components/ecommerce/**`  
@@ -26,7 +26,7 @@ Replace all existing `--gold`, `--ink-black`, and related tokens in `globals.css
 
 ```css
 /* ============================================================
-   ERRUM V2 — NEW DESIGN TOKEN SET
+   Deshio V2 — NEW DESIGN TOKEN SET
    Replace existing :root block entirely
    ============================================================ */
 :root {

@@ -104,7 +104,7 @@ export default function InstagramReelViewer() {
             Explore our latest drops, community styling, and behind-the-scenes highlights straight from our studio.
           </p>
           <a
-            href="https://www.instagram.com/errum_bd/"
+            href="https://www.instagram.com/Deshio_bd/"
             target="_blank"
             rel="noopener noreferrer"
             style={{
@@ -124,7 +124,7 @@ export default function InstagramReelViewer() {
             }}
           >
             <Instagram size={14} />
-            <span>Follow @errum_bd</span>
+            <span>Follow @Deshio_bd</span>
           </a>
         </div>
       </div>

@@ -1,4 +1,4 @@
-# Errum V2 - Integrity and Risk Audit Report
+# Deshio V2 - Integrity and Risk Audit Report
 
 **Date:** April 7, 2026
 **Auditor:** Gemini CLI

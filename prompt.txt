@@ -1,5 +1,5 @@
 see app/inventory/outlet-stock page.tsx. Check which routes in the backend it's calling to fetch outlet-stock information.
-go to errum_be and read all those controllers, their models and all the migration files related to them.
+go to Deshio_be and read all those controllers, their models and all the migration files related to them.
 
 then remove getBranchStockForProduct method EcommerceCatalogController.
 update e-commerce/product/[id] page.tsx to stop using getBranchStockForProduct and instead get outlet_stock information from the same api_roots as outlet-stock page.tsx
@@ -85,7 +85,7 @@ DO NOT change any backend code unless stricly necessary. ANY change in backend M
 ANY change in frontend should be aware of the dark vs light theme.
 
 update the frontend_Api_controller_mapping.md for this page (if any).
-generate and save a detailed md file /storage/Fullstack-Laravel-Next/errum_v2/Documentation/27_Mar_26 reserve stock frontend plan.md It should discuss and explain any issue you find, make a proper workplan and describe in very detail how the new functionalities work.
+generate and save a detailed md file /storage/Fullstack-Laravel-Next/Deshio_v2/Documentation/27_Mar_26 reserve stock frontend plan.md It should discuss and explain any issue you find, make a proper workplan and describe in very detail how the new functionalities work.
 I'll use this md file to tell Gemini in antigravity.
 
 
@@ -100,7 +100,7 @@ DO NOT make any additional changes. ONLY change the stricly necessary part.
 then, make an absolutely detailed, very descriptive, lengthy md file titled "26_Mar_26 reserve stock.md". It should discuss and explain in detail how the new functionalities behave, examples and edge cases.
 
 What you need to know:
-->the files in errum_be is the backend code. 
+->the files in Deshio_be is the backend code. 
 ->DO NOT run "php artisan make:something name" and instead directly create the file
 ->DO NOT run th migrations. 
 ->Just create the additional files and write the code.
@@ -148,8 +148,8 @@ DO NOT change any code. I want the detailed md file only.
 
 these are the changes we want:
 ->all transactions should have their transaction id. some of them are having App/../.... etc.
-->in manual entry, admins will have store selection dropdown, for branch manager it's preselected (unchangeable). branch should be optional. we also get to choose "Errum" where, errum == whole company and note store specific expenses.
-->BM will not be able to see/choose Errum.
+->in manual entry, admins will have store selection dropdown, for branch manager it's preselected (unchangeable). branch should be optional. we also get to choose "Deshio" where, Deshio == whole company and note store specific expenses.
+->BM will not be able to see/choose Deshio.
 ->manual entry allows one to add images and note/reference. it should be functional in both front and backend.
 ->transaction page transaction lists should not be grouped by types. instead, newest first (before pagination)
 all these changes should be in sync with the accounting part of the site (see /accounting page and its backend code)
@@ -263,16 +263,16 @@ we can swipe to control which ones to see and small buttons too.
 -> the center will be playing, keep sound at 60%. we'll add a small button bottom right to mute or unmute (dynamic).
 
 the reel videos will be from here:
-https://www.instagram.com/errum_bd/ . it has to be their latest 5 reels. checked in every 15 min or so. 
+https://www.instagram.com/Deshio_bd/ . it has to be their latest 5 reels. checked in every 15 min or so. 
 basically, when client uploads reels, they can see their e-commerce homepage get updated with the new reels. 
 this has to be done in a way that doesn't break any existing functionality. you may need to add new components or modify existing ones. 
 
 
-https://www.instagram.com/errum_bd/reel/DW6uSbkERA9/
-https://www.instagram.com/errum_bd/p/DW6DQUGk-ho/
-https://www.instagram.com/errum_bd/reel/DW323H0EboK/
-https://www.instagram.com/errum_bd/p/DWwVRsnEzn8/
-https://www.instagram.com/errum_bd/p/DWnvVqhE6-p/
+https://www.instagram.com/Deshio_bd/reel/DW6uSbkERA9/
+https://www.instagram.com/Deshio_bd/p/DW6DQUGk-ho/
+https://www.instagram.com/Deshio_bd/reel/DW323H0EboK/
+https://www.instagram.com/Deshio_bd/p/DWwVRsnEzn8/
+https://www.instagram.com/Deshio_bd/p/DWnvVqhE6-p/
 
 
 ### e-commerce fix:

@@ -2,7 +2,7 @@
 Date: 1 Apr 2026
 
 ## Overview
-This document details the major architectural changes made to centralise stock deduction logic and refine the Return/Exchange system in Errum V2.
+This document details the major architectural changes made to centralise stock deduction logic and refine the Return/Exchange system in Deshio V2.
 
 ## 1. Centralised Stock Deduction
 Previously, stock was being deducted at multiple points (Order Creation, POS Scanning, Social Commerce Packaging), leading to duplicate selling issues. We have refactored the system to use a **Reservation-First** model.

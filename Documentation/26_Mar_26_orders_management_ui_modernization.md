@@ -1,6 +1,6 @@
 # Orders Management Interface Modernization (26 Mar 2024)
 
-This update focuses on streamlining the [OrdersClient.tsx](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/errum_v2/app/orders/OrdersClient.tsx) interface to improve usability, reduce visual noise, and provide a more premium administrative experience.
+This update focuses on streamlining the [OrdersClient.tsx](file:///home/zunayed-mahmood-tahsin/storage/Fullstack-Laravel-Next/Deshio_v2/app/orders/OrdersClient.tsx) interface to improve usability, reduce visual noise, and provide a more premium administrative experience.
 
 ## 1. Filter Area Simplification
 The filter section has been redesigned using a "Progressive Disclosure" pattern. 

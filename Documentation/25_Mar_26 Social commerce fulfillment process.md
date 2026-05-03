@@ -1,6 +1,6 @@
-# Social Commerce & Fulfillment Process — Errum V2
+# Social Commerce & Fulfillment Process — Deshio V2
 
-The social commerce and fulfillment process in Errum V2 is a sophisticated multi-stage workflow designed to bridge the gap between remote sales staff and physical warehouse operations.
+The social commerce and fulfillment process in Deshio V2 is a sophisticated multi-stage workflow designed to bridge the gap between remote sales staff and physical warehouse operations.
 
 ---
 

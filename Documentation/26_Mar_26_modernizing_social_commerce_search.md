@@ -33,7 +33,7 @@ Per-branch inventory is now aggregated correctly across multiple batches.
 ## Technical Details
 
 ### Backend Updates
-- **File**: `errum_be/app/Http/Controllers/EcommerceCatalogController.php`
+- **File**: `Deshio_be/app/Http/Controllers/EcommerceCatalogController.php`
 - **Change**: Added `.store` to the `batches` Eager Load in `getGroupedProducts` and `getFlatProducts`.
 
 ### Frontend Updates

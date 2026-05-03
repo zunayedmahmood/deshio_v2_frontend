@@ -4,7 +4,7 @@
 
 ```
 SQLSTATE[42000]: Syntax error or access violation: 1055
-'errumbdc_back3.products.category_id' isn't in GROUP BY
+'Deshiobdc_back3.products.category_id' isn't in GROUP BY
 ```
 
 **Full failing query (simplified):**

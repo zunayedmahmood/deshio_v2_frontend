@@ -1,5 +1,5 @@
 # RBAC Frontend Implementation — Phase 1 Workplan
-**Errum V2** — 30 Mar 2026
+**Deshio V2** — 30 Mar 2026
 **Roles in scope: `online-moderator`, `pos-salesman`**
 
 ---

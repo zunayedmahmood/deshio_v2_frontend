@@ -1,7 +1,7 @@
 # Detailed Report: Inventory Stock Deduction Shift & Reservation Refactor
 
 ## 1. Executive Summary
-This document provides a comprehensive technical breakdown of the architectural shift in Errum V2's inventory management. The primary change moves physical stock deduction from the **Order Assignment** phase to the **Scanning and Fulfillment** phase for all online orders (E-commerce and Social Commerce). 
+This document provides a comprehensive technical breakdown of the architectural shift in Deshio V2's inventory management. The primary change moves physical stock deduction from the **Order Assignment** phase to the **Scanning and Fulfillment** phase for all online orders (E-commerce and Social Commerce). 
 
 This shift addresses critical issues related to inventory accuracy, physical picking flows, and multi-store logistics. By decoupling "Commitment" (Reservation) from "Deduction" (Physical Movement), the system now provides a more realistic representation of warehouse operations.
 

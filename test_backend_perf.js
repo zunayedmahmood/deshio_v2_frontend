@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const BASE_URL = 'https://backend2.errumbd.com/api';
+const BASE_URL = 'https://backend2.Deshiobd.com/api';
 
 async function login() {
     console.log('Logging in...');
@@ -37,16 +37,16 @@ async function testApi(name, params, type = 'GET', token) {
         }
         const duration = Date.now() - start;
         console.log(`STATUS: ${res.status} | TIME: ${duration}ms | SUCCESS: ${res.data.success}`);
-        
+
         let items = [];
         let total = 0;
-        
+
         if (res.data.data) {
             const data = res.data.data;
             items = data.data || data.items || (Array.isArray(data) ? data : []);
             total = data.total !== undefined ? data.total : (data.pagination ? data.pagination.total : items.length);
         }
-        
+
         if (res.data.success) {
             const data = res.data.data;
             if (data) {
@@ -57,7 +57,7 @@ async function testApi(name, params, type = 'GET', token) {
                 }
             }
         }
-        
+
         console.log(`ITEMS: ${items.length} | TOTAL: ${total}`);
         if (items.length > 0) {
             console.log(`SAMPLE: ${items[0].name} (SKU: ${items[0].sku})`);
