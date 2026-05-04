@@ -407,4 +407,10 @@ a dispatch can be filled in, left like that, user comes back and scans some more
 for these reasons, i want you to make an exact replica of the dispatch workflow created in storage/Dev/errum_v2/errum_be to here. 
 update frontend accordingly.
 
-###
+### scm page image 
+see the batch grid shown in social-commerce page and the backend code it calls  
+currently, all batches are trying to show image, but since the api doesn't send any, we are shown the default image.
+
+make a small tweak to add a thumbnail image for each batch, and display it in the batch grid. 
+see product list page. it has a feature where hovering mouse over an image expands it.
+we want that feature in the social-commerce page.

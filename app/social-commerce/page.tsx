@@ -460,9 +460,25 @@ export default function SocialCommercePage() {
   };
 
   const getRecentItemThumbSrc = (it: any): string => {
+    // 1) Direct image fields
     const raw = it?.product_image || it?.image_url || it?.image;
     if (raw) return normalizeImageUrl(String(raw));
 
+    // 2) Nested product primary image
+    const prod = it?.product;
+    if (prod) {
+      const pi = prod.primary_image;
+      const piUrl = pi?.url || pi?.image_url || pi?.image_path;
+      if (piUrl) return normalizeImageUrl(String(piUrl));
+
+      // Fallback to images array
+      const imgs = Array.isArray(prod.images) ? prod.images : [];
+      const primary = imgs.find(img => img.is_primary) || imgs[0];
+      const u = primary?.image_url || primary?.url || primary?.image_path;
+      if (u) return normalizeImageUrl(String(u));
+    }
+
+    // 3) Cache
     const pid = Number(it?.product_id ?? it?.productId ?? it?.product?.id ?? 0) || 0;
     if (pid && recentThumbsByProductId[pid]) return recentThumbsByProductId[pid];
 
@@ -2615,6 +2631,9 @@ export default function SocialCommercePage() {
                                 src={product.attributes.mainImage}
                                 alt={product.name}
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400';
+                                }}
                               />
                             </div>
                             <div className="flex-1 flex flex-col justify-between">
@@ -3029,6 +3048,9 @@ export default function SocialCommercePage() {
                       src={productPreview?.attributes?.mainImage}
                       alt={productPreview?.name}
                       className="h-72 w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800';
+                      }}
                     />
                   </div>
 
