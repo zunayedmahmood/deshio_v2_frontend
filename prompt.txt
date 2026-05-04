@@ -414,3 +414,28 @@ currently, all batches are trying to show image, but since the api doesn't send 
 make a small tweak to add a thumbnail image for each batch, and display it in the batch grid. 
 see product list page. it has a feature where hovering mouse over an image expands it.
 we want that feature in the social-commerce page.
+
+
+### order edit e rebalancing
+currently, our system handles stock deduction for orders as reserve first.
+any order through social_commerce or e-commerce gets first reserved.
+
+we previously received a bug where multiple edit of same order resulted in a complete mismatch of stock across multiple batches of the product.
+but, in the current system, we should not have that problem.
+
+what i want you to do:
+->act as a professional software engineer
+->check the order edit and reserve stock logic thoroughly
+->check the stock deduction logic thoroughly 
+
+if there's a discrepancy, ideintify the issue and fix it.
+
+
+### excel formatting
+
+there's a feature in orders page to export to excel.
+we want this additional features/changes in it:
+->currently, it doesn't support bangla characters. all the names in bangla became "mojibake". fix it.
+->the monile phone number doesn't get the leading 0. we must send it as number but have leading 0.
+->there's a place for "Shop name". hardcode it as "Deshio BD - দেশীয়".
+
