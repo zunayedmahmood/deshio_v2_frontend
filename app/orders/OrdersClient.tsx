@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -33,9 +32,6 @@ import {
   RotateCcw,
   FileSpreadsheet,
   AlertCircle,
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 
 import orderService, { type Order as BackendOrder } from '@/services/orderService';
@@ -317,8 +313,6 @@ type PathaoArea = { area_id: number; area_name: string };
 
 export default function OrdersDashboard() {
   const { darkMode, setDarkMode } = useTheme();
-  const { isRole } = useAuth();
-  const isBranchManager = isRole('branch-manager');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [orders, setOrders] = useState<Order[]>([]);
@@ -342,13 +336,6 @@ export default function OrdersDashboard() {
 
   // ✅ NEW: Order type filter (All / Social / E-Com)
   const [orderTypeFilter, setOrderTypeFilter] = useState('All Types');
-  const [todayOnly, setTodayOnly] = useState(false);
-
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalResults, setTotalResults] = useState(0);
-  const [perPage, setPerPage] = useState(25);
 
   // ✅ Separate filters
   const [orderStatusFilter, setOrderStatusFilter] = useState('All Order Status');
@@ -615,34 +602,14 @@ export default function OrdersDashboard() {
   useEffect(() => {
     const name = localStorage.getItem('userName') || '';
     setUserName(name);
+    loadOrders();
     if (viewMode === 'online') {
+      // Courier dropdown options (safe if endpoint is missing)
       loadAvailableCouriers();
     }
     checkPrinterStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [
-    viewMode,
-    storeFilter,
-    paymentStatusFilter,
-    orderStatusFilter,
-    courierFilter,
-    orderTypeFilter,
-    search,
-    todayOnly,
-    dateFilter,
-    startDate,
-    endDate,
-    dateFilterType
-  ]);
-
-  useEffect(() => {
-    loadOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, perPage, viewMode, storeFilter, paymentStatusFilter, orderStatusFilter, courierFilter, orderTypeFilter, search, todayOnly, dateFilter, startDate, endDate, dateFilterType]);
+  }, [viewMode, storeFilter]);
 
 
   const parseMoney = (val: any) => Number(String(val ?? '0').replace(/[^0-9.-]/g, ''));
@@ -1217,36 +1184,45 @@ export default function OrdersDashboard() {
   const loadOrders = async () => {
     setIsLoading(true);
     try {
-      const params: any = {
-        page,
-        per_page: perPage,
+      let allOrders: any[] = [];
+      const commonParams: any = {
         store_id: storeFilter === 'All Stores' ? undefined : storeFilter,
-        payment_status: paymentStatusFilter === 'All Payment Status' ? undefined : paymentStatusFilter,
-        status: orderStatusFilter === 'All Order Status' ? undefined : orderStatusFilter,
-        intended_courier: courierFilter === 'All Couriers' ? undefined : courierFilter,
-        order_type: orderTypeFilter === 'All Types' ? undefined : orderTypeFilter,
-        search: search.trim() || undefined,
-        today: todayOnly || undefined,
-        date_from: (!todayOnly && (dateFilter || startDate)) ? (dateFilter || startDate) : undefined,
-        date_to: (!todayOnly && (dateFilter || endDate)) ? (dateFilter || endDate) : undefined,
-        date_type: dateFilterType,
         sort_by: dateFilterType === 'updated_at' ? 'updated_at' : 'created_at',
         sort_order: 'desc',
+        per_page: 1000,
+        date_filter_type: dateFilterType,
       };
 
       if (viewMode === 'installments') {
-        params.order_type = 'counter';
-        params.installment_only = true;
+        const inst = await orderService.getAll({
+          ...commonParams,
+          order_type: 'counter',
+          installment_only: true,
+        });
+
+        allOrders = inst.data || [];
+      } else {
+        const [social, ecommerce] = await Promise.all([
+          orderService.getAll({
+            ...commonParams,
+            order_type: 'social_commerce',
+          }),
+          orderService.getAll({
+            ...commonParams,
+            order_type: 'ecommerce',
+          }),
+        ]);
+
+        allOrders = [...(social.data || []), ...(ecommerce.data || [])];
       }
 
-      const res = await orderService.getAll(params);
-      
-      const transformed = (res.data || []).map((o: any) => transformOrder(o));
-      
-      setOrders(transformed);
-      setFilteredOrders(transformed);
-      setTotalResults(res.total);
-      setTotalPages(res.last_page);
+      allOrders.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      const transformedOrders = allOrders.map((o: any) => transformOrder(o));
+      const hydrated = await hydrateCouriersFromDB(transformedOrders);
+
+      setOrders(hydrated);
+      setFilteredOrders(hydrated);
     } catch (error: any) {
       console.error('Get orders error:', error);
       alert('Failed to fetch orders: ' + (error?.message || 'Unknown error'));
@@ -1308,8 +1284,71 @@ export default function OrdersDashboard() {
 
 
   useEffect(() => {
-    setFilteredOrders(orders);
-  }, [orders]);
+    let filtered = orders;
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (o) =>
+          o.id.toString().includes(q) ||
+          o.orderNumber?.toLowerCase().includes(q) ||
+          o.customer.name.toLowerCase().includes(q) ||
+          o.customer.phone.includes(search.trim())
+      );
+    }
+
+    if (dateFilter.trim()) {
+      filtered = filtered.filter((o) => {
+        let orderDate = o.date;
+        if (dateFilterType === 'updated_at' && o.updatedAt) {
+          const ud = new Date(o.updatedAt);
+          orderDate = `${String(ud.getDate()).padStart(2, '0')}/${String(ud.getMonth() + 1).padStart(2, '0')}/${ud.getFullYear()}`;
+        }
+        let filterDateFormatted = dateFilter;
+        if (dateFilter.includes('-') && dateFilter.split('-')[0].length === 4) {
+          const [year, month, day] = dateFilter.split('-');
+          filterDateFormatted = `${day}/${month}/${year}`;
+        }
+        return orderDate === filterDateFormatted;
+      });
+    } else if (startDate.trim() || endDate.trim()) {
+      const start = startDate.trim() ? new Date(startDate.trim()) : null;
+      const end = endDate.trim() ? new Date(endDate.trim() + "T23:59:59") : null;
+
+      filtered = filtered.filter((o) => {
+        const oDateStr = dateFilterType === 'updated_at' ? o.updatedAt : (o.orderDateRaw || o.createdAt);
+        if (!oDateStr) return false;
+        const oTime = new Date(oDateStr).getTime();
+        if (start && oTime < start.getTime()) return false;
+        if (end && oTime > end.getTime()) return false;
+        return true;
+      });
+    }
+
+    // ✅ NEW: order type filter
+    if (orderTypeFilter !== 'All Types') {
+      const target = normalize(orderTypeFilter);
+      filtered = filtered.filter((o) => normalize(o.orderType) === target);
+    }
+
+    if (orderStatusFilter !== 'All Order Status') {
+      const target = normalize(orderStatusFilter);
+      filtered = filtered.filter((o) => normalize(o.status) === target);
+    }
+
+    if (paymentStatusFilter !== 'All Payment Status') {
+      const target = normalize(paymentStatusFilter);
+      filtered = filtered.filter((o) => normalize(o.paymentStatus) === target);
+    }
+
+    // ✅ Courier marker filter
+    if (courierFilter !== 'All Couriers') {
+      const target = normalizeCourier(courierFilter);
+      filtered = filtered.filter((o) => normalizeCourier(o.intendedCourier) === target);
+    }
+
+    setFilteredOrders(filtered);
+  }, [search, dateFilter, startDate, endDate, orderTypeFilter, orderStatusFilter, paymentStatusFilter, courierFilter, orders]);
 
   // 🧾 Bulk lookup Pathao status for displayed orders
   const filteredOrderNumbers = useMemo(() => {
@@ -3397,47 +3436,6 @@ export default function OrdersDashboard() {
                 ))}
               </div>
 
-              {/* ✅ Type Quick Filters */}
-              <div className="flex flex-wrap items-center gap-1.5 mb-4">
-                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase mr-1">Type:</span>
-                {[
-                  { label: 'All', value: 'All Types' },
-                  ...(viewMode === 'online' ? [
-                    { label: 'Social Commerce', value: 'social_commerce' },
-                    { label: 'E-Commerce', value: 'ecommerce' }
-                  ] : [
-                    { label: 'Counter', value: 'counter' }
-                  ])
-                ].map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => setOrderTypeFilter(t.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all border ${
-                      orderTypeFilter === t.value
-                        ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-sm'
-                        : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* ✅ Today Toggle */}
-              <div className="flex items-center gap-2 mb-4">
-                <button
-                  onClick={() => setTodayOnly(!todayOnly)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all border ${
-                    todayOnly
-                      ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                      : 'bg-white text-gray-500 border-gray-100 hover:border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800'
-                  }`}
-                >
-                  <Calendar className="w-3 h-3" />
-                  Today
-                </button>
-              </div>
-
               {/* Main Search & Primary Filters */}
               <div className="flex flex-col lg:flex-row lg:items-center gap-3">
                 <div className="relative flex-1">
@@ -3452,8 +3450,7 @@ export default function OrdersDashboard() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {!isRole('branch-manager') && (
-                    <select
+                  <select
                       value={storeFilter}
                       onChange={(e) => setStoreFilter(e.target.value === 'All Stores' ? 'All Stores' : Number(e.target.value))}
                       className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white min-w-[140px]"
@@ -3465,7 +3462,6 @@ export default function OrdersDashboard() {
                         </option>
                       ))}
                     </select>
-                  )}
 
                   <select
                     value={paymentStatusFilter}
@@ -3560,7 +3556,24 @@ export default function OrdersDashboard() {
                     />
                   </div>
 
-
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-500 uppercase mb-1.5 ml-1">Type</label>
+                    <select
+                      value={orderTypeFilter}
+                      onChange={(e) => setOrderTypeFilter(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
+                    >
+                      <option value="All Types">All Types</option>
+                      {viewMode === 'online' ? (
+                        <>
+                          <option value="social_commerce">Social Commerce</option>
+                          <option value="ecommerce">E-Commerce</option>
+                        </>
+                      ) : (
+                        <option value="counter">Counter</option>
+                      )}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -3664,7 +3677,7 @@ export default function OrdersDashboard() {
 
                         <button
                           onClick={handleBulkSendToPathao}
-                          disabled={isSendingBulk || isRole('branch-manager')}
+                          disabled={isSendingBulk}
                           className="flex items-center gap-1 px-2 py-1 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black rounded transition-colors disabled:opacity-50 text-[10px] font-medium"
                         >
                           <Truck className="w-3 h-3" />
@@ -4056,31 +4069,6 @@ export default function OrdersDashboard() {
                       </tbody>
                     </table>
                   </div>
-                  {/* Pagination */}
-                  <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-50/50 dark:bg-gray-800/30">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                      Showing <span className="font-bold text-black dark:text-white">{orders.length}</span> of <span className="font-bold text-black dark:text-white">{totalResults}</span> orders
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                        className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-                      <span className="text-[10px] sm:text-xs font-bold text-black dark:text-white px-2">
-                        Page {page} of {totalPages}
-                      </span>
-                      <button
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                        className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -4245,11 +4233,21 @@ export default function OrdersDashboard() {
         </div>
       )}
 
+      {/* Click outside to close menu */}
+      {activeMenu !== null && (
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 50 }}
+          onClick={() => setActiveMenu(null)}
+        />
+      )}
+
       {/* Fixed Position Dropdown Menu */}
       {activeMenu !== null && menuPosition && (
         <div
           className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl w-56 z-[60]"
-          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px` }}
+          style={{ top: `${menuPosition.top}px`, left: `${menuPosition.left}px`, zIndex: 60 }}
+          onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={(e) => {
@@ -4269,8 +4267,7 @@ export default function OrdersDashboard() {
               const order = filteredOrders.find((o) => o.id === activeMenu);
               if (order) handleEditOrder(order);
             }}
-            disabled={isBranchManager}
-            className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+            className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
           >
             <Edit className="h-5 w-5 flex-shrink-0" />
             <span>Edit Order</span>
@@ -4288,8 +4285,7 @@ export default function OrdersDashboard() {
                     e.stopPropagation();
                     openCourierEditor(order);
                   }}
-                  disabled={isBranchManager}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
                 >
                   <Truck className="h-5 w-5 flex-shrink-0" />
                   <span>{hasMarker ? 'Update Marker' : 'Add Marker'}</span>
@@ -4311,8 +4307,7 @@ export default function OrdersDashboard() {
                         }
                       }
                     }}
-                    disabled={isBranchManager}
-                    className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
                   >
                     <X className="h-5 w-5 flex-shrink-0" />
                     <span>Remove Marker</span>
@@ -4341,8 +4336,7 @@ export default function OrdersDashboard() {
             );
           })()}
 
-          {(isRole('online-moderator') || isRole('admin') || isRole('super-admin')) && (
-            <button
+          <button
               onClick={(e) => {
                 e.stopPropagation();
                 const order = filteredOrders.find((o) => o.id === activeMenu);
@@ -4352,7 +4346,7 @@ export default function OrdersDashboard() {
                 const order = filteredOrders.find((o) => o.id === activeMenu);
                 return order ? isSingleLoading(order.id, 'revert') : false;
               })()}
-              className="w-full px-4 py-3 text-left text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+              className="w-full px-4 py-3 text-left text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
             >
               <RotateCcw className="h-5 w-5 flex-shrink-0" />
               <span>
@@ -4362,15 +4356,14 @@ export default function OrdersDashboard() {
                 })()}
               </span>
             </button>
-          )}
 
           {(() => {
             const order = filteredOrders.find((o) => o.id === activeMenu);
             if (!order) return null;
             
-            const canMarkDelivered = (isRole('online-moderator') || isRole('admin') || isRole('super-admin')) && 
-                                   (order.status === 'confirmed' || order.fulfillmentStatus === 'fulfilled') &&
-                                   order.status !== 'delivered';
+            const canMarkDelivered =
+              (order.status === 'confirmed' || order.fulfillmentStatus === 'fulfilled') &&
+              order.status !== 'delivered';
 
             if (!canMarkDelivered) return null;
 
@@ -4381,7 +4374,7 @@ export default function OrdersDashboard() {
                   handleMarkAsDelivered(order.id);
                 }}
                 disabled={isSingleLoading(order.id, 'deliver')}
-                className="w-full px-4 py-3 text-left text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                className="w-full px-4 py-3 text-left text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
               >
                 <Package className="h-5 w-5 flex-shrink-0" />
                 <span>
@@ -4398,8 +4391,7 @@ export default function OrdersDashboard() {
               const order = filteredOrders.find((o) => o.id === activeMenu);
               if (order) handleCancelOrder(order.id);
             }}
-            disabled={isBranchManager}
-            className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 rounded-b-lg disabled:opacity-50"
+            className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 rounded-b-lg"
           >
             <XCircle className="h-5 w-5 flex-shrink-0" />
             <span>Cancel Order</span>
@@ -5685,8 +5677,6 @@ export default function OrdersDashboard() {
         />
       )}
 
-      {/* Click outside to close menu */}
-      {activeMenu !== null && <div className="fixed inset-0 z-[55]" onClick={() => setActiveMenu(null)} />}
 
       {/* Click outside to close printer select */}
       {showPrinterSelect && <div className="fixed inset-0 z-40" onClick={() => setShowPrinterSelect(false)} />}
