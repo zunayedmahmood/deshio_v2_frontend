@@ -440,4 +440,60 @@ we want this additional features/changes in it:
 ->there's a place for "Shop name". hardcode it as "Deshio BD - দেশীয়".
 
 
-### barcode 
+### barcode scan/lookup issue 
+
+we found this bug:
+when we scan a barcode for a product, let's say variant 95 of an sku, we are shown details of variant 97.
+now, the identification that the barcode should belong to variant 95 is that, when it was printed, the full name was printed with the barcode and that said 95.
+however, scaning it shows details of variant 97. 
+we encountered this issue multiple times
+(this doesn't imply that all barcodes printed for 95 showed 97 when scanned, only some of them)
+
+
+
+this may be one of two issues:
+either the barcode printing code has issues, or,
+there has been some barcode mismatch accross batches.
+
+i want you to act as a professional software engineer and codebase auditor. 
+identify the issue and fix it.
+
+
+### prod variation name issue 
+
+We found this bug while creating a new variation under a sku.
+
+example: a product (sku) is named "Jamdani Saree - JU1" then, it has varaitions like "DE1, DE2, MJ1, ..."
+so, product names were like, "Jamdani Saree - JU1 - DE1", "Jamdani Saree - JU1 - DE2", "Jamdani Saree - JU1 - MJ1"
+but, when we added a new variation, it became "Jamdani Saree - JU1 - DE1 - DE45". this  is an issue.
+
+Also, let's say, we wanted to rename DE1 to DE2. Doing this changed all the names in the sku to "Jamdani Saree - JU1 - DE2". 
+i want you to act as a professional software engineer and codebase auditor. 
+identify the issue and fix it.
+
+
+### barcode regeneration 
+
+we found this issue:
+
+when price is adjusted for a product variation,
+new sets of barcodes are being generated for it. 
+the logic should be that, no new barcodes are generated, but the price related information will be updated and when their barcodes are printed (made before or after the adustment, since barcode and price are independently under product) 
+identify the issue and solve it. 
+
+the selling price, cost price adjustment from inventory/batch-price-update page 
+should cater batch-wisem, single changes.
+
+i want you to act as a professional software engineer and codebase auditor. 
+identify the issue and fix it.
+
+
+### scm page image like JUY apu 
+
+we want the image zoom in social commerce page to look like this:
+remove the on hover effect.
+make a modal that opens when user clicks on the image.
+the modal shows the image(s) of the product in full size. (if possible, keep the current stock count )
+hovering on the image zooms into the image (our goal is to see the exact pattern/design on the image)
+
+also, update the order page. "today""social_commerce" and "pathao" marker should be preselected. we can change according to our will (but these three should be preselected by default)
