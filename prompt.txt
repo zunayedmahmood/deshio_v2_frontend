@@ -439,3 +439,5 @@ we want this additional features/changes in it:
 ->the monile phone number doesn't get the leading 0. we must send it as number but have leading 0.
 ->there's a place for "Shop name". hardcode it as "Deshio BD - দেশীয়".
 
+
+### barcode 
