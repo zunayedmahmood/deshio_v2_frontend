@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Barcode, CheckCircle2, History, Loader2, Package, Printer, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Barcode as BarcodeIcon, CheckCircle2, History, Loader2, Package, Printer, RefreshCw, ShieldCheck } from 'lucide-react';
+import Barcode from 'react-barcode';
 import barcodeService from '@/services/barcodeService';
 import barcodeRelabelService, { ReplacementBarcodeResult } from '@/services/barcodeRelabelService';
 
@@ -164,7 +165,7 @@ export default function BarcodeRelabelPage() {
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5 space-y-5">
             <div>
               <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Barcode className="w-5 h-5" /> Create replacement barcode
+                <BarcodeIcon className="w-5 h-5" /> Create replacement barcode
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Scan any barcode from the same product/batch to auto-fill details, or enter the batch manually.
@@ -229,7 +230,7 @@ export default function BarcodeRelabelPage() {
               disabled={!canCreate}
               className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Barcode className="w-4 h-4" />}
+              {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarcodeIcon className="w-4 h-4" />}
               Generate Replacement Barcode
             </button>
           </div>
