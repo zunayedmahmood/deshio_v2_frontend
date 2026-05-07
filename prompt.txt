@@ -509,3 +509,11 @@ we want to be able to edit orders (remove products/services, add products/servic
 so, when we add new products, only the additional needs scaning.
 (this process should take barcodes-relabelling into consideration)
 also, adding/removing qty (product) should rebalance stock and reserved_product table.
+
+
+### order edit e advanced payment:
+in social-commerce page, when we create an order, we can apply advanced payment (partial) on the order from (amount-details page).
+the advance in order creation is saved (due shows perfectly) in orders page. 
+but, when we edit the order, in amount details page, the partial advance is not tracked (we are shown full payment). and making advanced payment (new amount or old) is no longer saved.
+
+we want the advanced, due, payment edit in order to be robust. 

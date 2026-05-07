@@ -1623,7 +1623,12 @@ export default function OrdersDashboard() {
             discount_amount: s.discount_amount,
             quantity: s.quantity,
           }))
-        ]
+        ],
+        paidAmount: fullOrder.paid_amount || 0,
+        totalAmount: fullOrder.total_amount || 0,
+        outstandingAmount: fullOrder.outstanding_amount || 0,
+        discountAmount: fullOrder.discount_amount || 0,
+        shippingAmount: fullOrder.shipping_amount || 0,
       };
 
       sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));
