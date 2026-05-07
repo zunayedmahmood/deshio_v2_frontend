@@ -497,3 +497,15 @@ the modal shows the image(s) of the product in full size. (if possible, keep the
 hovering on the image zooms into the image (our goal is to see the exact pattern/design on the image)
 
 also, update the order page. "today""social_commerce" and "pathao" marker should be preselected. we can change according to our will (but these three should be preselected by default)
+
+### invoice for orders (add prod price)
+ update the invoice print option for orders page. 
+currently we are sending product details and qty. and then subtotal. we also want per piece price and total amount for that item. (piece price * qty = total amount for that item)
+see the image to see the current format. 
+
+### order edit after confirmation
+currently we can edit orders in orders page as long as they are not confirmed (maybe. you need to check).
+we want to be able to edit orders (remove products/services, add products/services, update qty) even after confirmation. most likely, products must be scanned before confirming.
+so, when we add new products, only the additional needs scaning.
+(this process should take barcodes-relabelling into consideration)
+also, adding/removing qty (product) should rebalance stock and reserved_product table.
