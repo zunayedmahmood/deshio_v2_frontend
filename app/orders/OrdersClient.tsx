@@ -338,7 +338,7 @@ export default function OrdersDashboard() {
   const [orderTypeFilter, setOrderTypeFilter] = useState('All Types');
 
   // ✅ Separate filters
-  const [orderStatusFilter, setOrderStatusFilter] = useState('All Order Status');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('pending');
 
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('All Payment Status');
 
@@ -371,13 +371,13 @@ export default function OrdersDashboard() {
     didInitQuickDefaultsRef.current = true;
 
     if (initialViewMode === 'online') {
-      setOrderStatusFilter('All Order Status');
+      setOrderStatusFilter('pending');
       // Preselect today, social_commerce, and pathao as requested
       setDateFilter(getTodayFilterValue());
       setOrderTypeFilter('social_commerce');
       setCourierFilter('pathao');
     } else {
-      setOrderStatusFilter('All Order Status');
+      setOrderStatusFilter('pending');
     }
   }, [initialViewMode]);
 
