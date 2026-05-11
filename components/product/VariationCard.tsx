@@ -169,5 +169,3 @@ export default function VariationCard({
     </div>
   );
 }
-  );
-}
