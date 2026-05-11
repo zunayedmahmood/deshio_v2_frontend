@@ -243,10 +243,22 @@ export default function BatchPriceUpdatePage() {
         setSuccessMsg(null);
         setUpdates([]);
 
-        const list = await batchService.getBatchesArray({
-          product_id: selectedProduct.id,
-          per_page: 200,
-        });
+        const res = await productService.getEcommerceProduct(selectedProduct.id);
+        if (!res?.success || !res?.data?.product) {
+          throw new Error(res?.message || 'Product data not found in catalog.');
+        }
+
+        const productData = res.data.product;
+        // Ensure batches have product context for consistency with Batch interface
+        const list = (productData.batches || []).map((b: any) => ({
+          ...b,
+          product: b.product || {
+            id: productData.id,
+            name: productData.name,
+            sku: productData.sku
+          },
+          store: b.store || { id: b.store_id, name: `Store #${b.store_id}` }
+        }));
 
         setBatches(list);
 

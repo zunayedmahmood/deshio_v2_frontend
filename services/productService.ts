@@ -696,6 +696,19 @@ export const productService = {
       throw new Error(error.response?.data?.message || 'Barcode not found or error fetching data');
     }
   },
+  /** 
+   * Public Catalog: Get single product details
+   * Hits: GET /api/catalog/products/{identifier}
+   */
+  async getEcommerceProduct(id: number | string): Promise<any> {
+    try {
+      const response = await axiosInstance.get(`/catalog/products/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Get ecommerce product error:', error);
+      throw error;
+    }
+  },
 };
 
 export interface StockDetail {
