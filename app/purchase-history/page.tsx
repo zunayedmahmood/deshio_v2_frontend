@@ -266,42 +266,14 @@ export default function PurchaseHistoryPage() {
     setShowCustomerModal(true);
   };
 
-  const handleReturn = async (order: PurchaseHistoryOrder) => {
+  const handleReturn = async (_order: PurchaseHistoryOrder) => {
     setActiveMenu(null);
-
-    if (!order.items || order.items.length === 0) {
-      try {
-        const fullOrder = await orderService.getById(order.id);
-        setSelectedOrderForAction(fullOrder);
-      } catch (error) {
-        console.error('Failed to load order details:', error);
-        alert('Failed to load order details. Please try again.');
-        return;
-      }
-    } else {
-      setSelectedOrderForAction(order);
-    }
-
-    setShowReturnModal(true);
+    alert('Return is now handled only from the Lookup section. Please open Lookup, search the order, and use Return there.');
   };
 
-  const handleExchange = async (order: PurchaseHistoryOrder) => {
+  const handleExchange = async (_order: PurchaseHistoryOrder) => {
     setActiveMenu(null);
-
-    if (!order.items || order.items.length === 0) {
-      try {
-        const fullOrder = await orderService.getById(order.id);
-        setSelectedOrderForAction(fullOrder);
-      } catch (error) {
-        console.error('Failed to load order details:', error);
-        alert('Failed to load order details. Please try again.');
-        return;
-      }
-    } else {
-      setSelectedOrderForAction(order);
-    }
-
-    setShowExchangeModal(true);
+    alert('Exchange is now handled only from the Lookup section. Please open Lookup, search the order, and use Exchange there.');
   };
 
   const handlePrint = async (order: PurchaseHistoryOrder) => {
