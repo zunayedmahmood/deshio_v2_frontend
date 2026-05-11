@@ -15,12 +15,7 @@ import purchaseOrderService from '@/services/purchase-order.service';
 import productImageService from '@/services/productImageService';
 import storeService, { Store } from '@/services/storeService';
 import ReturnExchangeFromOrder from '@/components/lookup/ReturnExchangeFromOrder';
-import ReturnProductModal from '@/components/sales/ReturnProductModal';
-import ExchangeProductModal from '@/components/sales/ExchangeProductModal';
-import productReturnService, { type CreateReturnRequest } from '@/services/productReturnService';
-import refundService, { type CreateRefundRequest } from '@/services/refundService';
-import { connectQZ, getDefaultPrinter } from '@/lib/qz-tray';
-import BatchPrinter from "@/components/BatchPrinter";
+import dynamic from 'next/dynamic';
 import axiosInstance from '@/lib/axios';
 import {
   LABEL_WIDTH_MM as SHARED_LABEL_WIDTH_MM,
@@ -29,6 +24,17 @@ import {
   mmToIn as sharedMmToIn,
   renderBarcodeLabelBase64,
 } from "@/lib/barcodeLabelRenderer";
+
+// -----------------------
+// Dynamic Component Imports (Fixes initialization order issues)
+// -----------------------
+const ReturnProductModal = dynamic(() => import('@/components/sales/ReturnProductModal'), { ssr: false });
+const ExchangeProductModal = dynamic(() => import('@/components/sales/ExchangeProductModal'), { ssr: false });
+
+import productReturnService, { type CreateReturnRequest } from '@/services/productReturnService';
+import refundService, { type CreateRefundRequest } from '@/services/refundService';
+import { connectQZ, getDefaultPrinter } from '@/lib/qz-tray';
+import BatchPrinter from "@/components/BatchPrinter";
 
 // -----------------------
 // QZ + barcode label rendering (same configuration as BatchPrinter)

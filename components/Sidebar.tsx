@@ -80,7 +80,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       ],
     },
     { icon: Store, label: 'Store', href: '/store' },
-    { icon: Store, label: 'Store Assignment', href: '/store-assingment' },
     { icon: FolderTree, label: 'Category', href: '/category' },
     { icon: Image, label: 'Gallery', href: '/gallery' },
     {
@@ -103,6 +102,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         { label: 'Barcode Relabeling', href: '/inventory/barcode-relabel' },
         { label: 'Dispatches', href: '/inventory/outlet-stock' },
         { label: 'Reports', href: '/inventory/reports' },
+        { label: 'Project Report', href: '/inventory/project-report' },
       ],
     },
     { icon: ShoppingCart, label: 'POS', href: '/pos' },
@@ -127,29 +127,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { icon: History, label: 'Activity Log', href: '/activity-logs' },
     { icon: CreditCard, label: 'Transaction', href: '/transaction' },
     { icon: CreditCard, label: 'Accounting', href: '/accounting' },
-    {
-      icon: CreditCard,
-      label: 'Cash Sheet',
-      href: '/cash-sheet',
-      subMenu: [
-        { label: 'Monthly Sheet',  href: '/cash-sheet' },
-        { label: 'Branch Costs',   href: '/cash-sheet/branch-cost' },
-        { label: 'Admin Panel',    href: '/cash-sheet/admin' },
-        { label: 'Owner Panel',    href: '/cash-sheet/owner' },
-        { label: 'Summary View',   href: '/cash-sheet/summary' },
-      ],
-    },
-    {
-      icon: Users,
-      label: 'Human Resources (HRM)',
-      subMenu: [
-        { label: 'Employee Portal', href: '/hrm/my' },
-        { label: 'Branch Management', href: '/hrm/branch' },
-        { label: 'Attendance Logs', href: '/hrm/attendance' },
-        { label: 'Sales Targets', href: '/hrm/sales-targets' },
-        { label: 'Rewards & Fines', href: '/hrm/rewards-fines' },
-      ],
-    },
     { icon: CreditCard, label: 'Employee Management', href: '/employees' },
 
 
