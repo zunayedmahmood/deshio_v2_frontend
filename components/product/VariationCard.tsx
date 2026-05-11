@@ -10,7 +10,6 @@ const SIZE_OPTIONS = [
   '36 ','37','38','39 (US 6.5)','40 (US 7)','41 (US 8)','42 (US 8.5)','43 (US 9.5)','44 (US 10)','45 (US 11)','46 (US 12)',
 ];
 
-
 interface VariationData {
   id: string;
   color: string;
@@ -33,12 +32,8 @@ interface VariationCardProps {
   // When true, shows color as required (enforced by parent when >1 variation)
   colorRequired?: boolean;
 
-  // Optional: override size dropdown options (e.g., sneakers-only or dresses-only)
+  // Optional: override size suggestions (e.g., sneakers-only or dresses-only)
   sizeOptions?: string[];
-
-  // Optional: preset buttons (e.g., add all sneaker sizes)
-  sizePresetButtons?: Array<{ key: string; label: string }>;
-  onApplySizePreset?: (key: string) => void;
 }
 
 export default function VariationCard({
@@ -53,10 +48,9 @@ export default function VariationCard({
   onSizeRemove,
   colorRequired = false,
   sizeOptions,
-  sizePresetButtons,
-  onApplySizePreset
 }: VariationCardProps) {
-  const options = Array.isArray(sizeOptions) && sizeOptions.length > 0 ? sizeOptions : SIZE_OPTIONS;
+  const suggestions = Array.isArray(sizeOptions) && sizeOptions.length > 0 ? sizeOptions : SIZE_OPTIONS;
+  const datalistId = `size-suggestions-${variation.id}`;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
@@ -152,18 +146,6 @@ export default function VariationCard({
             </label>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              {Array.isArray(sizePresetButtons) &&
-                sizePresetButtons.map((b) => (
-                  <button
-                    key={b.key}
-                    type="button"
-                    onClick={() => onApplySizePreset?.(b.key)}
-                    className="px-2.5 py-1 text-xs rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    {b.label}
-                  </button>
-                ))}
-
               <button
                 type="button"
                 onClick={onSizeAdd}
@@ -180,28 +162,24 @@ export default function VariationCard({
               No sizes added yet
             </div>
           ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {variation.sizes.map((size, sizeIdx) => (
                 <div
                   key={sizeIdx}
                   className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 p-2 rounded-lg border border-gray-200 dark:border-gray-600"
                 >
-                  <select
+                  <input
+                    list={datalistId}
+                    type="text"
                     value={size}
                     onChange={(e) => onSizeUpdate(sizeIdx, e.target.value)}
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
-                  >
-                    <option value="">Select</option>
-                    {options.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Size"
+                    className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white min-w-0"
+                  />
                   <button
                     type="button"
                     onClick={() => onSizeRemove(sizeIdx)}
-                    className="text-red-500 hover:text-red-600 p-1"
+                    className="text-red-500 hover:text-red-600 p-1 flex-shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -209,6 +187,12 @@ export default function VariationCard({
               ))}
             </div>
           )}
+          
+          <datalist id={datalistId}>
+            {suggestions.map((s) => (
+              <option key={s} value={s} />
+            ))}
+          </datalist>
         </div>
       </div>
     </div>

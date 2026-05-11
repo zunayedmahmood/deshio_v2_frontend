@@ -24,7 +24,7 @@ import {
   VariationData,
   FALLBACK_IMAGE_URL,
 } from '@/types/product';
-import { SIZE_PRESETS, getPresetLabel, type SizePresetKey } from '@/data/sizePresets';
+import { SIZE_PRESETS } from '@/data/sizePresets';
 
 interface AddEditProductPageProps {
   productId?: string;
@@ -237,27 +237,6 @@ export default function AddEditProductPage({
       .filter(Boolean);
 
     return Array.from(new Set([...(sizeContext.options || []), ...existing]));
-  };
-
-  const sizePresetButtons = [
-    { key: 'sneakers', label: getPresetLabel('sneakers') },
-    { key: 'dresses', label: getPresetLabel('dresses') },
-  ];
-
-  const applySizePreset = (variationId: string, presetKey: SizePresetKey) => {
-    const preset = Array.isArray(SIZE_PRESETS[presetKey]) ? Array.from(SIZE_PRESETS[presetKey]) : [];
-    if (preset.length === 0) return;
-
-    setVariations((prev) =>
-      prev.map((v) => {
-        if (v.id !== variationId) return v;
-        const existing = (Array.isArray(v.sizes) ? v.sizes : [])
-          .map((s) => String(s || '').trim())
-          .filter(Boolean);
-        const merged = Array.from(new Set([...existing, ...preset]));
-        return { ...v, sizes: merged.length > 0 ? merged : [''] };
-      })
-    );
   };
 
   useEffect(() => {
@@ -2062,8 +2041,6 @@ export default function AddEditProductPage({
                             onSizeUpdate={(sizeIdx, value) => updateSizeValue(variation.id, sizeIdx, value)}
                             onSizeRemove={(sizeIdx) => removeSize(variation.id, sizeIdx)}
                             sizeOptions={getSizeOptionsForVariation(variation.sizes)}
-                            sizePresetButtons={sizePresetButtons}
-                            onApplySizePreset={(key) => applySizePreset(variation.id, key as SizePresetKey)}
                           />
                         ))}
                       </div>
