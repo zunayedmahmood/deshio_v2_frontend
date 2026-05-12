@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 
 import productService, { Product as FullProduct } from '@/services/productService';
+import catalogService from '@/services/catalogService';
 import batchService, { Batch } from '@/services/batchService';
 import GroupedAllBarcodesPrinter, { BatchBarcodeSource } from '@/components/GroupedAllBarcodesPrinter';
 
@@ -177,22 +178,18 @@ export default function BatchPriceUpdatePage() {
       try {
         setIsSearching(true);
 
-        // ✅ Fast autocomplete first
-        const quick = await productService.quickSearch(q, searchLimit);
+        // Use catalogService.getProducts instead of productService search methods
+        const res = await catalogService.getProducts({ 
+          q, 
+          per_page: searchLimit,
+          group_by_sku: true 
+        });
 
-        // Fallback to advanced search (better multi-language + fuzzy) if quick is empty
-        const list = (Array.isArray(quick) && quick.length > 0)
-          ? (quick as FullProduct[])
-          : ((await productService.advancedSearch({
-              query: q,
-              is_archived: false,
-              enable_fuzzy: true,
-              fuzzy_threshold: 60,
-              search_fields: ['name', 'sku', 'description', 'category', 'custom_fields'],
-              per_page: searchLimit,
-            })).items as FullProduct[]);
+        // catalogService flattens variants into .products when group_by_sku is true
+        const list = res.products || [];
+        
         const mapped: ProductPick[] = list.map((p) => ({
-          id: p.id,
+          id: p.id as number,
           name: p.name,
           sku: p.sku,
         }));

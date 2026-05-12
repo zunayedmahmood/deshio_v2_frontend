@@ -594,7 +594,8 @@ export default function AddEditProductPage({
   const normalizeSuffix = (suffix: string): string => {
     const raw = String(suffix || '').trim();
     if (!raw) return '';
-    return raw.startsWith('-') ? raw : `-${raw}`;
+    if (raw.startsWith('-') || raw.startsWith(' - ')) return raw;
+    return ` - ${raw}`;
   };
 
   const updateRowEdit = (id: number, patch: Partial<{ variation_suffix: string; description: string }>) => {
@@ -952,23 +953,15 @@ export default function AddEditProductPage({
     ));
   };
 
-  const slugify = (val: string): string => {
-    return String(val || '')
-      .toLowerCase()
-      .trim()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
+
 
   const buildVariationSuffix = (color?: string, size?: string): string => {
     const parts: string[] = [];
-    const c = slugify(String(color || ''));
-    const s = slugify(String(size || ''));
+    const c = String(color || '').trim();
+    const s = String(size || '').trim();
     if (c) parts.push(c);
     if (s) parts.push(s);
-    return parts.length ? `-${parts.join('-')}` : '';
+    return parts.length ? ` - ${parts.join(' - ')}` : '';
   };
 
   const handleSubmit = async () => {
