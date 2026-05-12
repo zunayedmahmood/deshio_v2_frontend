@@ -517,3 +517,24 @@ the advance in order creation is saved (due shows perfectly) in orders page.
 but, when we edit the order, in amount details page, the partial advance is not tracked (we are shown full payment). and making advanced payment (new amount or old) is no longer saved.
 
 we want the advanced, due, payment edit in order to be robust. 
+
+### barcode relabelling:
+We want this upgrade:
+when we sell something through POS page in manual entry:
+we want to do an automatic barcode relabelling in this manual entry process.
+User searches products from manual entry, comes as individual products grouped under SKU.
+we select one or more and (the rest of the logic stays the same).
+But, sell the products does this:
+(create a new controller to handle this inside a db:transaction:)
+takes those products and calls the barcode relabelling methods inside.
+it generates a(multiple) relabelled barcodes, assigned to product,then, we sell them (call same methods as we do in orderCreation for POS).
+this process should handle addition of services to orders, however, they don't have barcodes to them.
+
+
+###POS daily sales report 
+completely rewrite the code for the pos daily sales report (that's exported).
+it will show the store name, address and other store details.
+then, it will  list all the  POS orders of that day.
+For each order, it will show the order id, customer details.
+then, it will show the order items,their barcodes, qty. 
+then,  it  will the sold at price and subtotal. then it will show amount paid distributed across the payment methods: these 5 coloumns: cash - bKash - bank - card - installments.
