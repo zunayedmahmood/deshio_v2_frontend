@@ -670,6 +670,16 @@ export default function POSPage() {
         }
       }
 
+      // ✅ Validate customer info if partially filled
+      if (!autoCustomerId && (customerName || mobileNo || address)) {
+        if (!customerName) {
+          throw new Error('Customer Name is required if details are being provided');
+        }
+        if (!mobileNo) {
+          throw new Error('Mobile Number is required if details are being provided');
+        }
+      }
+
       // VAT is inclusive in product prices; do not add extra tax in POS
       const itemsWithTax = cart.map((item) => ({ item, taxAmount: 0 }));
 
@@ -679,12 +689,15 @@ export default function POSPage() {
         store_id: parseInt(selectedOutlet),
         salesman_id: parseInt(selectedEmployee),
 
-        // ✅ Only add customer if data is provided
-        ...(customerName || mobileNo
+        // ✅ Prioritize customer_id if we matched an existing customer
+        ...(autoCustomerId ? { customer_id: autoCustomerId } : {}),
+
+        // ✅ Otherwise send customer object if details are provided
+        ...(!autoCustomerId && (customerName || mobileNo)
           ? {
             customer: {
-              name: customerName || 'Walk-in Customer',
-              phone: mobileNo || '01XXXXXXXXX',
+              name: customerName,
+              phone: mobileNo,
               ...(address ? { address } : {}),
             },
           }
