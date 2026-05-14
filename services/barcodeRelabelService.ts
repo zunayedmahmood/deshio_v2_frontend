@@ -19,6 +19,7 @@ export interface ReplacementBarcodeResult {
   type: string;
   product_name?: string | null;
   batch_number?: string | null;
+  sell_price?: number | string | null;
   batch_quantity_after_relabel?: number | null;
   status?: string;
   replacement_status?: RelabelStatus;

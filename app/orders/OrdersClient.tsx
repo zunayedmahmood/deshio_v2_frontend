@@ -1618,6 +1618,8 @@ export default function OrdersDashboard() {
         editOrderId: fullOrder.id,
         editOrderNumber: fullOrder.order_number,
         storeId: String(fullOrder.store?.id || ''),
+        salesmanId: fullOrder.salesman?.id || null,
+        salesBy: fullOrder.salesman?.name || '',
         userName: fullOrder.customer?.name || '',
         userPhone: fullOrder.customer?.phone || '',
         userEmail: fullOrder.customer?.email || '',
