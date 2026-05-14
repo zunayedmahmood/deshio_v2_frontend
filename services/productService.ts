@@ -255,26 +255,6 @@ export const productService = {
   },
 
   /**
-   * Fast autocomplete / quick search
-   * GET /api/products/quick-search?q=query&limit=10
-   */
-  async quickSearch(query: string, limit: number = 10): Promise<Product[]> {
-    try {
-      const response = await axiosInstance.get('/products/quick-search', {
-        params: { q: query, limit },
-      });
-      const result = response.data;
-      if (!result?.success) return [];
-
-      const rawList = Array.isArray(result.data) ? result.data : [];
-      return rawList.map(transformProduct);
-    } catch (error: any) {
-      console.error('Quick search error:', error);
-      return [];
-    }
-  },
-
-  /**
    * Proposal 5 — Wire the advanced search controller.
    * Uses ProductSearchController (fuzzy, Bangla, phonetic) when a query is present.
    * Falls back gracefully: if the endpoint is unavailable, the caller should use getAll().
@@ -694,19 +674,6 @@ export const productService = {
     } catch (error: any) {
       console.error('Find stock by barcode error:', error);
       throw new Error(error.response?.data?.message || 'Barcode not found or error fetching data');
-    }
-  },
-  /** 
-   * Public Catalog: Get single product details
-   * Hits: GET /api/catalog/products/{identifier}
-   */
-  async getEcommerceProduct(id: number | string): Promise<any> {
-    try {
-      const response = await axiosInstance.get(`/catalog/products/${id}`);
-      return response.data;
-    } catch (error: any) {
-      console.error('Get ecommerce product error:', error);
-      throw error;
     }
   },
 };

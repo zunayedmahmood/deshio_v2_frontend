@@ -211,23 +211,6 @@ const orderService = {
     }
   },
 
-  /** Create manual POS sale with automatic barcode relabelling */
-  async createManualSale(payload: CreateOrderPayload): Promise<Order> {
-    try {
-      const response = await axiosInstance.post('/orders/manual-relabel-sale', payload);
-      const result = response.data;
-      
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to create manual sale');
-      }
-      
-      return result.data;
-    } catch (error: any) {
-      console.error('Create manual sale error:', error);
-      throw new Error(error.response?.data?.message || 'Failed to create manual sale');
-    }
-  },
-
   /** Get all orders with filters and pagination */
   async getAll(paramsObj?: OrderFilters): Promise<{
     data: Order[];

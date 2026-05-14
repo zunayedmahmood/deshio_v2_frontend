@@ -670,16 +670,6 @@ export default function POSPage() {
         }
       }
 
-      // ✅ Validate customer info if partially filled
-      if (!autoCustomerId && (customerName || mobileNo || address)) {
-        if (!customerName) {
-          throw new Error('Customer Name is required if details are being provided');
-        }
-        if (!mobileNo) {
-          throw new Error('Mobile Number is required if details are being provided');
-        }
-      }
-
       // VAT is inclusive in product prices; do not add extra tax in POS
       const itemsWithTax = cart.map((item) => ({ item, taxAmount: 0 }));
 
@@ -689,15 +679,12 @@ export default function POSPage() {
         store_id: parseInt(selectedOutlet),
         salesman_id: parseInt(selectedEmployee),
 
-        // ✅ Prioritize customer_id if we matched an existing customer
-        ...(autoCustomerId ? { customer_id: autoCustomerId } : {}),
-
-        // ✅ Otherwise send customer object if details are provided
-        ...(!autoCustomerId && (customerName || mobileNo)
+        // ✅ Only add customer if data is provided
+        ...(customerName || mobileNo
           ? {
             customer: {
-              name: customerName,
-              phone: mobileNo,
+              name: customerName || 'Walk-in Customer',
+              phone: mobileNo || '01XXXXXXXXX',
               ...(address ? { address } : {}),
             },
           }
@@ -789,9 +776,7 @@ export default function POSPage() {
 
       // Create order
       console.log('📦 Creating order...');
-      const order = inputMode === 'manual' 
-        ? await orderService.createManualSale(orderPayload)
-        : await orderService.create(orderPayload);
+      const order = await orderService.create(orderPayload);
 
       console.log('✅ Order created:', order.order_number);
       showToast(`Order #${order.order_number} created!`, 'success');
@@ -878,7 +863,7 @@ export default function POSPage() {
           // ✅ SEQUENTIAL NORMALIZATION: subtract "change" from all payment methods until change is 0
           // Priority for reduction: Cash -> Nagad -> Bkash -> Card
           let remainingChange = change;
-
+          
           let adjustedCashPaid = cashPaid;
           let adjustedNagadPaid = nagadPaid;
           let adjustedBkashPaid = bkashPaid;
@@ -1421,8 +1406,8 @@ export default function POSPage() {
                 <div
                   key={toast.id}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${toast.type === 'success'
-                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                      : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                     }`}
                 >
                   {toast.type === 'success' ? (
@@ -1432,8 +1417,8 @@ export default function POSPage() {
                   )}
                   <p
                     className={`text-sm font-medium ${toast.type === 'success'
-                      ? 'text-green-900 dark:text-green-300'
-                      : 'text-red-900 dark:text-red-300'
+                        ? 'text-green-900 dark:text-green-300'
+                        : 'text-red-900 dark:text-red-300'
                       }`}
                   >
                     {toast.message}
@@ -1506,12 +1491,13 @@ export default function POSPage() {
                   </label>
                   <div className="relative" ref={employeeDropdownRef}>
                     <div
-                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center justify-between cursor-pointer ${role === 'pos-salesman' ? 'opacity-75 bg-gray-200 dark:bg-gray-800 cursor-not-allowed' : ''
-                        }`}
+                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center justify-between cursor-pointer ${
+                        role === 'pos-salesman' ? 'opacity-75 bg-gray-200 dark:bg-gray-800 cursor-not-allowed' : ''
+                      }`}
                       onClick={() => role !== 'pos-salesman' && setShowEmployeeDropdown(!showEmployeeDropdown)}
                     >
                       <span className="truncate">
-                        {selectedEmployee
+                        {selectedEmployee 
                           ? employees.find(e => e.id === selectedEmployee)?.name || 'Select Employee'
                           : 'Select Employee'}
                       </span>
@@ -1543,15 +1529,16 @@ export default function POSPage() {
                             Select Employee
                           </div>
                           {employees
-                            .filter(emp =>
+                            .filter(emp => 
                               emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
                               emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
                             )
                             .map((emp) => (
                               <div
                                 key={emp.id}
-                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 ${selectedEmployee === emp.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'
-                                  }`}
+                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
+                                  selectedEmployee === emp.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'
+                                }`}
                                 onClick={() => {
                                   setSelectedEmployee(emp.id);
                                   setShowEmployeeDropdown(false);
@@ -1575,14 +1562,14 @@ export default function POSPage() {
                               + Add New Employee
                             </div>
                           )}
-                          {employees.filter(emp =>
+                          {employees.filter(emp => 
                             emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
                             emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
                           ).length === 0 && (
-                              <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center italic">
-                                No employees found
-                              </div>
-                            )}
+                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center italic">
+                              No employees found
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1677,7 +1664,7 @@ export default function POSPage() {
                               disabled={!selectedOutlet}
                               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 outline-none"
                             />
-
+                            
                             <select
                               value={product}
                               onChange={(e) => handleProductSelect(e.target.value)}
@@ -1722,7 +1709,7 @@ export default function POSPage() {
                                 .sort((a, b) => {
                                   if (!manualSearchQuery) return 0;
                                   const query = manualSearchQuery.toLowerCase().trim();
-
+                                  
                                   // 1. Exact SKU/ID match
                                   const aExact = a.sku?.toLowerCase() === query || String(a.id) === query;
                                   const bExact = b.sku?.toLowerCase() === query || String(b.id) === query;
@@ -1746,12 +1733,12 @@ export default function POSPage() {
                             </select>
                             {manualSearchQuery && products.filter(p => {
                               const q = manualSearchQuery.toLowerCase().trim();
-                              return p.sku?.toLowerCase().includes(q) ||
-                                p.name.toLowerCase().includes(q) ||
-                                String(p.id) === q;
+                              return p.sku?.toLowerCase().includes(q) || 
+                                     p.name.toLowerCase().includes(q) || 
+                                     String(p.id) === q;
                             }).length === 0 && (
-                                <p className="text-[11px] text-red-500 italic">No products found matching your search.</p>
-                              )}
+                              <p className="text-[11px] text-red-500 italic">No products found matching your search.</p>
+                            )}
                           </div>
                         </div>
 
@@ -1828,7 +1815,7 @@ export default function POSPage() {
 
                   {/* Service Selector */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <ServiceSelector
+                    <ServiceSelector 
                       onAddService={addServiceToCart}
                       darkMode={darkMode}
                       allowManualPrice={true}
@@ -2191,8 +2178,8 @@ export default function POSPage() {
                         </span>
                         <span
                           className={`font-bold ${due > 0
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-green-600 dark:text-green-400'
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-green-600 dark:text-green-400'
                             }`}
                         >
                           ৳{Math.max(0, due).toFixed(2)}

@@ -46,7 +46,6 @@ export type ReturnStatus =
   | 'pending'
   | 'approved'
   | 'rejected'
-  | 'processing'
   | 'processed'
   | 'completed'
   | 'refunded';
@@ -86,10 +85,6 @@ export interface CreateReturnRequest {
     order_item_id: number;
     quantity: number;
     product_barcode_id?: number; // Support barcode ID in return items
-    barcode_id?: number;
-    barcode?: string;
-    unit_price?: number;
-    total_price?: number;
     reason?: string;
   }>;
   customer_notes?: string;
@@ -123,8 +118,7 @@ export interface ReturnStatistics {
   pending: number;
   approved: number;
   rejected: number;
-  processing?: number;
-  processed?: number;
+  processed: number;
   completed: number;
   refunded: number;
   total_return_value: number;
@@ -331,7 +325,6 @@ class ProductReturnService {
       pending: 'Pending',
       approved: 'Approved',
       rejected: 'Rejected',
-      processing: 'Processing',
       processed: 'Processed',
       completed: 'Completed',
       refunded: 'Refunded',
@@ -347,7 +340,6 @@ class ProductReturnService {
       pending: 'orange',
       approved: 'blue',
       rejected: 'red',
-      processing: 'purple',
       processed: 'purple',
       completed: 'green',
       refunded: 'green',
@@ -387,7 +379,7 @@ class ProductReturnService {
    * Helper: Check if return can be completed
    */
   canComplete(status: ReturnStatus): boolean {
-    return status === 'processing' || status === 'processed';
+    return status === 'processed';
   }
 }
 

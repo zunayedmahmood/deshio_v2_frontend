@@ -233,15 +233,17 @@ class BatchService {
   }
 
   /**
-   * ✅ Bulk update prices for ALL batches of a product
+   * ✅ Bulk update selling price for ALL batches of a product
    * Endpoint: POST /products/{product_id}/batches/update-price
-   * Body: { sell_price?: number, cost_price?: number }
+   * Body: { sell_price: number }
    */
   async updateAllBatchPrices(
     productId: number,
-    data: { sell_price?: number; cost_price?: number }
+    sellPrice: number
   ): Promise<ApiResponse<BulkBatchPriceUpdateData>> {
-    const response = await axios.post(`/products/${productId}/batches/update-price`, data);
+    const response = await axios.post(`/products/${productId}/batches/update-price`, {
+      sell_price: sellPrice,
+    });
     return response.data;
   }
 

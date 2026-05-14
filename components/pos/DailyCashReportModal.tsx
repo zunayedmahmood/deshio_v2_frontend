@@ -50,184 +50,83 @@ const DailyCashReportModal: React.FC<DailyCashReportModalProps> = ({
   };
 
   const downloadCSV = (data: any) => {
-    const headers = [
-      'Order Number',
-      'Customer Name',
-      'Customer Phone',
-      'Item Name',
-      'Barcode',
-      'Qty',
-      'Sold Price',
-      'Item Subtotal',
-      'Cash',
-      'bKash',
-      'Bank',
-      'Card',
-      'Installments',
-      'Order Total'
-    ];
+    const csvContent = [
+      ['Date', data.date],
+      ['Branch', data.branch],
+      ['Total Sales', data.total_sales.toFixed(2)],
+      ['Cash', data.cash.toFixed(2)],
+      ['Card', data.card.toFixed(2)],
+      ['Bkash', data.bkash.toFixed(2)],
+      ['Nagad', data.nagad.toFixed(2)],
+    ].map(e => e.join(',')).join('\n');
 
-    const rows: any[] = [];
-    
-    // Add Store Details as header rows
-    rows.push(['Store Name', data.branch.name]);
-    rows.push(['Store Address', data.branch.address]);
-    rows.push(['Store Phone', data.branch.phone]);
-    rows.push(['Report Date', data.date]);
-    rows.push([]); // Empty row
-    rows.push(headers);
-
-    data.orders.forEach((order: any) => {
-      order.items.forEach((item: any, index: number) => {
-        const isFirstItem = index === 0;
-        rows.push([
-          isFirstItem ? order.order_number : '',
-          isFirstItem ? order.customer.name : '',
-          isFirstItem ? order.customer.phone : '',
-          item.name,
-          item.barcode,
-          item.qty,
-          Number(item.price).toFixed(2),
-          Number(item.subtotal).toFixed(2),
-          isFirstItem ? Number(order.payments.cash).toFixed(2) : '0.00',
-          isFirstItem ? Number(order.payments.bkash).toFixed(2) : '0.00',
-          isFirstItem ? Number(order.payments.bank).toFixed(2) : '0.00',
-          isFirstItem ? Number(order.payments.card).toFixed(2) : '0.00',
-          isFirstItem ? Number(order.payments.installments).toFixed(2) : '0.00',
-          isFirstItem ? Number(order.total).toFixed(2) : ''
-        ]);
-      });
-    });
-
-    // Helper to escape CSV cells
-    const escapeCSV = (cell: any) => {
-      if (cell === null || cell === undefined) return '';
-      const stringCell = String(cell);
-      if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
-        return `"${stringCell.replace(/"/g, '""')}"`;
-      }
-      return stringCell;
-    };
-
-    const csvContent = rows.map(e => e.map(escapeCSV).join(',')).join('\n');
-
-    // Add BOM for Excel UTF-8 support
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `daily-sales-${data.branch.name}-${data.date}.csv`);
+    link.setAttribute('download', `daily-sales-${data.branch}-${data.date}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   const downloadPDF = (data: any) => {
-    const doc = new jsPDF('l', 'mm', 'a4'); // Landscape A4 for more columns
-    const pageWidth = doc.internal.pageSize.getWidth();
+    const doc = new jsPDF();
     
     // Header
-    doc.setFontSize(20);
+    doc.setFontSize(22);
     doc.setTextColor(79, 70, 229); // Indigo-600
-    doc.text('DESHIO', pageWidth / 2, 15, { align: 'center' });
+    doc.text('DESHIO', 105, 20, { align: 'center' });
     
-    doc.setFontSize(14);
+    doc.setFontSize(16);
     doc.setTextColor(31, 41, 55); // Gray-800
-    doc.text('Daily Detailed Sales Report', pageWidth / 2, 22, { align: 'center' });
+    doc.text('Daily Cash Report', 105, 30, { align: 'center' });
     
-    // Store Info
-    doc.setFontSize(10);
+    // Body Info
+    doc.setFontSize(12);
     doc.setTextColor(75, 85, 99); // Gray-600
-    doc.text(`Store: ${data.branch.name}`, 15, 32);
-    doc.text(`Address: ${data.branch.address}`, 15, 37);
-    doc.text(`Date: ${data.date}`, pageWidth - 15, 32, { align: 'right' });
+    doc.text(`Date: ${data.date}`, 20, 45);
+    doc.text(`Branch: ${data.branch}`, 20, 52);
     
     doc.setDrawColor(229, 231, 235); // Gray-200
-    doc.line(15, 42, pageWidth - 15, 42);
+    doc.setLineWidth(0.5);
+    doc.line(20, 58, 190, 58);
     
-    // Table Headers
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
+    // Report Data
+    doc.setFontSize(13);
     doc.setTextColor(31, 41, 55);
     
-    let y = 50;
-    const cols = {
-      order: 15,
-      customer: 45,
-      items: 85,
-      qty: 145,
-      price: 155,
-      cash: 175,
-      bkash: 195,
-      bank: 215,
-      card: 235,
-      inst: 255,
-      total: 275
-    };
-
-    doc.text('Order #', cols.order, y);
-    doc.text('Customer', cols.customer, y);
-    doc.text('Items', cols.items, y);
-    doc.text('Qty', cols.qty, y);
-    doc.text('Price', cols.price, y);
-    doc.text('Cash', cols.cash, y);
-    doc.text('bKash', cols.bkash, y);
-    doc.text('Bank', cols.bank, y);
-    doc.text('Card', cols.card, y);
-    doc.text('Inst.', cols.inst, y);
-    doc.text('Total', cols.total, y);
+    const startY = 70;
+    const rowHeight = 10;
     
-    y += 5;
-    doc.line(15, y, pageWidth - 15, y);
-    y += 7;
+    const rows = [
+      ['Total Sales', data.total_sales],
+      ['Cash', data.cash],
+      ['Card', data.card],
+      ['Bkash', data.bkash],
+      ['Nagad', data.nagad],
+    ];
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-
-    data.orders.forEach((order: any) => {
-      // Check if we need a new page
-      if (y > 180) {
-        doc.addPage();
-        y = 20;
-      }
-
-      const orderStartY = y;
-      doc.text(order.order_number, cols.order, y);
-      doc.text(order.customer.name.substring(0, 20), cols.customer, y);
+    rows.forEach((row, i) => {
+      const y = startY + (i * rowHeight);
+      doc.text(String(row[0]), 20, y);
+      doc.text(`Tk. ${Number(row[1]).toFixed(2)}`, 190, y, { align: 'right' });
       
-      order.items.forEach((item: any, idx: number) => {
-        if (y > 190) {
-           doc.addPage();
-           y = 20;
-        }
-        doc.text(`${item.name.substring(0, 30)} (${item.barcode})`, cols.items, y);
-        doc.text(String(item.qty), cols.qty, y);
-        doc.text(Number(item.price).toFixed(2), cols.price, y);
-        y += 5;
-      });
-
-      // Payments on the first line of the order
-      doc.text(Number(order.payments.cash).toFixed(2), cols.cash, orderStartY);
-      doc.text(Number(order.payments.bkash).toFixed(2), cols.bkash, orderStartY);
-      doc.text(Number(order.payments.bank).toFixed(2), cols.bank, orderStartY);
-      doc.text(Number(order.payments.card).toFixed(2), cols.card, orderStartY);
-      doc.text(Number(order.payments.installments).toFixed(2), cols.inst, orderStartY);
-      doc.setFont('helvetica', 'bold');
-      doc.text(Number(order.total).toFixed(2), cols.total, orderStartY);
-      doc.setFont('helvetica', 'normal');
-
-      y += 2;
-      doc.setDrawColor(243, 244, 246);
-      doc.line(15, y, pageWidth - 15, y);
-      y += 5;
+      if (i < rows.length - 1) {
+        doc.setDrawColor(243, 244, 246); // Gray-100
+        doc.line(20, y + 3, 190, y + 3);
+      }
     });
     
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(156, 163, 175);
-    doc.text(`Generated by Deshio POS System on ${new Date().toLocaleString()}`, pageWidth / 2, 200, { align: 'center' });
+    doc.setDrawColor(79, 70, 229);
+    doc.line(20, startY + (rows.length * rowHeight), 190, startY + (rows.length * rowHeight));
     
-    doc.save(`daily-sales-${data.branch.name}-${data.date}.pdf`);
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(156, 163, 175); // Gray-400
+    doc.text('Generated by Deshio POS System', 105, 280, { align: 'center' });
+    
+    doc.save(`daily-sales-${data.branch}-${data.date}.pdf`);
   };
 
   return (
