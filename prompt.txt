@@ -538,3 +538,18 @@ then, it will  list all the  POS orders of that day.
 For each order, it will show the order id, customer details.
 then, it will show the order items,their barcodes, qty. 
 then,  it  will the sold at price and subtotal. then it will show amount paid distributed across the payment methods: these 5 coloumns: cash - bKash - bank - card - installments.
+
+### order change restock
+Go through all the code for order creation and update.
+when an order is update from orders page (before confirmation), we simply update the reserved_products table.
+and after delivery, we accept return-exchange.
+but, whithin that phase, for fulfilled/scanned/confirmed orders, when they are updated (they need to be updated, so if there was some code that prohibits that, update that),
+when, an order is editted to add/remove products, when an already scanned product qty is deducted, instead of being deducting by a counter (like we did before scanning), we should be shown a list of barcodes, we click to remove scanned barcodes from the order.
+the removed barcodes should be made available again. reserved_product table should be updated. 
+
+### product list
+update the product list page.
+for each product variant, beside the tags: tota;, online and offline, we need an extra tag: "reserved"
+in the reserved tag, we will write the total reserved qty for the product.
+N.B.:do not change any other logic or code. simply write the reserved qty of that variant from the reserved_product table there.
+

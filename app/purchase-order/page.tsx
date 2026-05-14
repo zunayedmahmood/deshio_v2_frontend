@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import { X, Plus, Eye, Check, Package, FileText, Loader2, AlertCircle, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
 import Header from '@/components/Header';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import GroupedAllBarcodesPrinter, { BatchBarcodeSource } from '@/components/GroupedAllBarcodesPrinter';
 import purchaseOrderService, {
@@ -19,6 +20,12 @@ import { useAuth } from '@/contexts/AuthContext';
 const getApiBaseUrl = () => {
   const raw = process.env.NEXT_PUBLIC_API_URL || '';
   return raw.replace(/\/api\/?$/, '').replace(/\/$/, '');
+};
+
+// For PDF endpoints we need the API base WITH /api
+const getApiUrlBaseWithApi = () => {
+  const raw = process.env.NEXT_PUBLIC_API_URL || '';
+  return raw.replace(/\/$/, '');
 };
 const toPublicImageUrl = (imagePath?: string | null) => {
   if (!imagePath) return null;
@@ -200,6 +207,16 @@ export default function PurchaseOrdersPage() {
     }
     return out;
   }, [selectedPO]);
+
+  // ─────────────────────────────────────────────────────────
+  // PDF quick access / print layout (restored from old PO page)
+  // ─────────────────────────────────────────────────────────
+  const openPoPdf = (poId: number, inline: boolean = true) => {
+    const api = getApiUrlBaseWithApi();
+    if (!api || !poId) return;
+    const url = `${api}/purchase-orders/${poId}/pdf${inline ? '?inline=true' : ''}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
   // Modals
   const [showViewModal, setShowViewModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
@@ -876,10 +893,21 @@ export default function PurchaseOrdersPage() {
           </div>
         )}
         <main className="p-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
             <h1 className="text-2xl font-semibold text-gray-800 dark:text-gray-100">
               Purchase Orders
             </h1>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/purchase-order/reports"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-black text-white hover:bg-gray-900 text-sm"
+                title="Generate PO summary PDF report"
+              >
+                <FileText className="w-4 h-4" />
+                PO Reports (PDF)
+              </Link>
+            </div>
           </div>
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
@@ -1008,6 +1036,14 @@ export default function PurchaseOrdersPage() {
                         >
                           <Eye className="w-4 h-4" />
                           View
+                        </button>
+                        <button
+                          onClick={() => openPoPdf(po.id, true)}
+                          className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg transition-colors"
+                          title="Open PO PDF / print layout"
+                        >
+                          <FileText className="w-4 h-4" />
+                          PDF
                         </button>
                         {po.status === 'draft' && (
                           <button
