@@ -206,7 +206,7 @@ export default function AddEditProductPage({
   const getSizeOptionsForVariation = (sizes: string[]): string[] | undefined => {
     const dbSizes = allSizes.map(s => s.name);
     const contextOptions = sizeContext.options || [];
-    
+
     const existing = (Array.isArray(sizes) ? sizes : [])
       .map((s) => String(s || '').trim())
       .filter(Boolean);
@@ -1370,8 +1370,8 @@ export default function AddEditProductPage({
               <button
                 onClick={() => setActiveTab('general')}
                 className={`px-6 py-3 font-medium border-b-2 transition-all ${activeTab === 'general'
-                    ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
+                  ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
                   }`}
               >
                 General Information
@@ -1380,8 +1380,8 @@ export default function AddEditProductPage({
                 <button
                   onClick={() => setActiveTab('variations')}
                   className={`px-6 py-3 font-medium border-b-2 transition-all ${activeTab === 'variations'
-                      ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
+                    ? 'border-gray-900 dark:border-white text-gray-900 dark:text-white'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
                     }`}
                 >
                   Product Variations

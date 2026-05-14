@@ -553,3 +553,13 @@ for each product variant, beside the tags: tota;, online and offline, we need an
 in the reserved tag, we will write the total reserved qty for the product.
 N.B.:do not change any other logic or code. simply write the reserved qty of that variant from the reserved_product table there.
 
+### product list sorting
+we want this update: 
+currently, in the product list the prroduct variations come sorted from backend following some logic.
+update it so that, under a product sku, the variants come sorted in descending order of total inventory.
+
+update the query builder to handle this sorting efficiently.
+
+### variation_suffix gone 
+there was a frontend hardcode where we slugified the variation suffix ("- Red Purple - xl"  became "-red-purple-xl").
+this needs to be fixed. Variation suffix must maintain whatever form it was given as.  
