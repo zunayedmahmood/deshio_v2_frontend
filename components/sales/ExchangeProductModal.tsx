@@ -296,8 +296,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     : 0;
 
   const refundDue = totals.difference < 0 
-    ? Math.abs(totals.difference) - totalPaid
+    ? Math.max(0, Math.abs(totals.difference) - totalPaid)
     : 0;
+  const immediateRefundEntered = totals.difference < 0 ? Math.min(totalPaid, Math.abs(totals.difference)) : 0;
 
   const handleProcessExchange = async () => {
     if (removedItems.length === 0) {
@@ -307,6 +308,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
 
     if (replacementItems.length === 0) {
       setError('Please scan at least one replacement item');
+      return;
+    }
+
+    if (totals.difference > 0 && remainingDue > 0) {
+      setError(`Please collect the remaining ৳${remainingDue.toLocaleString()} before submitting this exchange`);
       return;
     }
 
@@ -560,7 +566,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                   {(totals.difference !== 0) && (
                     <div className="pt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Payment Methods</h4>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{totals.difference > 0 ? 'Collect Payment' : 'Refund / Store Credit'}</h4>
                         <button onClick={() => setShowNoteCounter(!showNoteCounter)} className={`text-[9px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest transition-all ${showNoteCounter ? 'bg-black text-white' : 'bg-blue-50 text-blue-600'}`}>
                           {showNoteCounter ? 'Close Counter' : 'Note Counter'}
                         </button>
@@ -580,6 +586,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                         </div>
                       )}
                       <div className="space-y-4">
+                        {totals.difference < 0 && (
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
+                            Enter cash/card/mobile amount only if refund is paid now. Any remaining refund becomes store credit automatically.
+                          </p>
+                        )}
                         {[
                           { id: 'cash', label: 'CASH', val: effectiveCash, readOnly: cashFromNotes > 0 },
                           { id: 'card', label: 'CARD', val: paymentDetails.card },
@@ -594,12 +605,30 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                           </div>
                         ))}
                       </div>
+                      {totals.difference > 0 && (
+                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-orange-500">
+                          <span>Remaining to collect</span>
+                          <span>৳{remainingDue.toLocaleString()}</span>
+                        </div>
+                      )}
+                      {totals.difference < 0 && (
+                        <div className="space-y-2 text-[10px] font-black uppercase tracking-widest">
+                          <div className="flex justify-between text-green-600">
+                            <span>Immediate refund</span>
+                            <span>৳{immediateRefundEntered.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-blue-600">
+                            <span>Store credit</span>
+                            <span>৳{refundDue.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   <button
                     onClick={handleProcessExchange}
-                    disabled={isProcessing || removedItems.length === 0 || replacementItems.length === 0}
+                    disabled={isProcessing || removedItems.length === 0 || replacementItems.length === 0 || (totals.difference > 0 && remainingDue > 0)}
                     className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center justify-center gap-4 mt-8"
                   >
                     {isProcessing ? (

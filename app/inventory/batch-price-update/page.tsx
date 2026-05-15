@@ -21,8 +21,12 @@ type UpdateRow = {
   batch_id: number;
   batch_number: string | null;
   store: string;
-  old_price: string;
-  new_price: string;
+  old_price?: string;
+  new_price?: string;
+  old_sell_price?: string;
+  new_sell_price?: string;
+  old_cost_price?: string;
+  new_cost_price?: string;
 };
 
 export default function BatchPriceUpdatePage() {
@@ -478,10 +482,10 @@ export default function BatchPriceUpdatePage() {
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-5xl">
               <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                Bulk Batch Selling Price Update
+                Bulk Batch Price Update
               </h1>
               <p className="mt-1 text-gray-600 dark:text-gray-400">
-                Update <span className="font-semibold">sell_price</span> for every batch of a selected product.
+                Update <span className="font-semibold">sell_price</span> and/or <span className="font-semibold">cost_price</span> for every batch of a selected product.
                 This impacts Ecommerce + Social Commerce + POS wherever batch pricing is used.
               </p>
 
@@ -606,9 +610,9 @@ export default function BatchPriceUpdatePage() {
 
               {/* Update Price */}
               <div className="mt-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Set new selling price</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Set new batch prices</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Applies to all batches of the selected product.
+                  Applies to all batches of the selected product/selected same-SKU variations.
                 </p>
 
 
@@ -795,7 +799,7 @@ export default function BatchPriceUpdatePage() {
                         Update cost price (specific batch)
                       </h2>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Cost price changes only the selected batch. Selling price changes all batches using the button above.
+                        Use this table when you only need to change cost price for one specific batch.
                       </p>
                     </div>
 
@@ -892,7 +896,7 @@ export default function BatchPriceUpdatePage() {
                 <div className="mt-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Updated batches</h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Backend response: per-batch old → new prices.
+                    Backend response: per-batch old → new selling/cost prices.
                   </p>
 
                   <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
@@ -902,8 +906,10 @@ export default function BatchPriceUpdatePage() {
                           <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Batch ID</th>
                           <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Batch No</th>
                           <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Store</th>
-                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Old</th>
-                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">New</th>
+                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Old Sell</th>
+                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">New Sell</th>
+                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">Old Cost</th>
+                          <th className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">New Cost</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -912,8 +918,10 @@ export default function BatchPriceUpdatePage() {
                             <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{u.batch_id}</td>
                             <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{u.batch_number || '-'}</td>
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{u.store}</td>
-                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{u.old_price}</td>
-                            <td className="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100">{u.new_price}</td>
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{u.old_sell_price ?? u.old_price ?? '-'}</td>
+                            <td className="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100">{u.new_sell_price ?? u.new_price ?? '-'}</td>
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{u.old_cost_price ?? '-'}</td>
+                            <td className="px-3 py-2 font-semibold text-gray-900 dark:text-gray-100">{u.new_cost_price ?? '-'}</td>
                           </tr>
                         ))}
                       </tbody>

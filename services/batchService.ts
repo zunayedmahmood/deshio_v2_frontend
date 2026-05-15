@@ -127,14 +127,22 @@ export interface ApiResponse<T> {
  */
 export interface BulkBatchPriceUpdateData {
   product_id: number;
-  sell_price: string; // backend may return string formatted
-  updated_batches: number;
+  sell_price?: string; // backend may return string formatted
+  cost_price?: string;
+  new_sell_price?: string | null;
+  new_cost_price?: string | null;
+  updated_batches?: number;
+  batches_updated?: number;
   updates: Array<{
     batch_id: number;
     batch_number: string | null;
     store: string;
-    old_price: string;
-    new_price: string;
+    old_price?: string;
+    new_price?: string;
+    old_sell_price?: string;
+    new_sell_price?: string;
+    old_cost_price?: string;
+    new_cost_price?: string;
   }>;
 }
 

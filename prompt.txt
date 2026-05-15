@@ -591,3 +591,16 @@ an order of total 30, we paid 20 in advance. When editing that order, 20 advance
 an order of total 30, we paid 30 in advance. When editing that order, 30 advance is not saved/shown.
 
 pls make it. pls fix this.
+
+
+### service only order 
+
+social_commerce page already handles service only orders.
+we need a new order_status: service_only.
+we'll need a new "service_only' filter in orders page.
+
+the last_updated filter is not  working properly in orders page.
+we created an order  on May 15, packed  it (confirmed) on May 16. 
+so, when we select may 16 and date based on Last_updated, we should be able to see it.
+This may be almost working. we see a flash of that order,  but, some final code isforcefully  hiding it.
+
