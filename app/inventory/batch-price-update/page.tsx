@@ -240,12 +240,12 @@ export default function BatchPriceUpdatePage() {
         setSuccessMsg(null);
         setUpdates([]);
 
-        const res = await productService.getEcommerceProduct(selectedProduct.id);
-        if (!res?.success || !res?.data?.product) {
-          throw new Error(res?.message || 'Product data not found in catalog.');
+        const res = await catalogService.getProduct(selectedProduct.id);
+        if (!res?.product) {
+          throw new Error('Product data not found in catalog.');
         }
 
-        const productData = res.data.product;
+        const productData = res.product;
         // Ensure batches have product context for consistency with Batch interface
         const list = (productData.batches || []).map((b: any) => ({
           ...b,
@@ -299,18 +299,12 @@ export default function BatchPriceUpdatePage() {
       }
 
       try {
-        const list = await productService.advancedSearchAll(
-        {
-          query: sku,
-          is_archived: false,
-          enable_fuzzy: false,
-          fuzzy_threshold: 100,
-          search_fields: ['sku'],
-          per_page: 200,
-        },
-        { max_items: 2000 }
-      );
-        const list2 = (list || []) as FullProduct[];
+        const res = await catalogService.getProducts({
+          q: sku,
+          per_page: 500,
+          group_by_sku: false
+        });
+        const list2 = res.products || [];
         const exact = list2
           .filter((p) => String(p.sku || '').trim() === sku)
           .map((p) => ({ id: p.id, name: p.name, sku: p.sku } as ProductPick));
@@ -557,11 +551,11 @@ export default function BatchPriceUpdatePage() {
                       </div>
                     ))}
 
-                    {searchHasMore && !isSearching && (
+                    {searchHasMore && !isSearching && searchLimit < 500 && (
                       <div className="mt-2">
                         <button
                           type="button"
-                          onClick={() => setSearchLimit((v) => v + 20)}
+                          onClick={() => setSearchLimit((v) => Math.min(v + 50, 500))}
                           className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                         >
                           +More

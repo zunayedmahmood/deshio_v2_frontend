@@ -1035,8 +1035,10 @@ export default function LookupPage() {
       updated_at: o.updated_at ?? null,
       items: items.map((it: any, idx: number) => {
         const rawBarcode = it?.barcode;
-        const barcodeVal = rawBarcode?.barcode ?? rawBarcode ?? it?.barcode_number ?? null;
-        const barcodeId = rawBarcode?.id ?? it?.product_barcode_id ?? it?.barcode_id ?? null;
+        const barcodeVal = typeof rawBarcode === 'object'
+          ? rawBarcode?.barcode ?? rawBarcode?.barcode_number ?? it?.barcode_number ?? it?.scanned_barcode?.barcode ?? it?.product_barcode?.barcode ?? null
+          : rawBarcode ?? it?.barcode_number ?? it?.scanned_barcode?.barcode ?? it?.product_barcode?.barcode ?? null;
+        const barcodeId = rawBarcode?.id ?? it?.product_barcode_id ?? it?.barcode_id ?? it?.scanned_barcode?.id ?? it?.product_barcode?.id ?? null;
         const batchId = it?.product_batch_id ?? it?.batch_id ?? it?.batch?.id ?? null;
         const barcodesArr = Array.isArray(it?.barcodes) ? it.barcodes : [];
         const barcodeDetails: Array<{ barcode: string; id?: number }> = [];
@@ -1045,7 +1047,7 @@ export default function LookupPage() {
         const pushBarcode = (value: any, fallbackId?: any) => {
           if (!value) return;
           if (typeof value === 'object') {
-            pushBarcode(value.barcode ?? value.code ?? value.value, value.id ?? value.product_barcode_id ?? value.barcode_id ?? fallbackId);
+            pushBarcode(value.barcode ?? value.barcode_number ?? value.code ?? value.value, value.id ?? value.product_barcode_id ?? value.barcode_id ?? fallbackId);
             return;
           }
 
@@ -1062,7 +1064,13 @@ export default function LookupPage() {
         };
 
         pushBarcode(barcodeVal, barcodeId);
-        barcodesArr.forEach((b: any) => pushBarcode(b));
+        pushBarcode(rawBarcode, barcodeId);
+        pushBarcode(it?.barcode_number, barcodeId);
+        pushBarcode(it?.scanned_barcode, barcodeId);
+        pushBarcode(it?.product_barcode, barcodeId);
+        barcodesArr.forEach((b: any) => pushBarcode(b, barcodeId));
+        (Array.isArray(it?.barcode_details) ? it.barcode_details : []).forEach((b: any) => pushBarcode(b, barcodeId));
+        (Array.isArray(it?.barcodeDetails) ? it.barcodeDetails : []).forEach((b: any) => pushBarcode(b, barcodeId));
         const finalBarcodes = barcodeDetails.map((barcode) => barcode.barcode);
 
         return {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, ArrowRightLeft, Calculator, ChevronDown, Barcode, Trash2, CheckCircle2, AlertCircle, RotateCcw, Loader2 } from 'lucide-react';
+import { X, Search, ArrowRightLeft, Calculator, Barcode, Trash2, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import axiosInstance from '@/lib/axios';
 import storeService, { type Store } from '@/services/storeService';
 
@@ -23,6 +23,8 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
   const replacementInputRef = useRef<HTMLInputElement>(null);
   const returnScanTimerRef = useRef<number | null>(null);
   const replacementScanTimerRef = useRef<number | null>(null);
+  const returnScanInFlightRef = useRef(false);
+  const replacementScanInFlightRef = useRef(false);
 
   // Store selection
   const [stores, setStores] = useState<Store[]>([]);
@@ -62,7 +64,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     }
   };
 
-  const normalizeBarcode = (value: any) => String(value ?? '').trim().toLowerCase();
+  const normalizeBarcode = (value: any) => String(value ?? '').trim().replace(/\s+/g, '').toLowerCase();
 
   const collectItemBarcodes = (item: any) => {
     const result: Array<{ code: string; id?: number }> = [];
@@ -72,7 +74,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
       if (!value) return;
 
       if (typeof value === 'object') {
-        const code = value.barcode ?? value.code ?? value.value;
+        const code = value.barcode ?? value.barcode_number ?? value.code ?? value.value;
         const id = value.id ?? value.product_barcode_id ?? value.barcode_id ?? fallbackId;
         pushBarcode(code, id);
         return;
@@ -91,11 +93,17 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
       });
     };
 
-    (Array.isArray(item?.barcode_details) ? item.barcode_details : []).forEach((barcode: any) => pushBarcode(barcode));
-    (Array.isArray(item?.barcodes) ? item.barcodes : []).forEach((barcode: any) => pushBarcode(barcode));
-    pushBarcode(item?.barcode, item?.barcode_id ?? item?.product_barcode_id);
-    pushBarcode(item?.product_barcode, item?.product_barcode_id);
-    pushBarcode(item?.barcode_number, item?.barcode_id ?? item?.product_barcode_id);
+    const fallbackId = item?.product_barcode_id ?? item?.barcode_id ?? item?.productBarcodeId ?? item?.barcodeId;
+
+    (Array.isArray(item?.barcode_details) ? item.barcode_details : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
+    (Array.isArray(item?.barcodeDetails) ? item.barcodeDetails : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
+    (Array.isArray(item?.barcodes) ? item.barcodes : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
+    (Array.isArray(item?.product_barcodes) ? item.product_barcodes : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
+    pushBarcode(item?.barcode, fallbackId);
+    pushBarcode(item?.barcode_number, fallbackId);
+    pushBarcode(item?.product_barcode, fallbackId);
+    pushBarcode(item?.productBarcode, fallbackId);
+    pushBarcode(item?.scanned_barcode, fallbackId);
 
     return result;
   };
@@ -116,43 +124,52 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     const code = barcodeInput.trim();
     if (!code) return;
 
-    setError(null);
+    if (returnScanInFlightRef.current) return;
+    returnScanInFlightRef.current = true;
+
+    try {
+
+      setError(null);
     
-    if (removedItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
-      setError('Item already scanned for return');
-      setBarcodeInput('');
-      return;
-    }
+      if (removedItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
+        setError('Item already scanned for return');
+        setBarcodeInput('');
+        return;
+      }
 
-    const found = findOrderItemByBarcode(code);
+      const found = findOrderItemByBarcode(code);
     
-    if (!found) {
-      setError('This barcode does not belong to the current order');
+      if (!found) {
+        setError('This barcode does not belong to the current order');
+        setBarcodeInput('');
+        return;
+      }
+
+      const { orderItem, matchedBarcode } = found;
+      const unitPrice = getItemUnitPrice(orderItem);
+      const productBarcodeId = matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id;
+
+      const newItem = {
+        order_item_id: orderItem.id,
+        product_id: orderItem.product_id ?? orderItem.product?.id,
+        product_batch_id: orderItem.product_batch_id || orderItem.batch_id || orderItem.batch?.id,
+        product_name: orderItem.product_name || orderItem.product?.name || orderItem.name || 'Unknown Product',
+        barcode: matchedBarcode.code,
+        product_barcode_id: productBarcodeId,
+        barcode_id: productBarcodeId,
+        unit_price: unitPrice,
+        quantity: 1,
+        total_price: unitPrice,
+        return_reason: 'exchange',
+        quality_check_passed: true
+      };
+
+      setRemovedItems(prev => [...prev, newItem]);
       setBarcodeInput('');
-      return;
+      window.setTimeout(() => replacementInputRef.current?.focus(), 0);
+    } finally {
+      returnScanInFlightRef.current = false;
     }
-
-    const { orderItem, matchedBarcode } = found;
-    const unitPrice = getItemUnitPrice(orderItem);
-    const productBarcodeId = matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id;
-
-    const newItem = {
-      order_item_id: orderItem.id,
-      product_id: orderItem.product_id,
-      product_batch_id: orderItem.product_batch_id || orderItem.batch_id || orderItem.batch?.id,
-      product_name: orderItem.product_name || orderItem.product?.name,
-      barcode: matchedBarcode.code,
-      product_barcode_id: productBarcodeId,
-      barcode_id: productBarcodeId,
-      unit_price: unitPrice,
-      quantity: 1,
-      total_price: unitPrice,
-      return_reason: 'exchange',
-      quality_check_passed: true
-    };
-
-    setRemovedItems(prev => [...prev, newItem]);
-    setBarcodeInput('');
   };
 
   const handleReplacementScan = async (e?: React.FormEvent) => {
@@ -160,21 +177,27 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     const code = replacementBarcodeInput.trim();
     if (!code) return;
 
+    if (replacementScanInFlightRef.current) return;
+    replacementScanInFlightRef.current = true;
+
     setError(null);
 
-    if (replacementItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
-      setError('Item already scanned as replacement');
-      setReplacementBarcodeInput('');
-      return;
-    }
-
     try {
+      if (replacementItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
+        setError('Item already scanned as replacement');
+        setReplacementBarcodeInput('');
+        return;
+      }
+
       const response = await axiosInstance.get('/lookup/product', { params: { barcode: code } });
-      const lookupData = response.data.data;
+      const lookupData = response.data?.data || response.data || {};
       const barcodeData = lookupData?.barcode || {};
       const productData = lookupData?.product || barcodeData.product || {};
+      const directBarcode = typeof lookupData?.barcode === 'string' ? lookupData.barcode : null;
+      const barcodeCode = barcodeData.barcode || lookupData.barcode_number || directBarcode || code;
+      const hasBarcodeRecord = Boolean(barcodeData.id || barcodeData.barcode || lookupData.barcode_id || lookupData.barcode_number || directBarcode);
 
-      if (!lookupData || !barcodeData.barcode) {
+      if (!lookupData || !hasBarcodeRecord || !barcodeCode) {
         setError('Barcode not found in inventory');
         return;
       }
@@ -196,7 +219,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
         product_id: productData.id || barcodeData.product_id || lookupData.product_id,
         batch_id: batch.id || barcodeData.batch_id,
         name: productData.name || 'Unknown Product',
-        barcode: barcodeData.barcode || code,
+        barcode: barcodeCode,
         barcode_id: barcodeData.id || lookupData.id,
         unit_price: unitPrice,
         quantity: 1,
@@ -206,8 +229,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
 
       setReplacementItems(prev => [...prev, newItem]);
       setReplacementBarcodeInput('');
+      window.setTimeout(() => replacementInputRef.current?.focus(), 0);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch barcode details');
+    } finally {
+      replacementScanInFlightRef.current = false;
     }
   };
 
@@ -218,7 +244,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     if (returnScanTimerRef.current) window.clearTimeout(returnScanTimerRef.current);
     returnScanTimerRef.current = window.setTimeout(() => {
       handleReturnScan();
-    }, 140);
+    }, 70);
 
     return () => {
       if (returnScanTimerRef.current) window.clearTimeout(returnScanTimerRef.current);
@@ -232,7 +258,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     if (replacementScanTimerRef.current) window.clearTimeout(replacementScanTimerRef.current);
     replacementScanTimerRef.current = window.setTimeout(() => {
       handleReplacementScan();
-    }, 240);
+    }, 120);
 
     return () => {
       if (replacementScanTimerRef.current) window.clearTimeout(replacementScanTimerRef.current);
@@ -387,6 +413,12 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
                     onFocus={() => setScanningMode('return')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleReturnScan();
+                      }
+                    }}
                     className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-2xl focus:border-red-500 outline-none transition-all text-sm font-bold placeholder:text-gray-300 dark:placeholder:text-gray-600 uppercase tracking-widest"
                   />
                   {scanningMode === 'return' && (
@@ -452,6 +484,12 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                     value={replacementBarcodeInput}
                     onChange={(e) => setReplacementBarcodeInput(e.target.value)}
                     onFocus={() => setScanningMode('replacement')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleReplacementScan();
+                      }
+                    }}
                     className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-2xl focus:border-green-500 outline-none transition-all text-sm font-bold placeholder:text-gray-300 dark:placeholder:text-gray-600 uppercase tracking-widest"
                   />
                   {scanningMode === 'replacement' && (
