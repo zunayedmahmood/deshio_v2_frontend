@@ -891,6 +891,19 @@ export default function AddEditProductPage({
     try {
       const newSize = await sizeService.createSize(name);
       setAllSizes(prev => [...prev, newSize]);
+
+      // ✅ Update availableFields so DynamicFieldInput dropdowns get the new size immediately
+      const norm = (s: any) => String(s || '').trim().toLowerCase();
+      setAvailableFields(prev => prev.map(f => {
+        if (norm(f.title) === 'size' || norm(f.name) === 'size') {
+          return {
+            ...f,
+            options: Array.from(new Set([...(f.options || []), name]))
+          };
+        }
+        return f;
+      }));
+
       setToast({ message: `Size "${name}" created and added to list.`, type: 'success' });
     } catch (error: any) {
       console.error('Failed to create size:', error);
@@ -1591,6 +1604,7 @@ export default function AddEditProductPage({
                             availableFields={availableFields}
                             onUpdate={(value) => updateFieldValue(field.instanceId, value)}
                             onRemove={() => removeField(field.instanceId)}
+                            onCreateOption={['size', 'sizes'].includes(String(field.fieldName || '').trim().toLowerCase()) ? handleCreateSize : undefined}
                           />
                         ))}
                       </div>

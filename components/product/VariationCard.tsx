@@ -1,4 +1,5 @@
-import { Trash2, Plus, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, Plus, X, Check } from 'lucide-react';
 
 // Clothing + Footwear sizes (EU 38–43 with US mapping in label)
 const SIZE_OPTIONS = [
@@ -39,6 +40,10 @@ interface VariationCardProps {
   // Optional: preset buttons (e.g., add all sneaker sizes)
   sizePresetButtons?: Array<{ key: string; label: string }>;
   onApplySizePreset?: (key: string) => void;
+
+  // Manual size creation
+  onCreateSize?: (name: string) => Promise<void>;
+  onSizesUpdate?: (sizes: string[]) => void;
 }
 
 export default function VariationCard({
@@ -54,9 +59,44 @@ export default function VariationCard({
   colorRequired = false,
   sizeOptions,
   sizePresetButtons,
-  onApplySizePreset
+  onApplySizePreset,
+  onCreateSize,
+  onSizesUpdate
 }: VariationCardProps) {
   const options = Array.isArray(sizeOptions) && sizeOptions.length > 0 ? sizeOptions : SIZE_OPTIONS;
+
+  const [isManual, setIsManual] = useState(false);
+  const [manualValue, setManualValue] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleAddManual = async () => {
+    const val = manualValue.trim();
+    if (!val) return;
+
+    setIsCreating(true);
+    try {
+      if (onCreateSize) {
+        await onCreateSize(val);
+      }
+      
+      // Add to current variation's sizes
+      const newSizes = [...variation.sizes, val];
+      if (onSizesUpdate) {
+        onSizesUpdate(newSizes);
+      } else {
+        // Fallback if onSizesUpdate not provided (though it should be)
+        onSizeAdd();
+        setTimeout(() => onSizeUpdate(variation.sizes.length, val), 0);
+      }
+      
+      setManualValue('');
+      setIsManual(false);
+    } catch (error) {
+      console.error('Failed to create manual size:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
@@ -172,8 +212,57 @@ export default function VariationCard({
                 <Plus className="w-4 h-4" />
                 Add Size
               </button>
+
+              <button
+                type="button"
+                onClick={() => setIsManual(true)}
+                className="text-sm text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Manual Size
+              </button>
             </div>
           </div>
+
+          {isManual && (
+            <div className="mb-3 flex items-center gap-2 bg-purple-50 dark:bg-purple-900/10 p-2 rounded-lg border border-purple-100 dark:border-purple-900/20">
+              <input
+                type="text"
+                value={manualValue}
+                onChange={(e) => setManualValue(e.target.value)}
+                placeholder="Enter size (e.g. 42.5, Custom)"
+                className="flex-1 px-3 py-1.5 text-sm border border-purple-200 dark:border-purple-800 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddManual();
+                  }
+                  if (e.key === 'Escape') setIsManual(false);
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddManual}
+                disabled={isCreating || !manualValue.trim()}
+                className="p-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                title="Add manual size"
+              >
+                {isCreating ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsManual(false)}
+                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {variation.sizes.length === 0 ? (
             <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-3 rounded-lg text-center">
