@@ -99,7 +99,7 @@ export default function BatchPriceUpdatePage() {
 
       for (const pid of targetIds) {
         // Use getBatchesAll to avoid silent per_page caps
-        const list = await batchService.getBatchesAll({ product_id: Number(pid) }, { per_page: 100, max_items: 10000 });
+        const list = await batchService.getBatchesAll({ product_id: Number(pid), per_page: 100 }, { max_items: 10000 });
         for (const b of list) {
           const productName = String(b?.product?.name || selectedProduct.name || 'Product');
           const price = desiredPrice !== null ? desiredPrice : toNumber((b as any)?.sell_price ?? 0);
@@ -240,19 +240,15 @@ export default function BatchPriceUpdatePage() {
         setSuccessMsg(null);
         setUpdates([]);
 
-        const res = await catalogService.getProduct(selectedProduct.id);
-        if (!res?.product) {
-          throw new Error('Product data not found in catalog.');
-        }
-
-        const productData = res.product;
-        // Ensure batches have product context for consistency with Batch interface
-        const list = (productData.batches || []).map((b: any) => ({
+        const list = (await batchService.getBatchesAll(
+          { product_id: selectedProduct.id, per_page: 100 },
+          { max_items: 10000 }
+        )).map((b: any) => ({
           ...b,
           product: b.product || {
-            id: productData.id,
-            name: productData.name,
-            sku: productData.sku
+            id: selectedProduct.id,
+            name: selectedProduct.name,
+            sku: selectedProduct.sku
           },
           store: b.store || { id: b.store_id, name: `Store #${b.store_id}` }
         }));
@@ -455,10 +451,10 @@ export default function BatchPriceUpdatePage() {
       setUpdates(((firstSuccess?.data?.updates || []) as UpdateRow[]) || []);
 
       // Reload batches for the currently selected product
-      const list = await batchService.getBatchesArray({
-        product_id: selectedProduct.id,
-        per_page: 200,
-      });
+      const list = await batchService.getBatchesAll(
+        { product_id: selectedProduct.id, per_page: 100 },
+        { max_items: 10000 }
+      );
       setBatches(list);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to update batch prices.');

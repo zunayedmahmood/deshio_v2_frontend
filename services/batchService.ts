@@ -239,11 +239,10 @@ class BatchService {
    */
   async updateAllBatchPrices(
     productId: number,
-    sellPrice: number
+    priceData: number | { sell_price?: number; cost_price?: number }
   ): Promise<ApiResponse<BulkBatchPriceUpdateData>> {
-    const response = await axios.post(`/products/${productId}/batches/update-price`, {
-      sell_price: sellPrice,
-    });
+    const payload = typeof priceData === 'number' ? { sell_price: priceData } : priceData;
+    const response = await axios.post(`/products/${productId}/batches/update-price`, payload);
     return response.data;
   }
 

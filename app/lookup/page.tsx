@@ -325,10 +325,14 @@ type BatchLookupData = {
   };
   summary: {
     total_units: number;
+    physical_stock_quantity?: number;
+    barcode_identities?: number;
     active: number;
     available_for_sale: number;
+    saleable_barcode_identities?: number;
     sold: number;
     defective: number;
+    open_replacement_barcodes?: number;
   };
   status_breakdown: Array<{ status: string; count: number }>;
   store_distribution: Array<{ store_id: number | null; store_name: string; count: number }>;
@@ -342,6 +346,9 @@ type BatchLookupData = {
     is_active: boolean;
     is_defective: boolean;
     is_available_for_sale: boolean;
+    is_replacement?: boolean;
+    replacement_status?: string | null;
+    relabel_reason?: string | null;
     location_updated_at: string;
 
     // optional fields your backend may have:
@@ -2150,17 +2157,29 @@ export default function LookupPage() {
   // -----------------------
   const computeBatchSummary = (bd: BatchLookupData) => {
     const list = bd?.barcodes || [];
+    const physicalStock = Number(
+      bd?.summary?.physical_stock_quantity ??
+      (bd?.batch as any)?.quantity ??
+      bd?.batch?.original_quantity ??
+      bd?.summary?.total_units ??
+      list.length
+    ) || 0;
     const sold = list.filter((b) => normalizeStatusKey(b.current_status) === 'sold' || String(b.status_label || '').toLowerCase().includes('sold')).length;
     const defective = list.filter((b) => b.is_defective).length;
-    const available = list.filter((b) => b.is_available_for_sale && normalizeStatusKey(b.current_status) !== 'sold').length;
+    const saleableIdentities = list.filter((b) => b.is_available_for_sale && normalizeStatusKey(b.current_status) !== 'sold').length;
+    const available = Math.min(physicalStock, saleableIdentities);
     const active = list.filter((b) => b.is_active && normalizeStatusKey(b.current_status) !== 'sold').length;
 
     return {
-      total_units: list.length,
+      total_units: physicalStock,
+      physical_stock_quantity: physicalStock,
+      barcode_identities: bd?.summary?.barcode_identities ?? list.length,
       active,
       available_for_sale: available,
+      saleable_barcode_identities: bd?.summary?.saleable_barcode_identities ?? saleableIdentities,
       sold,
       defective,
+      open_replacement_barcodes: bd?.summary?.open_replacement_barcodes ?? list.filter((b) => b.is_replacement && b.replacement_status === 'open').length,
     };
   };
 
@@ -3279,12 +3298,12 @@ export default function LookupPage() {
                           return (
                             <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2">
                               <div className="border border-gray-200 dark:border-gray-800 rounded p-2">
-                                <p className="text-[9px] text-gray-500 uppercase font-medium mb-1">Total</p>
+                                <p className="text-[9px] text-gray-500 uppercase font-medium mb-1">Physical Stock</p>
                                 <p className="text-xs font-semibold text-black dark:text-white">{computed.total_units}</p>
                               </div>
                               <div className="border border-gray-200 dark:border-gray-800 rounded p-2">
-                                <p className="text-[9px] text-gray-500 uppercase font-medium mb-1">Active</p>
-                                <p className="text-xs font-semibold text-black dark:text-white">{computed.active}</p>
+                                <p className="text-[9px] text-gray-500 uppercase font-medium mb-1">Barcode IDs</p>
+                                <p className="text-xs font-semibold text-black dark:text-white">{computed.barcode_identities}</p>
                               </div>
                               <div className="border border-gray-200 dark:border-gray-800 rounded p-2">
                                 <p className="text-[9px] text-gray-500 uppercase font-medium mb-1">Available</p>
@@ -3387,6 +3406,10 @@ export default function LookupPage() {
 
                                         {b.is_defective && (
                                           <span className="text-[9px] px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">defective</span>
+                                        )}
+
+                                        {b.is_replacement && (
+                                          <span className="text-[9px] px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">relabel {b.replacement_status || ''}</span>
                                         )}
 
                                         {/* sale means available for sale */}
