@@ -563,3 +563,8 @@ update the query builder to handle this sorting efficiently.
 ### variation_suffix gone 
 there was a frontend hardcode where we slugified the variation suffix ("- Red Purple - xl"  became "-red-purple-xl").
 this needs to be fixed. Variation suffix must maintain whatever form it was given as.  
+
+
+### service_only order type.
+add a new order type: "service_only".
+in social commerce page, when we create an 

@@ -632,7 +632,7 @@ export default function OrdersDashboard() {
     }
     checkPrinterStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, storeFilter]);
+  }, [viewMode, storeFilter, dateFilterType, dateFilter, startDate, endDate]);
 
 
   const parseMoney = (val: any) => Number(String(val ?? '0').replace(/[^0-9.-]/g, ''));
@@ -1218,6 +1218,8 @@ export default function OrdersDashboard() {
         sort_order: 'desc',
         per_page: 1000,
         date_filter_type: dateFilterType,
+        date_from: startDate || dateFilter || undefined,
+        date_to: endDate || dateFilter || undefined,
       };
 
       if (viewMode === 'installments') {
@@ -1243,7 +1245,11 @@ export default function OrdersDashboard() {
         allOrders = [...(social.data || []), ...(ecommerce.data || [])];
       }
 
-      allOrders.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      allOrders.sort((a: any, b: any) => {
+        const dateA = dateFilterType === 'updated_at' ? (a.updated_at || a.created_at) : a.created_at;
+        const dateB = dateFilterType === 'updated_at' ? (b.updated_at || b.created_at) : b.created_at;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
 
       const transformedOrders = allOrders.map((o: any) => transformOrder(o));
       const hydrated = await hydrateCouriersFromDB(transformedOrders);

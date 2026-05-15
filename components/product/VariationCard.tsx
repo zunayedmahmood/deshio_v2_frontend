@@ -79,16 +79,6 @@ export default function VariationCard({
         await onCreateSize(val);
       }
       
-      // Add to current variation's sizes
-      const newSizes = [...variation.sizes, val];
-      if (onSizesUpdate) {
-        onSizesUpdate(newSizes);
-      } else {
-        // Fallback if onSizesUpdate not provided (though it should be)
-        onSizeAdd();
-        setTimeout(() => onSizeUpdate(variation.sizes.length, val), 0);
-      }
-      
       setManualValue('');
       setIsManual(false);
     } catch (error) {

@@ -41,7 +41,6 @@ export default function DynamicFieldInput({
       if (onCreateOption) {
         await onCreateOption(val);
       }
-      onUpdate(val);
       setManualValue('');
       setIsManual(false);
     } catch (error) {

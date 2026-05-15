@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
@@ -155,6 +155,7 @@ export default function AddEditProductPage({
   const [categories, setCategories] = useState<CategoryTree[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [allSizes, setAllSizes] = useState<Size[]>([]);
+  const initialDataLoaded = useRef(false);
 
 
   // --- Size presets (Errum): quickly select full size chart for a category ---
@@ -231,8 +232,13 @@ export default function AddEditProductPage({
   }, []);
 
   useEffect(() => {
-    if (isEditMode && productId && availableFields.length > 0) {
-      fetchProduct();
+    if (initialDataLoaded.current) return;
+
+    if (isEditMode && productId) {
+      if (availableFields.length > 0) {
+        fetchProduct();
+        initialDataLoaded.current = true;
+      }
     } else if (addVariationMode) {
       setFormData({
         name: storedBaseName,
@@ -245,6 +251,7 @@ export default function AddEditProductPage({
       }
       setHasVariations(true);
       setActiveTab('general');
+      initialDataLoaded.current = true;
     }
   }, [isEditMode, productId, availableFields, addVariationMode, storedBaseName, storedBaseSku, storedCategoryId, storedVendorId]);
 
