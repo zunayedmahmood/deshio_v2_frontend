@@ -567,4 +567,27 @@ this needs to be fixed. Variation suffix must maintain whatever form it was give
 
 ### service_only order type.
 add a new order type: "service_only".
-in social commerce page, when we create an 
+in social commerce page, when we create an
+
+### product stock up and down 
+the order editing is a bit incosnsistent:
+when we edit an order (implies social commerce and ecom order) that has not been scanned, confirmed or delivered:
+we should be able to increase or decrease qty of any product in the list on top of existing behaviour.
+when we edit an order that has been scanned or confirmed (scanned and confirmed may mean the same thing):
+decreasing qty will not use the counter (deactivate it for scanned products).
+instead, for removal, we should be shown a list of barcodes. we click to remove scanned barcodes from the order.
+removed barcodes should be made available again. reserved_product table should be updated.
+increasing qty will simply use the counter. we'll scan them later from the social-commerce/package page.no choosing barcode.
+we can also add new products to the list (increasing and decreasing their qty will simply use the counter), no choosing barcode.
+the order status should be made pending when we add newer products (and stay confirmed when we did nothing but decreased qty of a product)
+this partially scanned order will be scanned from social-commerce/package page later. (the process must be robust) (robust means, the page will be aware of the partial scanned, i.e, 3 is already scanned, 2 is left) (the packing page most likely already supports this).
+
+pls make this. pls.
+
+### edit order prev payment
+When we are editing an order with some previous payment (partial, or full) is not preserved.
+An example:
+an order of total 30, we paid 20 in advance. When editing that order, 20 advance is not saved/shown.
+an order of total 30, we paid 30 in advance. When editing that order, 30 advance is not saved/shown.
+
+pls make it. pls fix this.

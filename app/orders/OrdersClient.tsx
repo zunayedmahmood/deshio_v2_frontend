@@ -85,6 +85,8 @@ interface Order {
     productBarcodeId?: number | null;
     barcode?: string | null;
     availableStock?: number;
+    originalQuantity?: number;
+    isScanned?: boolean;
   }>;
   services: Array<{
     id: number;
@@ -947,6 +949,8 @@ export default function OrdersDashboard() {
           productBarcodeId: item.product_barcode_id ?? item.barcode_id ?? null,
           barcode: item.barcode ?? item.scanned_barcode?.barcode ?? null,
           availableStock: item.global_available || 0,
+          originalQuantity: Number(item.quantity ?? 1) || 1,
+          isScanned: Boolean(item.product_barcode_id ?? item.barcode_id ?? item.barcode ?? item.scanned_barcode?.barcode),
         };
       });
 
@@ -1332,10 +1336,13 @@ export default function OrdersDashboard() {
 
     if (dateFilter.trim()) {
       filtered = filtered.filter((o) => {
-        let orderDate = o.date;
-        if (dateFilterType === 'updated_at' && o.updatedAt) {
-          const ud = new Date(o.updatedAt);
-          orderDate = `${String(ud.getDate()).padStart(2, '0')}/${String(ud.getMonth() + 1).padStart(2, '0')}/${ud.getFullYear()}`;
+        let orderDate = o.date; // fallback
+        const targetDateRaw = dateFilterType === 'updated_at' ? o.updatedAt : (o.orderDateRaw || o.createdAt);
+        if (targetDateRaw) {
+          const match = String(targetDateRaw).match(/^(\d{4})-(\d{2})-(\d{2})/);
+          if (match) {
+            orderDate = `${match[3]}/${match[2]}/${match[1]}`; // DD/MM/YYYY
+          }
         }
         let filterDateFormatted = dateFilter;
         if (dateFilter.includes('-') && dateFilter.split('-')[0].length === 4) {
@@ -1345,15 +1352,19 @@ export default function OrdersDashboard() {
         return orderDate === filterDateFormatted;
       });
     } else if (startDate.trim() || endDate.trim()) {
-      const start = startDate.trim() ? new Date(startDate.trim()) : null;
-      const end = endDate.trim() ? new Date(endDate.trim() + "T23:59:59") : null;
+      const startStr = startDate.trim();
+      const endStr = endDate.trim();
 
       filtered = filtered.filter((o) => {
         const oDateStr = dateFilterType === 'updated_at' ? o.updatedAt : (o.orderDateRaw || o.createdAt);
         if (!oDateStr) return false;
-        const oTime = new Date(oDateStr).getTime();
-        if (start && oTime < start.getTime()) return false;
-        if (end && oTime > end.getTime()) return false;
+        
+        const match = String(oDateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return true; // fallback
+        const oDateOnly = `${match[1]}-${match[2]}-${match[3]}`; // YYYY-MM-DD
+        
+        if (startStr && oDateOnly < startStr) return false;
+        if (endStr && oDateOnly > endStr) return false;
         return true;
       });
     }
@@ -1381,7 +1392,7 @@ export default function OrdersDashboard() {
     }
 
     setFilteredOrders(filtered);
-  }, [search, dateFilter, startDate, endDate, orderTypeFilter, orderStatusFilter, paymentStatusFilter, courierFilter, orders]);
+  }, [search, dateFilter, startDate, endDate, dateFilterType, orderTypeFilter, orderStatusFilter, paymentStatusFilter, courierFilter, orders]);
 
   // 🧾 Bulk lookup Pathao status for displayed orders
   const filteredOrderNumbers = useMemo(() => {
@@ -1657,11 +1668,11 @@ export default function OrdersDashboard() {
             quantity: s.quantity,
           }))
         ],
-        paidAmount: fullOrder.paid_amount || 0,
-        totalAmount: fullOrder.total_amount || 0,
-        outstandingAmount: fullOrder.outstanding_amount || 0,
-        discountAmount: fullOrder.discount_amount || 0,
-        shippingAmount: fullOrder.shipping_amount || 0,
+        paidAmount: parseMoney(fullOrder.paid_amount),
+        totalAmount: parseMoney(fullOrder.total_amount),
+        outstandingAmount: parseMoney(fullOrder.outstanding_amount),
+        discountAmount: parseMoney(fullOrder.discount_amount),
+        shippingAmount: parseMoney(fullOrder.shipping_amount),
       };
 
       sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));
@@ -5359,11 +5370,11 @@ export default function OrdersDashboard() {
                             <input
                               type="number"
                               value={item.quantity}
-                              min={1}
-                              disabled={!!(item.productBarcodeId || item.barcodeId || item.barcode)}
-                              title={(item.productBarcodeId || item.barcodeId || item.barcode) ? 'Remove scanned quantity by selecting the barcode below.' : undefined}
+                              min={(item.productBarcodeId || item.barcodeId || item.barcode) ? (item.originalQuantity ?? 1) : 1}
+                              title={(item.productBarcodeId || item.barcodeId || item.barcode) ? 'Increase here to add pending units. Use Remove barcode to decrease scanned units.' : undefined}
                               onChange={(e) => {
-                                const val = Math.max(1, Number(e.target.value || 1));
+                                const minQty = (item.productBarcodeId || item.barcodeId || item.barcode) ? (item.originalQuantity ?? item.quantity ?? 1) : 1;
+                                const val = Math.max(minQty, Number(e.target.value || minQty));
                                 setEditableOrder((prev) => {
                                   if (!prev) return prev;
                                   const items = [...prev.items];
@@ -5372,10 +5383,10 @@ export default function OrdersDashboard() {
                                 });
                                 setItemsTouched(true);
                               }}
-                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-black dark:text-white text-sm disabled:bg-gray-100 disabled:text-gray-500 dark:disabled:bg-gray-800"
+                              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-black dark:text-white text-sm"
                             />
                             {(item.productBarcodeId || item.barcodeId || item.barcode) && (
-                              <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-400">Use Remove barcode</p>
+                              <p className="mt-1 text-[10px] text-blue-600 dark:text-blue-400">Increase here; decrease via Remove barcode</p>
                             )}
                           </div>
 

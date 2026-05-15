@@ -215,6 +215,27 @@ export default function AddEditProductPage({
     return Array.from(new Set([...contextOptions, ...dbSizes, ...existing]));
   };
 
+  const sizePresetButtons = [
+    { key: 'sneakers', label: getPresetLabel('sneakers') },
+    { key: 'dresses', label: getPresetLabel('dresses') },
+  ];
+
+  const applySizePreset = (variationId: string, presetKey: SizePresetKey) => {
+    const preset = Array.isArray(SIZE_PRESETS[presetKey]) ? Array.from(SIZE_PRESETS[presetKey]) : [];
+    if (preset.length === 0) return;
+
+    setVariations((prev) =>
+      prev.map((variation) => {
+        if (variation.id !== variationId) return variation;
+        const currentSizes = (Array.isArray(variation.sizes) ? variation.sizes : [])
+          .map((size) => String(size || '').trim())
+          .filter(Boolean);
+        const mergedSizes = Array.from(new Set([...currentSizes, ...preset]));
+        return { ...variation, sizes: mergedSizes.length > 0 ? mergedSizes : [''] };
+      })
+    );
+  };
+
   useEffect(() => {
     const fetchSizes = async () => {
       try {
@@ -2062,6 +2083,8 @@ export default function AddEditProductPage({
                             onSizesUpdate={(sizes) => updateSizes(variation.id, sizes)}
                             onCreateSize={handleCreateSize}
                             sizeOptions={getSizeOptionsForVariation(variation.sizes)}
+                            sizePresetButtons={sizePresetButtons}
+                            onApplySizePreset={(key) => applySizePreset(variation.id, key as SizePresetKey)}
                           />
                         ))}
                       </div>

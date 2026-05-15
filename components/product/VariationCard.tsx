@@ -78,7 +78,17 @@ export default function VariationCard({
       if (onCreateSize) {
         await onCreateSize(val);
       }
-      
+
+      if (onSizesUpdate) {
+        const currentSizes = (variation.sizes || [])
+          .map((size) => String(size || '').trim())
+          .filter(Boolean);
+        const mergedSizes = currentSizes.includes(val)
+          ? currentSizes
+          : [...currentSizes, val];
+        onSizesUpdate(mergedSizes.length > 0 ? mergedSizes : [val]);
+      }
+
       setManualValue('');
       setIsManual(false);
     } catch (error) {
