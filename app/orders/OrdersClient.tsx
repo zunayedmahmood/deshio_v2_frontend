@@ -1008,7 +1008,7 @@ export default function OrdersDashboard() {
       orderNumber: order.order_number,
       orderType: order.order_type,
       orderTypeLabel: order.order_type_label ?? titleCase(order.order_type ?? ''),
-      date: new Date(order.order_date).toLocaleDateString('en-GB'),
+      date: new Date(order.order_date || order.created_at).toLocaleDateString('en-GB'),
       customer: {
         name: order.customer_name ?? order.customer?.name ?? '',
         phone: order.customer_phone ?? order.customer?.phone ?? '',
@@ -1218,7 +1218,7 @@ export default function OrdersDashboard() {
       let allOrders: any[] = [];
       const commonParams: any = {
         store_id: storeFilter === 'All Stores' ? undefined : storeFilter,
-        sort_by: dateFilterType === 'updated_at' ? 'updated_at' : 'created_at',
+        sort_by: dateFilterType === 'updated_at' ? 'updated_at' : 'order_date',
         sort_order: 'desc',
         per_page: 1000,
         date_filter_type: dateFilterType,
@@ -1250,8 +1250,8 @@ export default function OrdersDashboard() {
       }
 
       allOrders.sort((a: any, b: any) => {
-        const dateA = dateFilterType === 'updated_at' ? (a.updated_at || a.created_at) : a.created_at;
-        const dateB = dateFilterType === 'updated_at' ? (b.updated_at || b.created_at) : b.created_at;
+        const dateA = dateFilterType === 'updated_at' ? (a.updated_at || a.created_at) : (a.order_date || a.created_at);
+        const dateB = dateFilterType === 'updated_at' ? (b.updated_at || b.created_at) : (b.order_date || b.created_at);
         return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
 
