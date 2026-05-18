@@ -346,7 +346,7 @@ export default function OrdersDashboard() {
   const [storeFilter, setStoreFilter] = useState<number | 'All Stores'>('All Stores');
 
   const [search, setSearch] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState(() => getTodayFilterValue());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [dateFilterType, setDateFilterType] = useState<'order_date' | 'updated_at'>('order_date');
