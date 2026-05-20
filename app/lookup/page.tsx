@@ -881,7 +881,15 @@ export default function LookupPage() {
 
   const isSoldFromCurrentLocation = (loc: any, history?: any[]) => {
     const key = normalizeStatusKey(loc?.current_status ?? loc?.status ?? loc?.status_key ?? loc?.status_label);
-    if (key === 'sold') return true;
+
+    // Current barcode state is the source of truth. A returned barcode keeps old
+    // sale/dispatch history, but if the backend says it is saleable now, lookup
+    // must not show it as sold.
+    if (loc?.is_available_for_sale === true || ['available', 'in_warehouse', 'in_shop', 'on_display'].includes(key)) {
+      return false;
+    }
+
+    if (key === 'sold' || key === 'with_customer') return true;
     const meta = readMeta(loc);
     if (String(loc?.status_label || '').toLowerCase().includes('sold')) return true;
     if (String(loc?.current_status || '').toLowerCase() === 'sold') return true;
@@ -894,8 +902,8 @@ export default function LookupPage() {
         return true;
       }
     }
-    // fallback: any history movement indicates sold
-    if (Array.isArray(history) && history.some((h) => isSoldLike(h))) return true;
+    // fallback: only use sale history when the current status is missing/unknown.
+    if ((!key || key === 'unknown_status') && Array.isArray(history) && history.some((h) => isSoldLike(h))) return true;
     return false;
   };
 
@@ -2161,8 +2169,10 @@ export default function LookupPage() {
       const bd = await enrichBarcodeHistoryWithBatchPrices(res.data as any);
       setBatchBarcodeData(bd);
 
-      const ord = await resolveOrderFromBarcodeData(bd);
-      setBatchResolvedOrder(ord);
+      if (isSoldFromCurrentLocation(bd.current_location, bd.history)) {
+        const ord = await resolveOrderFromBarcodeData(bd);
+        setBatchResolvedOrder(ord);
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to load barcode details');
     } finally {
