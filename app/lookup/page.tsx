@@ -821,6 +821,18 @@ export default function LookupPage() {
     );
   };
 
+
+  const formatMovementType = (h: any) => {
+    const type = String(h?.movement_type || '').toLowerCase();
+    const after = String(h?.status_after || '').toLowerCase();
+
+    if (after === 'employee_use' || type === 'employee_use') {
+      return 'Employee use';
+    }
+
+    return h?.movement_type || '—';
+  };
+
   // Backend is not consistent: some endpoints use metadata/meta, others use location_metadata.
   const readMeta = (x: any) =>
     x?.metadata ??
@@ -3166,7 +3178,7 @@ export default function LookupPage() {
                                 return (
                                   <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
                                     <td className="px-2 py-2 text-gray-700 dark:text-gray-300">{formatDate(h.date)}</td>
-                                    <td className="px-2 py-2 font-semibold text-black dark:text-white">{h.movement_type || '—'}</td>
+                                    <td className="px-2 py-2 font-semibold text-black dark:text-white">{formatMovementType(h)}</td>
                                     <td className="px-2 py-2 text-gray-700 dark:text-gray-300">{h.from_store || '—'}</td>
                                     <td className="px-2 py-2 text-gray-700 dark:text-gray-300">{h.to_store || '—'}</td>
                                     <td className="px-2 py-2 text-gray-700 dark:text-gray-300">{(h.status_before || '—') + ' → ' + (h.status_after || '—')}</td>
