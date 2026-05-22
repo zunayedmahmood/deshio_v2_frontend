@@ -40,6 +40,8 @@ export interface ProductReturn {
   approvedBy?: any;
   rejectedBy?: any;
   refunds?: any[];
+  exchange_credit_applied_amount?: number;
+  remaining_refund_amount?: number;
 }
 
 export type ReturnStatus = 

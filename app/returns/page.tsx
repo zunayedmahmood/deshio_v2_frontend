@@ -279,11 +279,22 @@ function ProcessModal({ ret, onClose, onDone }: ProcessModalProps) {
 }
 
 interface CreateRefundModalProps { ret: ProductReturn; allowPartialRefund: boolean; onClose: () => void; onDone: () => void; }
+const getCompletedRefundedAmount = (ret: ProductReturn) => (ret.refunds || [])
+  .filter((refund: any) => refund.status === 'completed')
+  .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
+
+const getRemainingRefundAmount = (ret: ProductReturn) => {
+  if (ret.remaining_refund_amount !== undefined && ret.remaining_refund_amount !== null) {
+    return Math.max(0, parseFloat(String(ret.remaining_refund_amount)) || 0);
+  }
+
+  return Math.max(0, (parseFloat(String(ret.total_refund_amount ?? 0)) || 0) - getCompletedRefundedAmount(ret));
+};
+
+const canIssueReturnRefund = (ret: ProductReturn) => !['rejected'].includes(ret.status) && getRemainingRefundAmount(ret) > 0.01;
+
 function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateRefundModalProps) {
-  const completedRefunded = (ret.refunds || [])
-    .filter((refund: any) => refund.status === 'completed')
-    .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
-  const remainingRefundAmount = Math.max(0, (parseFloat(String(ret.total_refund_amount ?? 0)) || 0) - completedRefunded);
+  const remainingRefundAmount = getRemainingRefundAmount(ret);
   const [method, setMethod] = useState<RefundMethod>('cash');
   const [amount, setAmount] = useState(String(remainingRefundAmount || ret.total_refund_amount || ret.total_return_value || 0));
   const [txRef, setTxRef] = useState('');
@@ -410,11 +421,8 @@ function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateR
 interface DetailModalProps { ret: ProductReturn; onClose: () => void; onIssueRefund: (ret: ProductReturn) => void; }
 function DetailModal({ ret, onClose, onIssueRefund }: DetailModalProps) {
   const isCrossStore = ret.received_at_store_id && ret.store_id && ret.received_at_store_id !== ret.store_id;
-  const completedRefunded = (ret.refunds || [])
-    .filter((refund: any) => refund.status === 'completed')
-    .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
-  const remainingRefundAmount = Math.max(0, (parseFloat(String(ret.total_refund_amount ?? 0)) || 0) - completedRefunded);
-  const canIssueRefund = ['processing', 'completed'].includes(ret.status) && remainingRefundAmount > 0.01;
+  const remainingRefundAmount = getRemainingRefundAmount(ret);
+  const canIssueRefund = canIssueReturnRefund(ret);
 
   return (
     <>
@@ -680,13 +688,7 @@ export default function ReturnsPage() {
     refunded: (stats?.total_returns ?? 0) - (stats?.pending_returns ?? 0) - (stats?.approved_returns ?? 0) - (stats?.completed_returns ?? 0) - (stats?.rejected_returns ?? 0),
   };
 
-  const getCompletedRefundedAmount = (ret: ProductReturn) => (ret.refunds || [])
-    .filter((refund: any) => refund.status === 'completed')
-    .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
-
-  const getRemainingRefundAmount = (ret: ProductReturn) => Math.max(0, (parseFloat(String(ret.total_refund_amount ?? 0)) || 0) - getCompletedRefundedAmount(ret));
-
-  const canIssueRefund = (ret: ProductReturn) => ['processing', 'completed'].includes(ret.status) && getRemainingRefundAmount(ret) > 0.01;
+  const canIssueRefund = (ret: ProductReturn) => canIssueReturnRefund(ret);
 
   return (
     <div className={darkMode ? 'dark' : ''}>
