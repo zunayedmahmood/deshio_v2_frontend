@@ -294,6 +294,7 @@ const getRemainingRefundAmount = (ret: ProductReturn) => {
 const canIssueReturnRefund = (ret: ProductReturn) => !['rejected'].includes(ret.status) && getRemainingRefundAmount(ret) > 0.01;
 
 function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateRefundModalProps) {
+  const alreadyRefundedAmount = getCompletedRefundedAmount(ret);
   const remainingRefundAmount = getRemainingRefundAmount(ret);
   const [method, setMethod] = useState<RefundMethod>('cash');
   const [amount, setAmount] = useState(String(remainingRefundAmount || ret.total_refund_amount || ret.total_return_value || 0));
@@ -372,7 +373,7 @@ function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateR
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Refund Amount (৳)</label>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
-            <p className="text-[10px] text-gray-500 mt-1">Approved: {fmt(ret.total_refund_amount)} • Already refunded: {fmt(completedRefunded)} • Remaining: {fmt(remainingRefundAmount)}</p>
+            <p className="text-[10px] text-gray-500 mt-1">Approved: {fmt(ret.total_refund_amount)} • Already refunded: {fmt(alreadyRefundedAmount)} • Remaining: {fmt(remainingRefundAmount)}</p>
           </div>
           {method === 'digital_wallet' && (
             <div>
