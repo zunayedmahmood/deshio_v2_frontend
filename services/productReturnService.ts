@@ -142,6 +142,10 @@ export interface StatisticsFilters {
   skipStoreScope?: boolean;
 }
 
+export interface PartialRefundSetting {
+  enabled: boolean;
+}
+
 // Service Class
 class ProductReturnService {
   private basePath = '/returns';
@@ -171,6 +175,16 @@ class ProductReturnService {
    */
   async quickComplete(data: CreateReturnRequest) {
     const response = await axiosInstance.post(`${this.basePath}/quick-complete`, data);
+    return response.data;
+  }
+
+  async getPartialRefundSetting() {
+    const response = await axiosInstance.get(`${this.basePath}/settings/partial-refund`);
+    return response.data;
+  }
+
+  async updatePartialRefundSetting(enabled: boolean) {
+    const response = await axiosInstance.put(`${this.basePath}/settings/partial-refund`, { enabled });
     return response.data;
   }
 
