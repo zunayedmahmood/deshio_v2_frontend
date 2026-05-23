@@ -2181,175 +2181,17 @@ export default function OrdersDashboard() {
       alert('Please select at least one order to send to Pathao.');
       return;
     }
-
-    if (!confirm(`Queue ${selectedOrders.size} order(s) for Pathao?`)) return;
+    
+    // Add informative direction about the 19 per 60 sec rate limit
+    if (!confirm(`Send ${selectedOrders.size} order(s) to Pathao?\n\nNote: Pathao API limits us to 19 orders per minute. This process will run in the background and evenly spread out the requests to avoid rate limits.`)) return;
 
     const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    const selectedOrdersList = orders.filter((o) => selectedOrders.has(o.id));
-    const orderIdsToSend = selectedOrdersList
-      .map((o) => Number(o?.id))
-      .filter((id) => Number.isFinite(id) && id > 0);
-
-    if (orderIdsToSend.length === 0) {
-      alert('No valid orders selected.');
-      return;
-    }
-
-    const selectedOrderNumbers = selectedOrdersList
-      .map((o) => o.orderNumber)
-      .filter((n): n is string => Boolean(n));
-
-    const markCourierInBackground = (ids: number[]) => {
-      const idSet = new Set<number>(ids);
-      setOrders((prev) => prev.map((o) => (idSet.has(o.id) ? { ...o, intendedCourier: 'pathao' } : o)));
-
-      void (async () => {
-        const concurrency = Math.min(5, ids.length);
-        let cursor = 0;
-
-        const worker = async () => {
-          while (cursor < ids.length) {
-            const current = ids[cursor++];
-            try {
-              await orderService.setIntendedCourier(current, 'pathao');
-            } catch {
-              // Ignore per-order marker failures; Pathao batch status is tracked separately.
-            }
-          }
-        };
-
-        await Promise.all(Array.from({ length: concurrency }, () => worker()));
-      })();
-    };
-
-    const refreshSelectedPathaoLookups = () => {
-      if (selectedOrderNumbers.length === 0) return;
-      setPathaoLookupByOrderNumber((prev) => {
-        const next = { ...prev };
-        selectedOrderNumbers.forEach((orderNumber) => {
-          delete next[orderNumber];
-        });
-        return next;
-      });
-    };
-
-    const startPathaoQueueFrontendRunner = (batchCode?: string) => {
-      const startedAt = Date.now();
-      const durationMs = 10 * 60 * 1000;
-      const intervalMs = 30 * 1000;
-      const maxRetryRequests = 3;
-      let retryRequests = 0;
-
-      const runTick = async () => {
-        let shouldContinue = false;
-
-        try {
-          const result = await shipmentService.runPathaoQueueTick({
-            max_jobs: 5,
-            max_time: 25,
-          });
-
-          if ((result?.pending_after ?? 0) > 0) {
-            shouldContinue = true;
-          } else if (batchCode && retryRequests < maxRetryRequests) {
-            const retryResult = await shipmentService.retryFailedPathaoBatch(batchCode, {
-              max_retries: 3,
-              wave_size: 5,
-            });
-
-            if ((retryResult?.queued_count ?? 0) > 0) {
-              retryRequests += 1;
-              shouldContinue = true;
-              setPathaoProgress((prev) => ({ ...prev, batchStatus: 'processing' }));
-            }
-          }
-        } catch (error) {
-          console.error('Pathao queue frontend runner failed:', error);
-          shouldContinue = true;
-        }
-
-        if (shouldContinue && Date.now() - startedAt < durationMs) {
-          setTimeout(runTick, intervalMs);
-        }
-      };
-
-      void runTick();
-    };
-
-    const pollPathaoBatch = async (
-      batchCode: string,
-      initialFailedCount: number,
-      initialDetails: Array<{ orderId?: number; orderNumber?: string; status: 'success' | 'failed'; message: string }>
-    ) => {
-      let detailsBuffer = [...initialDetails];
-
-      try {
-        await wait(1200);
-
-        let summary = await shipmentService.getBulkStatus(batchCode);
-        let attempts = 0;
-        const maxAttempts = 180; // 6 minutes at 2s interval
-
-        while ((summary.status === 'pending' || summary.status === 'processing') && attempts < maxAttempts) {
-          setPathaoProgress((prev) => ({
-            ...prev,
-            batchCode,
-            batchStatus: summary.status,
-            current: Math.min(prev.total, initialFailedCount + summary.processed),
-            success: summary.success,
-            failed: initialFailedCount + summary.failed,
-          }));
-
-          await wait(2000);
-          summary = await shipmentService.getBulkStatus(batchCode);
-          attempts++;
-        }
-
-        try {
-          const finalDetails = await shipmentService.getBulkStatusDetails(batchCode);
-          const queuedDetails = finalDetails.results || [];
-
-          detailsBuffer = [
-            ...initialDetails,
-            ...queuedDetails.map((item) => ({
-              orderNumber: item.order_number || item.shipment_number,
-              status: item.success ? ('success' as const) : ('failed' as const),
-              message: item.success
-                ? `Consignment ID: ${item.consignment_id || 'N/A'}`
-                : item.message || 'Failed to send',
-            })),
-          ];
-        } catch (detailsErr) {
-          console.warn('Could not fetch final Pathao batch details:', detailsErr);
-        }
-
-        setPathaoProgress((prev) => ({
-          ...prev,
-          batchCode,
-          batchStatus: summary.status,
-          current: summary.status === 'completed' ? prev.total : Math.min(prev.total, initialFailedCount + summary.processed),
-          success: summary.success,
-          failed: initialFailedCount + summary.failed,
-          details: detailsBuffer,
-        }));
-
-        refreshSelectedPathaoLookups();
-        await loadOrders();
-      } catch (error) {
-        console.error('Pathao batch polling error:', error);
-        setPathaoProgress((prev) => ({
-          ...prev,
-          batchCode,
-          batchStatus: 'error',
-        }));
-      }
-    };
 
     setIsSendingBulk(true);
     setPathaoProgress({
       show: true,
       current: 0,
-      total: orderIdsToSend.length,
+      total: selectedOrders.size,
       success: 0,
       failed: 0,
       batchCode: undefined,
@@ -2357,57 +2199,154 @@ export default function OrdersDashboard() {
       details: [],
     });
 
+    let successCount = 0;
+    let failedCount = 0;
+
     try {
-      const started = await shipmentService.startBulkSendOrdersToPathao(orderIdsToSend, {
-        delivery_type: 'home_delivery',
-        package_weight: 1.0,
-      });
+      const selectedOrdersList = orders.filter((o) => selectedOrders.has(o.id));
+      const orderIdsToSend = selectedOrdersList.map(o => Number(o.id)).filter(id => !isNaN(id) && id > 0);
+      const detailsBuffer: Array<{ orderId?: number; orderNumber?: string; status: 'success' | 'failed'; message: string }> = [];
 
-      const immediateFailures = Array.isArray(started.immediate_failures) ? started.immediate_failures : [];
-      const detailsBuffer = immediateFailures.map((f) => ({
-        orderId: f.order_id ?? undefined,
-        orderNumber: f.order_number || f.shipment_number || undefined,
-        status: 'failed' as const,
-        message: f.reason || 'Failed before queueing',
-      }));
+      // Pass all order IDs directly to backend for queue processing
+      const started = await shipmentService.bulkSendOrdersToPathao(orderIdsToSend);
 
-      const failedCount = immediateFailures.length;
-      const batchCode = started.batch_code;
+      if ('batch_code' in started && started.batch_code) {
+        const batchCode = started.batch_code;
+        const immediateFailures = Array.isArray(started.immediate_failures) ? started.immediate_failures : [];
 
-      setPathaoProgress((prev) => ({
-        ...prev,
-        batchCode,
-        batchStatus: 'processing',
-        current: failedCount,
-        success: 0,
-        failed: failedCount,
-        details: detailsBuffer,
-      }));
+        if (immediateFailures.length > 0) {
+          failedCount += immediateFailures.length;
+          immediateFailures.forEach((f: any) => {
+            detailsBuffer.push({
+              orderNumber: f.order_number || f.shipment_number,
+              status: 'failed',
+              message: f.reason,
+            });
+          });
+        }
 
+        setPathaoProgress((prev) => ({
+          ...prev,
+          batchCode,
+          batchStatus: 'processing',
+          details: [...detailsBuffer],
+          failed: failedCount,
+        }));
+
+        let summary = await shipmentService.getBulkStatus(batchCode);
+
+        // Keep polling until the batch is complete
+        while (summary.status === 'pending' || summary.status === 'processing') {
+          successCount = summary.success;
+          const queuedFailed = summary.failed;
+          const processedWithPrechecks = failedCount + summary.processed;
+
+          setPathaoProgress((prev) => ({
+            ...prev,
+            batchCode,
+            batchStatus: summary.status,
+            current: Math.min(prev.total, processedWithPrechecks),
+            success: successCount,
+            failed: failedCount + queuedFailed,
+          }));
+
+          // Trigger background queue worker just in case cron isn't running
+          try {
+             await axios.post('/shipments/pathao-queue-tick', { max_jobs: 5, max_time: 15 });
+          } catch (e) {}
+
+          await wait(2500); // Poll every 2.5 seconds
+          summary = await shipmentService.getBulkStatus(batchCode);
+        }
+
+        // Final status update
+        successCount = summary.success;
+        failedCount = failedCount + summary.failed;
+
+        // Pull per-shipment final details
+        try {
+          const finalDetails = await shipmentService.getBulkStatusDetails(batchCode);
+          for (const item of finalDetails.results || []) {
+            detailsBuffer.push({
+              orderNumber: item.order_number || item.shipment_number,
+              status: item.success ? 'success' : 'failed',
+              message: item.success
+                ? `Consignment ID: ${item.consignment_id || 'N/A'}`
+                : item.message || 'Failed to send',
+            });
+          }
+        } catch (detailsErr) {
+          console.warn('Could not fetch final bulk details:', detailsErr);
+        }
+
+        setPathaoProgress((prev) => ({
+          ...prev,
+          batchCode,
+          batchStatus: summary.status,
+          current: prev.total,
+          success: successCount,
+          failed: failedCount,
+          details: detailsBuffer,
+        }));
+      } else if ('success' in started && 'failed' in started) {
+        // Sync response mode fallback
+        for (const item of started.success || []) {
+          successCount++;
+          detailsBuffer.push({
+            orderNumber: item.shipment_number,
+            status: 'success',
+            message: `Consignment ID: ${item.pathao_consignment_id}`,
+          });
+        }
+
+        for (const item of started.failed || []) {
+          failedCount++;
+          detailsBuffer.push({
+            orderNumber: item.shipment_number,
+            status: 'failed',
+            message: item.reason,
+          });
+        }
+
+        setPathaoProgress((prev) => ({
+          ...prev,
+          current: prev.total,
+          success: successCount,
+          failed: failedCount,
+          batchStatus: 'completed',
+          details: detailsBuffer,
+        }));
+      }
+
+      alert(`Bulk Send to Pathao Completed!\n\nSuccess: ${successCount}\nFailed: ${failedCount}`);
       setSelectedOrders(new Set());
-      markCourierInBackground(orderIdsToSend);
+      
+      // Update intended courier to Pathao optimistically
+      try {
+        if (orderIdsToSend.length > 0) {
+          const idSet = new Set<number>(orderIdsToSend);
+          // Process in background to not block UI
+          orderIdsToSend.forEach(id => {
+            orderService.setIntendedCourier(id, 'pathao').catch(() => {});
+          });
+          setOrders((prev) => prev.map((o) => (idSet.has(o.id) ? { ...o, intendedCourier: 'pathao' } : o)));
+        }
+      } catch (e) {
+        console.warn('Failed to set intended courier:', e);
+      }
 
-      alert(
-        `Pathao batch queued successfully.
-
-Batch: ${batchCode}
-Queued: ${started.queued_count}
-Immediate Failed: ${failedCount}
-
-You can continue working while it processes.`
-      );
-
-      startPathaoQueueFrontendRunner(batchCode);
-      void pollPathaoBatch(batchCode, failedCount, detailsBuffer);
+      await loadOrders();
     } catch (error: any) {
       console.error('Bulk send to Pathao error:', error);
-      alert(`Failed to queue bulk Pathao send: ${error?.response?.data?.message || error.message || 'Unknown error'}`);
-      setPathaoProgress((prev) => ({
-        ...prev,
-        batchStatus: 'error',
-      }));
+      alert(`Failed to complete bulk send: ${error?.response?.data?.message || error.message || 'Unknown error'}`);
     } finally {
       setIsSendingBulk(false);
+      // Don't auto-close if there are failures, let user see details
+      if (failedCount === 0) {
+        setTimeout(() => {
+          setPathaoProgress((prev) => ({ ...prev, show: false }));
+        }, 5000);
+      }
     }
   };
 
