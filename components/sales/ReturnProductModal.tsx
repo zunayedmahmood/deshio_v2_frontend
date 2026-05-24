@@ -3,7 +3,7 @@ import { X, RotateCcw, Calculator, Barcode, Trash2, AlertCircle, Info } from 'lu
 import storeService, { type Store } from '@/services/storeService';
 import productReturnService from '@/services/productReturnService';
 
-type ReturnReason = 'defective_product' | 'wrong_item' | 'not_as_described' | 'customer_dissatisfaction' | 'size_issue' | 'color_issue' | 'quality_issue' | 'late_delivery' | 'changed_mind' | 'duplicate_order' | 'other';
+type ReturnReason = 'defective_product' | 'wrong_item' | 'wrong_product' | 'wrong_customer' | 'not_as_described' | 'customer_dissatisfaction' | 'size_issue' | 'color_issue' | 'quality_issue' | 'late_delivery' | 'changed_mind' | 'duplicate_order' | 'other';
 type ReturnType = 'customer_return' | 'store_return' | 'warehouse_return';
 
 interface ReturnProductModalProps {
@@ -351,6 +351,8 @@ export default function ReturnProductModal({ order, onClose, onReturn }: ReturnP
                     >
                       <option value="defective_product">Defective Product</option>
                       <option value="wrong_item">Wrong Item</option>
+                      <option value="wrong_product">Wrong Product</option>
+                      <option value="wrong_customer">Wrong Customer</option>
                       <option value="size_issue">Size Issue</option>
                       <option value="quality_issue">Quality Issue</option>
                       <option value="changed_mind">Changed Mind</option>
