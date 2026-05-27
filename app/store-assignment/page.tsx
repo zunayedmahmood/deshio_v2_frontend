@@ -444,60 +444,18 @@ export default function StoreAssignmentPage() {
   const fetchPendingOrders = async () => {
     setIsLoadingOrders(true);
     try {
-      const statusCandidates = ['pending_assignment', 'pending-assignment', 'pending'];
-      const combined: PendingAssignmentOrder[] = [];
-
-      for (const status of statusCandidates) {
-        try {
-          const resp = await orderManagementService.getPendingAssignment({
-            per_page: 100,
-            status,
-            sort_order: sortOrder,
-          } as any);
-
-          let orders = extractOrders(resp);
-
-          // If backend stores e-commerce unassigned orders as plain "pending",
-          // keep only truly unassigned ones.
-          if (status === 'pending') {
-            orders = orders.filter((o: any) => isOrderUnassigned(o));
-          }
-
-          if (orders.length) combined.push(...(orders as PendingAssignmentOrder[]));
-        } catch (e) {
-          // continue trying other status variants
-          console.warn(`Could not fetch status=${status}`, e);
-        }
-      }
-
-      // final fallback: no status filter
-      if (!combined.length) {
-        const fallback = await orderManagementService.getPendingAssignment({
-          per_page: 100,
-        } as any);
-        const fallbackOrders = extractOrders(fallback).filter((o: any) => isOrderUnassigned(o));
-        combined.push(...(fallbackOrders as PendingAssignmentOrder[]));
-      }
-
-      // de-dupe by order id
-      const byId = new Map<number, PendingAssignmentOrder>();
-      for (const o of combined) {
-        const oid = toNumber((o as any)?.id);
-        if (!oid) continue;
-        if (!byId.has(oid)) byId.set(oid, o);
-      }
-
-      let orders = Array.from(byId.values());
-      
-      // Global sort after merging
-      orders = orders.sort((a, b) => {
-        const timeA = new Date(a.created_at).getTime();
-        const timeB = new Date(b.created_at).getTime();
-        return sortOrder === 'asc' ? timeA - timeB : timeB - timeA;
+      const resp = await orderManagementService.getPendingAssignment({
+        per_page: 100,
+        status: 'pending_assignment',
+        sort_order: sortOrder,
       });
 
+      const orders = extractOrders(resp)
+        .filter((o: any) => String(o?.status || '').toLowerCase() === 'pending_assignment')
+        .filter((o: any) => isOrderUnassigned(o));
+
       setPendingOrders(orders);
-      console.log('📦 Loaded pending/unassigned orders:', orders.length);
+      console.log('📦 Loaded pending assignment orders:', orders.length);
     } catch (error: any) {
       console.error('Error fetching orders:', error);
       displayToast('Error loading orders: ' + (error?.message || 'Unknown error'), 'error');

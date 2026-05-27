@@ -604,3 +604,29 @@ we created an order  on May 15, packed  it (confirmed) on May 16.
 so, when we select may 16 and date based on Last_updated, we should be able to see it.
 This may be almost working. we see a flash of that order,  but, some final code isforcefully  hiding it.
 
+### store-assignment
+update the socia-commerce orders workflow. currently, when we place a social-commerce order it automatically get's assigned to the first online store.
+update the entire workflow to match this:
+social-commerce orders will not get automatically assigned to any store. instead, they'll have the status pending_assignment and simply be created without any stores assigned.
+for e-commerce orders, they'll also be pending_assignment and be created without a store assigned.
+then, add the "store assignment" option in the admin side sidebar and that will redirect to the /store-assignment page.
+that page shoulbe already be working, but double to check to make sure it calls all the backend routes perfectly with meaning.
+from there we can assign stores to orders and there status will be "assigned_to_store". 
+store-assignemnt page will only show "pending_assignment" orders and a filter for oldest_first and newest_first.
+we are not creating a new workflow. store_assignment logic already existed, we simply had a bypass for that till now. we simply want to use that feature again now.
+so, when in doubt, simply look at the store-assignemnt workflow to infer what to do.
+
+we also want you to check these:
+if new stores can be created.
+one store from all stores can be selected when creating Purchase-orders, in /pos page, in returnc exchange modals in /lookup page.
+
+after you're done, write me a "May_27_deshio_store_assignment.md" file that will discuss your main workplan, what files you changed, what you changed, and why you changed. in the end, what we achieved.
+
+### ECm cat filter 
+in the e-commerce side, in the e-commerce/products page, there's a sidebar for category selection, price etc filtering.
+the backend route this specific page calls isn't properly filtering based on the category (it uses category id as parameter).
+what we saw was, within a particular category, selecting it, or any of it's subcategories always returned one same product while many products existed under various subcategories.
+
+what i want you to do is, for only the backend grouping function this filtering on this e-commerce/product page calls, make the category wise filtering robust and properly functional.
+
+then, write me "May_27_deshio_ecommerce_category_filtering.md" file that will discuss your main workplan, what files you changed, what you changed, and why you changed. in the end, what we achieved.
