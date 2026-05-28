@@ -630,3 +630,30 @@ what we saw was, within a particular category, selecting it, or any of it's subc
 what i want you to do is, for only the backend grouping function this filtering on this e-commerce/product page calls, make the category wise filtering robust and properly functional.
 
 then, write me "May_27_deshio_ecommerce_category_filtering.md" file that will discuss your main workplan, what files you changed, what you changed, and why you changed. in the end, what we achieved.
+
+
+### PO deletion
+we want a purchase order deletion feature in deshio. see the entire codebase in errum (it already has a fully functional purchase order deletion feature from /purchase-order page).
+
+but, the purchase-order deletion will have this feature:
+purchase order deletion follows this serial: all product_batch will be deleted, then the purhase order will be deleted.
+we will create a new pivot table to store deleted_purchase_order_id <-> barcode. so, when already sold barcode is being returned/exchanged in lookup page, or we search a barcode in barcode_history in lookup page, when we don't find the PO and batch for the barcode (since we deleted them), we'll simply show "PO deleted" "Batch deleted". this barcode should be returnable and exchangeable.
+however, we can't relable barcode with a deleted_purchase_order_id. however, when returned/exchanged, they should be removed from the pivot table and then we can relabel them.
+make this whole process extremely robust and working.
+
+
+### image gallery viewer in product/id page.
+add these features in e-commerce/product/id page:
+when an sku has more than 15 variaitons, wrap the variation cards in a dropdown.
+above the dropdown, show a single variation card showing the current selected variation.
+
+our actual e-commerce has upto 330 variations under single sku. so, the variation cards get a lot bloated.
+in this mode, we want all the images of all the variations in that sku in an infinite sidewise scroll. whichever image is on display, it's corresponding variation card will also be highlighted/active in the dropdown. and abaove it.
+but, to avoid network load and cach issues, in this mode, at a time, only limited number of images will be loaded in the image scroll, the images of variant choosen, the 3 variants before and 3 variants after. when out of scope, delete the cached images to load the new ones.
+the pre-existing behaivor of clicking a variation card and image going to that one should still exist.
+pls make this.
+
+### image issue:
+we want you to check the entire codebase for deshio.
+the collections system (see /collections in admin side and e-commerce/collections/[slug] pg in the frontend and their backend code). 
+the homepage settings page in the admin side 
