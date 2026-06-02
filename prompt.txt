@@ -657,3 +657,83 @@ pls make this.
 we want you to check the entire codebase for deshio.
 the collections system (see /collections in admin side and e-commerce/collections/[slug] pg in the frontend and their backend code). 
 the homepage settings page in the admin side 
+
+
+### tester.
+
+this is our latest codebase. 
+go through the entire codebase and see in how many possible ways can this codebase be used and possible abused (to find out edge-cases).
+then write me 7-8 ParticularTopicUseCases.md files that will have proper guidline that a professional software QA can follow as a guidline to test all the possible paths.
+we are expecting rules like (roughly):
+create 3 category
+
+create a product with one of them as category. then archive product from product/list
+
+then, archive the product (for mproduct/list). then this cat too will be deleteable
+
+delete 2 categories. (with product shouldn’t be deleteable. without should be)
+
+in third one, make a subcategory. then try deleting the mother category (shouldn’t be possible)
+
+delete the subcategory (should be possible) then delete the upper one (should be now possible)
+
+Multi-store 
+
+create a new Store “Bashundhara” and keep it “offline”
+
+create PO, approve and receive it in said store.
+
+**step 3**: check product batch page for qty and location (store name likha thake)
+
+**step 4**: check view inventory page for “offline” qty. 
+
+do a few POS orders from bashundhara
+
+**step 5**: repeat step 3 and step 4
+
+return exchange POS orders (of bashundhara) to both Bashundhara and Office.
+
+step 5
+
+resell these barcodes from bashundhara (the ones that were returned to bashundhara) 
+
+do a few e-commerce orders
+
+do a few social-commerce orders 
+
+step 5 (product should be reserved)
+
+check if they (both ecm and scm) already get assigned to Office (shoudn’t be) (check in orders page. status should be pending_assignment, means not assigned)
+
+then, assign them to Bashundhara (process simillar to errum) (store assignment page. also check if the recommendation is working on that page) (check oldest first-newest first filter)
+
+then check orders page, order_status should be pending.
+
+then pack them from online order packing.
+
+step 5 (reserve released and offline and total qty will go down)
+
+return exchange them in variation
+
+resell them (in pos or online-order packing)
+
+the useCases files should find absolutely all possible weird combos to find all typical happy path alongside the edge cases.
+
+for example, create PO, receive partially, check inventoty, sell some products, return some, exchange some, then resell them, then return them. 
+or let's say, create po, receive it, sell some product, delete PO, accept return.
+etc.
+
+these 7-8 useCases files will be on topics like Products, orders, Return_exchanges, hrm, reporting, etc etc.
+a key point to note is, there are some backend code (at time simillar codes exist in multiple places), but only one is being currently used.
+for example, return-echange can only be done from lookup page, all return-refund buttons have been hidden from /retturns page.
+
+pls make these.
+
+
+
+
+I've given you a zip of a formal documentation that our Software QA follows to test the entire Deshio workflow. We now want to automate this process. so, we want you to write a new Controller named FullTestingController. our aim is to test the backend code the frontend uses, exactly how a software QA would be doing. so, this controller will simply use the existing backend code and not update or rewrite anything. this controller will have parts for each of these useCases.md and carry out the tests accordingly. we want a html file in the backend public/ folder. we can login there with gmail and password. after login, we run the tests. we are shown live updates of what's being tested and how much is done and how much is left. also, these tests should also properly test what should not be working. like, a barcode with po deleted should not be sellable, etc. we want the page UI to be like this, avoid terminal like interface. instead use card-like lists. we should be shown, for each cases, what was tested (a quick summary of the test), if it worked or failed. and expected outcome. like: tried to sell barcode with PO deleted. correctly showed that not possible. etc. also, make sure backend response doesn't get timedOut. pls make this properly with all scenarios tested out. two key points: we don't want the sendToPathao tests to be included in this testing panel.
+
+
+
+also, if it gets an error, the testing should not be stopped. the card will simply show: Tried this, failed. go this error: "with a copy button to copy the error." . and for regular incorrect behavious, a full statement for what was tried and what was expected and what was recevied (with a copy button.)
