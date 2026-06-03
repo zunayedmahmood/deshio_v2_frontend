@@ -737,3 +737,11 @@ I've given you a zip of a formal documentation that our Software QA follows to t
 
 
 also, if it gets an error, the testing should not be stopped. the card will simply show: Tried this, failed. go this error: "with a copy button to copy the error." . and for regular incorrect behavious, a full statement for what was tried and what was expected and what was recevied (with a copy button.)
+
+
+### store-assignment 
+
+fix the store-assignment page cart availbility check workflow. 
+currently,when something is added to cart, it tries to go through all batches in the store to ensure store can fulfhill the order (when manual-assignment is on).
+we need to improve this.
+a simple fix will be removing this pre-emptive checking and when we place an order (from social-commerce page) with manual-assignment on, make a request to backend to see if this order can be assigned to that store (see backend of /store-assignment page). if it can't don't proceed to the next page. the frontend toast shown should be dumb enough for people to understand, "Store X can't fulfill this order, missing items a,b ."
