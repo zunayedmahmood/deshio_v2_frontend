@@ -464,8 +464,14 @@ export default function WarehouseFulfillmentPage() {
 
       // Check if product is available (not sold/defective)
       if (!isAvailable) {
-        displayToast('❌ This barcode is not available (already sold or inactive)', 'error');
-        addToScanHistory(barcode, 'error', `${scannedProduct.name} - Not available`);
+        const reason =
+          scanResult.data.sale_block_reason ||
+          scanResult.data.unavailable_reason ||
+          (scanResult.data.deleted_batch
+            ? 'This barcode belongs to a deleted batch. It cannot be packed/sold. Use Lookup return/exchange first.'
+            : 'This barcode is not available. It may already be sold, inactive, defective, or outside sellable stock.');
+        displayToast(`❌ ${reason}`, 'error');
+        addToScanHistory(barcode, 'error', `${scannedProduct.name} - ${reason}`);
         playErrorSound();
         return;
       }
