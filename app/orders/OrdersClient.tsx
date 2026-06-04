@@ -1103,7 +1103,7 @@ export default function OrdersDashboard() {
 
       salesBy: order.salesman?.name || userName || 'N/A',
       store: order.store?.name || '',
-      storeId: order.store?.id,
+      storeId: order.store?.id ?? order.store_id ?? order.storeId,
       notes: order.notes || '',
       shipping_address: order.shipping_address ?? null,
 
@@ -4772,26 +4772,24 @@ export default function OrdersDashboard() {
             );
           })()}
 
-          <button
-              onClick={(e) => {
-                e.stopPropagation();
-                const order = filteredOrders.find((o) => o.id === activeMenu);
-                if (order) handleRevertAssignment(order.id);
-              }}
-              disabled={(() => {
-                const order = filteredOrders.find((o) => o.id === activeMenu);
-                return order ? isSingleLoading(order.id, 'revert') : false;
-              })()}
-              className="w-full px-4 py-3 text-left text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
-            >
-              <RotateCcw className="h-5 w-5 flex-shrink-0" />
-              <span>
-                {(() => {
-                  const order = filteredOrders.find((o) => o.id === activeMenu);
-                  return order && isSingleLoading(order.id, 'revert') ? 'Reverting...' : 'Revert Assignment';
-                })()}
-              </span>
-            </button>
+          {(() => {
+            const order = filteredOrders.find((o) => o.id === activeMenu);
+            if (!order || order.status !== 'assigned_to_store' || !order.storeId) return null;
+
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRevertAssignment(order.id);
+                }}
+                disabled={isSingleLoading(order.id, 'revert')}
+                className="w-full px-4 py-3 text-left text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
+              >
+                <RotateCcw className="h-5 w-5 flex-shrink-0" />
+                <span>{isSingleLoading(order.id, 'revert') ? 'Reverting...' : 'Revert Assignment'}</span>
+              </button>
+            );
+          })()}
 
           {(() => {
             const order = filteredOrders.find((o) => o.id === activeMenu);

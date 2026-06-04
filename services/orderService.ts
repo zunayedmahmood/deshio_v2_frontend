@@ -462,10 +462,11 @@ const orderService = {
     }
   },
 
-  /** Get orders pending fulfillment (for warehouse) */
+  /** Get orders pending fulfillment (for warehouse/package queue) */
   async getPendingFulfillment(params?: {
     store_id?: number;
     per_page?: number;
+    page?: number;
     order_type?: 'social_commerce' | 'ecommerce';
     order_types?: string[];
   }): Promise<{
@@ -473,22 +474,43 @@ const orderService = {
     total: number;
   }> {
     try {
-      const response = await axiosInstance.get('/orders', {
-        params: {
-          ...params,
-          fulfillment_status: 'pending_fulfillment',
+      const perPage = Math.min(Math.max(Number(params?.per_page || 200), 1), 200);
+      const baseParams = {
+        ...params,
+        per_page: perPage,
+        packing_queue: true,
+        sort_by: 'updated_at',
+        sort_order: 'desc',
+      } as any;
+
+      const collected: Order[] = [];
+      let total = 0;
+      let page = Number(params?.page || 1);
+      let lastPage = page;
+
+      do {
+        const response = await axiosInstance.get('/orders', {
+          params: {
+            ...baseParams,
+            page,
+          }
+        });
+        const result = response.data;
+
+        if (!result.success) {
+          break;
         }
-      });
-      const result = response.data;
 
-      if (result.success) {
-        return {
-          data: result.data.data || [],
-          total: result.data.total || 0
-        };
-      }
+        const payload = result.data || {};
+        collected.push(...(payload.data || []));
+        total = Number(payload.total || collected.length);
+        lastPage = Number(payload.last_page || page);
+        page += 1;
 
-      return { data: [], total: 0 };
+        // Safety guard against accidental very large loops. 20 pages * 200 = 4000 queue rows.
+      } while (page <= lastPage && page <= 20);
+
+      return { data: collected, total };
     } catch (error: any) {
       console.error('Get pending fulfillment orders error:', error);
       throw new Error(error.response?.data?.message || 'Failed to fetch orders');

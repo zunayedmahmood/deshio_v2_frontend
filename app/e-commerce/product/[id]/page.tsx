@@ -497,7 +497,6 @@ export default function ProductDetailPage() {
           const deduped = new Map<number, ProductVariant>();
 
           directVariantsRaw
-            .filter((variant: any) => belongsToSameSkuGroup(variant, mainProduct))
             .forEach((variant: any) => {
               const normalized = buildVariantFromAny(variant);
               if (!deduped.has(normalized.id)) deduped.set(normalized.id, normalized);
