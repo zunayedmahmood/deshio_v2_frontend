@@ -159,6 +159,8 @@ export interface OrderFilters {
   order_type?: string;
   order_types?: string[];
   status?: string;
+  statuses?: string[] | string;
+  product_id?: number | string;
   payment_status?: string;
   fulfillment_status?: string;
   store_id?: number | string;
