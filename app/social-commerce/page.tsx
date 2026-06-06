@@ -187,6 +187,7 @@ export default function SocialCommercePage() {
   const [isLoadingStoreAvailability, setIsLoadingStoreAvailability] = useState(false);
   const [storeAvailabilityError, setStoreAvailabilityError] = useState('');
   const storeAvailabilityReqRef = useRef(0);
+  const productSearchReqRef = useRef(0);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Batches are loaded dynamically via search
@@ -411,12 +412,14 @@ export default function SocialCommercePage() {
           if (!ex.image && item?.image) ex.image = String(item.image);
           if (!ex.sku && item?.sku) ex.sku = String(item.sku);
           if (!ex.name && (item?.name || item?.productName)) ex.name = String(item.name || item.productName);
+          if (!ex.store_id && item?.store_id) ex.store_id = String(item.store_id);
         } else {
           byId.set(id, {
             id,
             name: String(item?.name || item?.productName || ''),
             sku: String(item?.sku || ''),
             image: item?.image ? String(item.image) : null,
+            store_id: item?.store_id ? String(item.store_id) : '',
             qty,
             ts: Number(item?.ts || 0) || Date.now(),
           });
@@ -442,6 +445,17 @@ export default function SocialCommercePage() {
     } catch {
       return '';
     }
+  };
+
+  const getQueuedSelectionStore = (queued: any[]): string => {
+    const storeIds = Array.from(
+      new Set(
+        (queued || [])
+          .map((item) => String(item?.store_id || '').trim())
+          .filter(Boolean)
+      )
+    );
+    return storeIds.length === 1 ? storeIds[0] : getSavedSelectedStore();
   };
 
   const persistSelectedStore = (storeId: string | number | null | undefined) => {
@@ -1080,7 +1094,13 @@ export default function SocialCommercePage() {
       const imageUrl = getProductCardImage(prod);
 
       const sellPrice = parseSellPrice(b?.sell_price ?? b?.sellPrice ?? 0);
-      const qty = Math.max(0, Number(b?.quantity ?? 0) || 0);
+      const qty = Math.max(0, Number(
+        b?.store_available_quantity ??
+        b?.store_sellable_quantity ??
+        b?.available_quantity ??
+        b?.quantity ??
+        0
+      ) || 0);
 
       const daysRaw = b?.days_until_expiry ?? b?.daysUntilExpiry ?? null;
       const days = typeof daysRaw === 'number' && Number.isFinite(daysRaw) ? daysRaw : null;
@@ -1602,6 +1622,13 @@ export default function SocialCommercePage() {
     const queued = readQueuedSelections();
     if (!queued.length) return;
 
+    const queuedStoreId = getQueuedSelectionStore(queued);
+    if (queuedStoreId && String(queuedStoreId) !== String(selectedStore)) {
+      setSelectedStore(queuedStoreId);
+      persistSelectedStore(queuedStoreId);
+      return;
+    }
+
     const run = async () => {
       queueImportingRef.current = true;
       try {
@@ -1878,6 +1905,7 @@ export default function SocialCommercePage() {
     }
 
     const delayDebounce = setTimeout(async () => {
+      const searchReqId = ++productSearchReqRef.current;
       const storeId = Number(selectedStore);
       if (!Number.isFinite(storeId) || storeId <= 0) {
         setSearchResults([]);
@@ -1922,16 +1950,25 @@ export default function SocialCommercePage() {
           return Number(a?.attributes?.Price ?? 0) - Number(b?.attributes?.Price ?? 0);
         });
 
-        setSearchResults(finalResults);
+        if (searchReqId === productSearchReqRef.current) {
+          setSearchResults(finalResults);
+        }
       } catch (error) {
         console.error('❌ Social commerce search failed:', error);
-        setSearchResults([]);
+        if (searchReqId === productSearchReqRef.current) {
+          setSearchResults([]);
+        }
       } finally {
-        setIsSearching(false);
+        if (searchReqId === productSearchReqRef.current) {
+          setIsSearching(false);
+        }
       }
     }, 350);
 
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      clearTimeout(delayDebounce);
+      productSearchReqRef.current += 1;
+    };
   }, [selectedStore, searchQuery, minPrice, maxPrice, exactPrice]);
 
   useEffect(() => {
@@ -3109,7 +3146,14 @@ export default function SocialCommercePage() {
                         type="button"
                         onClick={() => {
                           saveDraftToSession();
-                          window.location.href = `/product/list?selectMode=true&mode=social_commerce&redirect=${encodeURIComponent('/social-commerce')}`;
+                          if (selectedStore) persistSelectedStore(selectedStore);
+                          const params = new URLSearchParams({
+                            selectMode: 'true',
+                            mode: 'social_commerce',
+                            redirect: '/social-commerce',
+                          });
+                          if (selectedStore) params.set('store_id', String(selectedStore));
+                          window.location.href = `/product/list?${params.toString()}`;
                         }}
                         disabled={!selectedStore}
                         className="px-3 py-1.5 text-xs font-semibold rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
