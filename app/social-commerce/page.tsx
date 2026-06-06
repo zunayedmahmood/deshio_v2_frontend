@@ -105,6 +105,7 @@ const SC_DRAFT_STORAGE_KEY = 'socialCommerceDraftV1';
 const SC_SELECTION_QUEUE_KEY = 'socialCommerceSelectionQueueV1';
 const SC_EDIT_PREFILL_KEY = 'socialCommerceEditPrefillV1';
 const SC_EDIT_CONTEXT_KEY = 'socialCommerceEditContextV1';
+const SC_SELECTED_STORE_STORAGE_KEY = 'socialCommerceSelectedStoreV1';
 
 export default function SocialCommercePage() {
   const [darkMode, setDarkMode] = useState(false);
@@ -374,6 +375,7 @@ export default function SocialCommercePage() {
         shippingAmountState,
       };
       sessionStorage.setItem(SC_DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      if (selectedStore) persistSelectedStore(selectedStore);
     } catch (e) {
       console.warn('Failed to save social commerce draft', e);
     }
@@ -431,6 +433,29 @@ export default function SocialCommercePage() {
     if (typeof window === 'undefined') return;
     sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
     localStorage.removeItem('social_commerce_queue');
+  };
+
+  const getSavedSelectedStore = (): string => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return String(localStorage.getItem(SC_SELECTED_STORE_STORAGE_KEY) || localStorage.getItem('socialCommerceSelectedStore') || '').trim();
+    } catch {
+      return '';
+    }
+  };
+
+  const persistSelectedStore = (storeId: string | number | null | undefined) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const normalized = String(storeId ?? '').trim();
+      if (normalized) {
+        localStorage.setItem(SC_SELECTED_STORE_STORAGE_KEY, normalized);
+        // Legacy/simple key for any older helper code that may read it.
+        localStorage.setItem('socialCommerceSelectedStore', normalized);
+      }
+    } catch {
+      // localStorage can be blocked in private/incognito modes; the page still works with React state/session draft.
+    }
   };
 
   const handleResetAll = () => {
@@ -922,12 +947,21 @@ export default function SocialCommercePage() {
       const normalized = (s: any) => String(s ?? '').toLowerCase().trim();
       const activeStores = storesData.filter((store) => store?.id);
       const officeStore = activeStores.find((s) => normalized(s?.name).includes('office'));
-      const targetStore = officeStore || activeStores[0];
+      const savedStoreId = getSavedSelectedStore();
+      const savedStore = savedStoreId
+        ? activeStores.find((store) => String(store.id) === String(savedStoreId))
+        : null;
+      const targetStore = savedStore || officeStore || activeStores[0];
 
       setStores(activeStores);
       setSelectedStore((prev) => {
-        if (prev && activeStores.some((store) => String(store.id) === String(prev))) return prev;
-        return targetStore ? String(targetStore.id) : '';
+        if (prev && activeStores.some((store) => String(store.id) === String(prev))) {
+          persistSelectedStore(prev);
+          return prev;
+        }
+        const next = targetStore ? String(targetStore.id) : '';
+        if (next) persistSelectedStore(next);
+        return next;
       });
     } catch (error) {
       console.error('Error fetching stores:', error);
@@ -1419,7 +1453,7 @@ export default function SocialCommercePage() {
           if (incomingEditOrderNumber) setEditOrderNumber(incomingEditOrderNumber);
           if (ep.salesmanId !== undefined && ep.salesmanId !== null) setSelectedEmployee(String(ep.salesmanId));
           if (typeof ep.salesBy === 'string') setSalesBy(ep.salesBy);
-          if (typeof ep.storeId === 'string') setSelectedStore(ep.storeId);
+          if (typeof ep.storeId === 'string') { setSelectedStore(ep.storeId); persistSelectedStore(ep.storeId); }
           if (ep.storeAssignmentMode === 'manual' || ep.storeAssignmentMode === 'auto') setStoreAssignmentMode(ep.storeAssignmentMode);
           if (typeof ep.userName === 'string') setUserName(ep.userName);
           if (typeof ep.userPhone === 'string') setUserPhone(ep.userPhone);
@@ -1452,6 +1486,8 @@ export default function SocialCommercePage() {
 
       const raw = sessionStorage.getItem(SC_DRAFT_STORAGE_KEY);
       if (!raw) {
+        const savedStoreId = getSavedSelectedStore();
+        if (savedStoreId) setSelectedStore(savedStoreId);
         draftHydratedRef.current = true;
         return;
       }
@@ -1487,7 +1523,13 @@ export default function SocialCommercePage() {
         if (typeof d.internationalCity === 'string') setInternationalCity(d.internationalCity);
         if (typeof d.internationalPostalCode === 'string') setInternationalPostalCode(d.internationalPostalCode);
         if (typeof d.deliveryAddress === 'string') setDeliveryAddress(d.deliveryAddress);
-        if (typeof d.selectedStore === 'string') setSelectedStore(d.selectedStore);
+        if (typeof d.selectedStore === 'string' && d.selectedStore) {
+          setSelectedStore(d.selectedStore);
+          persistSelectedStore(d.selectedStore);
+        } else {
+          const savedStoreId = getSavedSelectedStore();
+          if (savedStoreId) setSelectedStore(savedStoreId);
+        }
         if (d.storeAssignmentMode === 'manual' || d.storeAssignmentMode === 'auto') setStoreAssignmentMode(d.storeAssignmentMode);
         if (typeof d.searchQuery === 'string') setSearchQuery(d.searchQuery);
         if (typeof d.minPrice === 'string') setMinPrice(d.minPrice);
@@ -1548,6 +1590,11 @@ export default function SocialCommercePage() {
     discountAmountState,
     shippingAmountState,
   ]);
+
+  useEffect(() => {
+    if (!selectedStore) return;
+    persistSelectedStore(selectedStore);
+  }, [selectedStore]);
 
   useEffect(() => {
     if (!selectedStore || queueImportingRef.current) return;
@@ -2508,7 +2555,7 @@ export default function SocialCommercePage() {
                   </label>
                   <select
                     value={selectedStore}
-                    onChange={(e) => setSelectedStore(e.target.value)}
+                    onChange={(e) => { const nextStore = e.target.value; setSelectedStore(nextStore); persistSelectedStore(nextStore); }}
                     className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Select store</option>
@@ -3078,13 +3125,13 @@ export default function SocialCommercePage() {
                     )}
 
                     
-                    {selectedStore && isSearching && (searchQuery || minPrice || maxPrice) && (
+                    {selectedStore && isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && (
                       <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
                         Searching...
                       </div>
                     )}
 
-                    {selectedStore && !isSearching && (searchQuery || minPrice || maxPrice) && searchResults.length === 0 && (
+                    {selectedStore && !isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && searchResults.length === 0 && (
                       <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
                         {searchQuery ? (
                         <>No products found matching "{searchQuery}"</>
