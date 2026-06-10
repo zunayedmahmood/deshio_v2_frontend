@@ -107,6 +107,7 @@ export default function LoginPage() {
                 Email Address
               </label>
               <input
+                data-testid="login-email"
                 id="email"
                 type="email"
                 placeholder="Enter your email"
@@ -135,6 +136,7 @@ export default function LoginPage() {
                 </a>
               </div>
               <input
+                data-testid="login-password"
                 id="password"
                 type="password"
                 placeholder="Enter your password"
@@ -148,13 +150,14 @@ export default function LoginPage() {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+              <div data-testid="login-error" className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
                 <p className="text-red-700 text-sm font-medium">{error}</p>
               </div>
             )}
 
             {/* Login Button */}
             <button
+              data-testid="login-submit"
               type="button"
               onClick={handleLogin}
               disabled={isLoading}
