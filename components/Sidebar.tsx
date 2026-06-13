@@ -116,6 +116,13 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { icon: ClipboardList, label: 'Purchase History', href: '/purchase-history' },
     { icon: ShoppingCart, label: 'Social Commerce', href: '/social-commerce' },
     {
+      icon: ShoppingCart,
+      label: 'Social-Media Live',
+      subMenu: [
+        { label: 'Live Products', href: '/live/products' },
+      ],
+    },
+    {
       icon: Wrench,
       label: 'Services',
       subMenu: [

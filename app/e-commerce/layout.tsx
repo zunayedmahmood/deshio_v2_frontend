@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
+import { usePathname } from 'next/navigation';
 import { CustomerAuthProvider } from '@/contexts/CustomerAuthContext';
 
 import { PromotionProvider } from '@/contexts/PromotionContext';
@@ -10,6 +11,9 @@ import GlobalCartSidebar from '@/components/ecommerce/cart/GlobalCartSidebar';
 
 
 export default function EcommerceLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isLiveFeedPage = pathname === '/e-commerce/live/productsfeed';
+
   return (
     <CustomerAuthProvider>
       <PromotionProvider>
@@ -17,7 +21,7 @@ export default function EcommerceLayout({ children }: { children: React.ReactNod
           <ScrollToTopOnRouteChange />
         </Suspense>
 
-        <GlobalCartSidebar />
+        {!isLiveFeedPage && <GlobalCartSidebar />}
 
         {/* Clean white e-commerce layout */}
         <div
@@ -32,9 +36,11 @@ export default function EcommerceLayout({ children }: { children: React.ReactNod
           <div style={{ position: 'relative', zIndex: 10 }}>
             {children}
           </div>
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <Footer />
-          </div>
+          {!isLiveFeedPage && (
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <Footer />
+            </div>
+          )}
         </div>
       </PromotionProvider>
     </CustomerAuthProvider>
