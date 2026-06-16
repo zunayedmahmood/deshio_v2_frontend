@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, ChevronDown, ChevronUp, Trash2, MoreVertical, ArrowRightLeft, RotateCcw, Printer, Edit } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Trash2, MoreVertical, ArrowRightLeft, RotateCcw, Printer } from 'lucide-react';
 import { computeMenuPosition } from '@/lib/menuPosition';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
@@ -10,7 +10,6 @@ import productReturnService, { type CreateReturnRequest } from '@/services/produ
 import refundService, { type CreateRefundRequest } from '@/services/refundService';
 import ReturnProductModal from '@/components/sales/ReturnProductModal';
 import ExchangeProductModal from '@/components/sales/ExchangeProductModal';
-import CustomerFormModal from '@/components/pos/CustomerFormModal';
 import axiosInstance from '@/lib/axios';
 import { checkQZStatus, printReceipt } from '@/lib/qz-tray';
 import { useAuth } from '@/contexts/AuthContext';
@@ -105,36 +104,27 @@ export default function PurchaseHistoryPage() {
   const [userStoreId, setUserStoreId] = useState<string>('');
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
-
+  
   // Modal states
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showExchangeModal, setShowExchangeModal] = useState(false);
-  const [showCustomerModal, setShowCustomerModal] = useState(false);
-  const [selectedCustomerForEdit, setSelectedCustomerForEdit] = useState<any>(null);
   const [selectedOrderForAction, setSelectedOrderForAction] = useState<any | null>(null);
 
-  // Initialize roles and initial store selection
   useEffect(() => {
-    if (!user) return;
-
     const roleSlug = user?.role?.slug || '';
-    setUserRole(roleSlug);
-
     const storeId = scopedStoreId ? String(scopedStoreId) : (user?.store_id || '');
+    setUserRole(roleSlug);
     setUserStoreId(storeId);
 
-    // Auto-select store if scoped (security requirement)
-    if (scopedStoreId) {
-      setSelectedStore(String(scopedStoreId));
+    if (storeId && (roleSlug === 'branch-manager' || !canSelectStore)) {
+      if (selectedStore === '') {
+        setSelectedStore(storeId);
+      }
     }
 
-    fetchStores();
-  }, [user?.id, scopedStoreId]);
-
-  // Fetch orders when relevant filters change
-  useEffect(() => {
     fetchOrders();
-  }, [selectedStore, startDate, endDate, searchTerm]);
+    fetchStores();
+  }, [user?.id, scopedStoreId, selectedStore]);
 
   const fetchOrders = async () => {
     try {
@@ -143,22 +133,17 @@ export default function PurchaseHistoryPage() {
         order_type: 'counter',
         per_page: 50,
       };
-
-      // Security: Always prioritize scopedStoreId (enforced for non-admins)
+      // Enforce store scoping for branch/store roles
       if (scopedStoreId) {
         filters.store_id = scopedStoreId;
       } else if (selectedStore) {
-        // Admins can filter by any store from the dropdown
+        // Admins can optionally filter by store from the dropdown
         filters.store_id = Number(selectedStore);
       }
-
-      if (searchTerm) filters.search = searchTerm;
-      if (startDate) filters.date_from = startDate;
-      if (endDate) filters.date_to = endDate;
-
+      
       const result = await orderService.getAll(filters);
       setOrders(result.data);
-
+      
     } catch (error) {
       console.error('❌ Failed to fetch orders:', error);
       setOrders([]);
@@ -169,11 +154,10 @@ export default function PurchaseHistoryPage() {
 
   const fetchStores = async () => {
     try {
-      // If store-scoped/restricted, only fetch user's assigned store details for the display field
-      if (!canSelectStore && (scopedStoreId || user?.store_id)) {
+      // If store-scoped, only show user's assigned store in dropdown.
+      if (scopedStoreId) {
         try {
-          const targetId = scopedStoreId || user?.store_id;
-          const res: any = await storeService.getStore(Number(targetId));
+          const res: any = await storeService.getStore(Number(scopedStoreId));
           const storeObj = res?.data ?? res;
           if (storeObj) {
             setStores([
@@ -186,18 +170,14 @@ export default function PurchaseHistoryPage() {
             return;
           }
         } catch {
-          // fallback to empty
+          // fallback below
         }
       }
 
-      // If user has multi-store access (admin/moderator), fetch all stores for dropdown
-      if (canSelectStore) {
-        const response = await axiosInstance.get('/stores');
-        const result = response.data;
-        let storesData: Store[] = result?.success && Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
-        setStores(storesData);
-      } else {
+      // If user can't select stores, don't show any store dropdown options.
+      if (!canSelectStore) {
         setStores([]);
+        return;
       }
 
       const response = await axiosInstance.get('/stores');
@@ -225,14 +205,14 @@ export default function PurchaseHistoryPage() {
 
     setExpandedOrder(orderId);
     const order = orders.find(o => o.id === orderId);
-
+    
     if (order?.items && order.items.length > 0) {
       return;
     }
 
     setLoadingDetails(orderId);
     setErrorDetails(prev => ({ ...prev, [orderId]: '' }));
-
+    
     try {
       const fullOrder = await orderService.getById(orderId);
       setOrders(orders.map(o => o.id === orderId ? fullOrder : o));
@@ -246,7 +226,7 @@ export default function PurchaseHistoryPage() {
 
   const handleDelete = async (orderId: number) => {
     if (!confirm('Are you sure you want to delete this order?')) return;
-
+    
     try {
       await orderService.cancel(orderId, 'Deleted by user');
       setOrders(orders.filter(o => o.id !== orderId));
@@ -256,19 +236,9 @@ export default function PurchaseHistoryPage() {
     }
   };
 
-  const handleEditCustomer = (order: PurchaseHistoryOrder) => {
-    setActiveMenu(null);
-    if (!order.customer) {
-      alert("No customer attached to this order.");
-      return;
-    }
-    setSelectedCustomerForEdit(order.customer);
-    setShowCustomerModal(true);
-  };
-
   const handleReturn = async (order: PurchaseHistoryOrder) => {
     setActiveMenu(null);
-
+    
     if (!order.items || order.items.length === 0) {
       try {
         const fullOrder = await orderService.getById(order.id);
@@ -281,13 +251,13 @@ export default function PurchaseHistoryPage() {
     } else {
       setSelectedOrderForAction(order);
     }
-
+    
     setShowReturnModal(true);
   };
 
   const handleExchange = async (order: PurchaseHistoryOrder) => {
     setActiveMenu(null);
-
+    
     if (!order.items || order.items.length === 0) {
       try {
         const fullOrder = await orderService.getById(order.id);
@@ -300,7 +270,7 @@ export default function PurchaseHistoryPage() {
     } else {
       setSelectedOrderForAction(order);
     }
-
+    
     setShowExchangeModal(true);
   };
 
@@ -314,7 +284,7 @@ export default function PurchaseHistoryPage() {
       }
 
       const fullOrder = await orderService.getById(order.id);
-      await printReceipt(fullOrder, undefined, { template: 'pos_receipt', title: 'POS Receipt' });
+      await printReceipt(fullOrder, undefined, { template: 'pos_receipt' });
       alert(`✅ Receipt printed for order #${fullOrder.order_number || fullOrder.id}`);
     } catch (error: any) {
       console.error('Print receipt error:', error);
@@ -323,8 +293,8 @@ export default function PurchaseHistoryPage() {
   };
 
   const handleReturnSubmit = async (returnData: {
-    selectedProducts: Array<{
-      order_item_id: number;
+    selectedProducts: Array<{ 
+      order_item_id: number; 
       quantity: number;
       product_barcode_id?: number;
     }>;
@@ -335,7 +305,7 @@ export default function PurchaseHistoryPage() {
       nagad: number;
       total: number;
     };
-    returnReason: 'defective_product' | 'wrong_item' | 'wrong_product' | 'wrong_customer' | 'not_as_described' | 'customer_dissatisfaction' | 'size_issue' | 'color_issue' | 'quality_issue' | 'late_delivery' | 'changed_mind' | 'duplicate_order' | 'other';
+    returnReason: 'defective_product' | 'wrong_item' | 'not_as_described' | 'customer_dissatisfaction' | 'size_issue' | 'color_issue' | 'quality_issue' | 'late_delivery' | 'changed_mind' | 'duplicate_order' | 'other';
     returnType: 'customer_return' | 'store_return' | 'warehouse_return';
     customerNotes?: string;
   }) => {
@@ -408,7 +378,7 @@ export default function PurchaseHistoryPage() {
 
       console.log('🔄 Refreshing order list...');
       await fetchOrders();
-
+      
       alert('✅ Return processed successfully!');
       setShowReturnModal(false);
       setSelectedOrderForAction(null);
@@ -420,33 +390,16 @@ export default function PurchaseHistoryPage() {
   };
 
   const handleExchangeSubmit = async (exchangeData: {
-    orderId?: number;
-    exchangeAtStoreId?: number;
-    isOnlineExchange?: boolean;
-    order_type?: 'counter' | 'social_commerce' | 'ecommerce';
-    intended_courier?: string;
-    shipping_address?: any;
     removedProducts: Array<{
       order_item_id: number;
-      product_id?: number;
-      product_batch_id?: number;
-      batch_id?: number;
       quantity: number;
-      unit_price?: number;
-      total_price?: number;
-      barcode?: string;
       product_barcode_id?: number;
-      barcode_id?: number;
-      return_reason?: string;
-      quality_check_passed?: boolean;
     }>;
     replacementProducts: Array<{
       product_id: number;
       batch_id: number;
       quantity: number;
       unit_price: number;
-      total_price?: number;
-      discount_amount?: number;
       barcode?: string;
       barcode_id?: number;
     }>;
@@ -462,97 +415,191 @@ export default function PurchaseHistoryPage() {
     try {
       if (!selectedOrderForAction) return;
 
-      const customerId = selectedOrderForAction.customer?.id || selectedOrderForAction.customer_id;
-      if (!customerId) {
-        throw new Error('Exchange requires the original order customer. Please refresh the order lookup and try again.');
-      }
+      console.log('🔄 Processing exchange with data:', exchangeData);
+      console.log('📦 Original order:', selectedOrderForAction.order_number);
 
-      const positivePayments = [
-        { code: 'cash', amount: Number(exchangeData.paymentRefund.cash || 0) },
-        { code: 'card', amount: Number(exchangeData.paymentRefund.card || 0) },
-        { code: 'bkash', amount: Number(exchangeData.paymentRefund.bkash || 0) },
-        { code: 'nagad', amount: Number(exchangeData.paymentRefund.nagad || 0) },
-      ].filter((p) => p.amount > 0);
-
-      const mappedSettlementType =
-        exchangeData.paymentRefund.type === 'payment'
-          ? 'surplus'
-          : exchangeData.paymentRefund.type === 'refund'
-            ? 'refund'
-            : 'even';
-
-      const payload = {
+      console.log('\n📤 STEP 1: Creating return for old products...');
+      const returnRequest: CreateReturnRequest = {
         order_id: selectedOrderForAction.id,
-        customer_id: customerId,
-        exchangeAtStoreId: exchangeData.exchangeAtStoreId || selectedOrderForAction.store?.id || selectedOrderForAction.store_id,
-        removedProducts: exchangeData.removedProducts.map((item) => ({
-          ...item,
-          product_id: item.product_id || selectedOrderForAction.items?.find((i: any) => i.id === item.order_item_id)?.product_id,
-          batch_id: item.batch_id || item.product_batch_id,
-          unit_price: Number(item.unit_price ?? 0),
-          total_price: Number(item.total_price ?? item.unit_price ?? 0),
-          barcode_id: item.barcode_id || item.product_barcode_id,
-          return_reason: item.return_reason || 'exchange',
-          quality_check_passed: item.quality_check_passed ?? true,
+        return_reason: 'other',
+        return_type: 'customer_return',
+        items: exchangeData.removedProducts.map(item => ({
+          order_item_id: item.order_item_id,
+          quantity: item.quantity,
+          product_barcode_id: item.product_barcode_id,
         })),
-        replacementProducts: exchangeData.replacementProducts.map((item) => ({
-          ...item,
-          unit_price: Number(item.unit_price || 0),
-          total_price: Number(item.total_price ?? (Number(item.unit_price || 0) * Number(item.quantity || 1))),
-          discount_amount: Number(item.discount_amount || 0),
-        })),
-        paymentRefund: {
-          type: mappedSettlementType,
-          amount: Number(exchangeData.paymentRefund.total || 0),
-          method: positivePayments[0]?.code || 'cash',
-          details: {
-            cash: Number(exchangeData.paymentRefund.cash || 0),
-            card: Number(exchangeData.paymentRefund.card || 0),
-            bkash: Number(exchangeData.paymentRefund.bkash || 0),
-            nagad: Number(exchangeData.paymentRefund.nagad || 0),
-          },
-        },
-        is_online_exchange: Boolean(exchangeData.isOnlineExchange),
-        order_type: exchangeData.isOnlineExchange ? (exchangeData.order_type || 'social_commerce') : 'counter',
-        intended_courier: exchangeData.isOnlineExchange ? (exchangeData.intended_courier || 'pathao') : undefined,
-        shipping_address: exchangeData.isOnlineExchange
-          ? (exchangeData.shipping_address || selectedOrderForAction.shipping_address || undefined)
-          : undefined,
-        notes: `Exchange from order #${selectedOrderForAction.order_number}`,
+        customer_notes: `Exchange transaction - Original Order: ${selectedOrderForAction.order_number}`,
       };
 
-      const response = await axiosInstance.post('/exchange/process', payload);
-      const data = response.data?.data || {};
-      const settlement = data.settlement || {};
-      const newOrder = data.order || {};
-      const productReturn = data.return || {};
+      const returnResponse = await productReturnService.create(returnRequest);
+      const returnId = returnResponse.data.id;
+      const returnNumber = returnResponse.data.return_number;
+      console.log(`✅ Return created: #${returnNumber} (ID: ${returnId})`);
 
+      console.log('\n⚙️ STEP 2: Auto-approving and processing return...');
+      
+      await productReturnService.update(returnId, {
+        quality_check_passed: true,
+        quality_check_notes: 'Exchange - Auto-approved via POS',
+      });
+      console.log('✅ Quality check updated');
+
+      await productReturnService.approve(returnId, {
+        internal_notes: 'Exchange - Auto-approved via POS',
+      });
+      console.log('✅ Return approved');
+
+      await productReturnService.process(returnId, {
+        restore_inventory: true,
+      });
+      console.log('✅ Return processed - Inventory restored for old products');
+
+      await productReturnService.complete(returnId);
+      console.log('✅ Return completed');
+
+      console.log('\n💰 STEP 3: Creating FULL refund for returned items...');
+      const refundRequest: CreateRefundRequest = {
+        return_id: returnId,
+        refund_type: 'full',
+        refund_method: 'cash',
+        internal_notes: `Full refund for exchange - Original Order: ${selectedOrderForAction.order_number}`,
+      };
+
+      const refundResponse = await refundService.create(refundRequest);
+      const refundId = refundResponse.data.id;
+      console.log(`✅ Refund created (ID: ${refundId})`);
+
+      await refundService.process(refundId);
+      console.log('✅ Refund processed');
+      
+      await refundService.complete(refundId, {
+        transaction_reference: `EXCHANGE-REFUND-${Date.now()}`,
+      });
+      console.log('✅ Refund completed - Customer has full refund amount');
+
+      console.log('\n🛒 STEP 4: Creating new order for replacement products...');
+      
+      const newOrderTotal = exchangeData.replacementProducts.reduce(
+        (sum, p) => sum + (p.unit_price * p.quantity), 
+        0
+      );
+      console.log(`New order total: ৳${newOrderTotal.toLocaleString()}`);
+
+      // ✅ Per guidelines: New order payment = full new order amount
+      // Customer has full refund, uses it to "pay" for new items
+      const newOrderData = {
+        order_type: 'counter' as const,
+        store_id: selectedOrderForAction.store.id,
+        customer_id: selectedOrderForAction.customer?.id,
+        items: exchangeData.replacementProducts.map(p => ({
+          product_id: p.product_id,
+          batch_id: p.batch_id,
+          quantity: p.quantity,
+          unit_price: p.unit_price,
+          barcode: p.barcode,
+          barcode_id: p.barcode_id,
+        })),
+        payment: {
+          payment_method_id: 1, // Cash
+          amount: newOrderTotal, // Full amount of new items
+          payment_type: 'full' as const,
+        },
+        notes: `Exchange from order #${selectedOrderForAction.order_number} | Return: #${returnNumber}`,
+      };
+
+      console.log(`📝 Order includes payment: ৳${newOrderTotal.toLocaleString()} (customer "pays" with refund)`);
+      console.log('Creating new order with data:', newOrderData);
+      const newOrder = await orderService.create(newOrderData);
+      console.log(`✅ New order created: #${newOrder.order_number} (ID: ${newOrder.id})`);
+
+      // Log what happens with the money difference
+      if (exchangeData.paymentRefund.type === 'payment') {
+        console.log(`\n💳 Financial settlement: Customer collects ADDITIONAL ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        console.log(`   (New items ৳${newOrderTotal} > Refund received, customer pays extra)`);
+      } else if (exchangeData.paymentRefund.type === 'refund') {
+        console.log(`\n💵 Financial settlement: Cashier gives back ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        console.log(`   (Refund received > New items ৳${newOrderTotal}, customer gets difference)`);
+      } else {
+        console.log(`\n📊 Financial settlement: Even exchange (Refund = New items ৳${newOrderTotal})`);
+      }
+
+      console.log('\n🏁 STEP 5: Completing new order...');
+      await orderService.complete(newOrder.id);
+      console.log('✅ New order completed - Inventory reduced for new products');
+
+      console.log('\n🔄 STEP 6: Refreshing order list...');
       await fetchOrders();
-
+      
+      console.log('\n✅ ========================================');
+      console.log('✅ EXCHANGE COMPLETED SUCCESSFULLY!');
+      console.log('✅ ========================================');
+      console.log(`Old Order: #${selectedOrderForAction.order_number}`);
+      console.log(`Return: #${returnNumber}`);
+      console.log(`New Order: #${newOrder.order_number}`);
+      console.log(`New Order Payment Status: PAID ✅`);
+      
+      // Build success message based on exchange type
+      const baseMessage = `✅ Exchange processed successfully!\n\n📦 Return: #${returnNumber}\n🛒 New Order: #${newOrder.order_number}\n💰 New Order Status: PAID\n\n`;
+      
+      let financialMessage = '';
+      if (exchangeData.paymentRefund.type === 'payment') {
+        console.log(`Financial: Customer paid additional ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        financialMessage = `💳 Customer paid additional:\n   ৳${exchangeData.paymentRefund.total.toLocaleString()}\n\n✅ Payment collected successfully`;
+      } else if (exchangeData.paymentRefund.type === 'refund') {
+        console.log(`Financial: Customer gets back ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        financialMessage = `💵 GIVE CUSTOMER:\n   ৳${exchangeData.paymentRefund.total.toLocaleString()}\n\n(Old items cost more than new items)`;
+      } else {
+        console.log(`Financial: Even exchange`);
+        financialMessage = `📊 Even exchange\nNo additional payment needed`;
+      }
+      
+      console.log('✅ ========================================\n');
+      
+      alert(baseMessage + financialMessage);
+      
+      console.log('\n✅ ========================================');
+      console.log('✅ EXCHANGE COMPLETED SUCCESSFULLY!');
+      console.log('✅ ========================================');
+      console.log(`Old Order: #${selectedOrderForAction.order_number}`);
+      console.log(`Return: #${returnNumber}`);
+      console.log(`New Order: #${newOrder.order_number}`);
+      
       let successMessage = `✅ Exchange processed successfully!\n\n`;
-      successMessage += `Return: #${productReturn.return_number || productReturn.id || 'created'}\n`;
-      successMessage += `Replacement Order: #${newOrder.order_number || newOrder.id || 'created'}\n`;
-      if (exchangeData.isOnlineExchange) {
-        successMessage += `Pathao-ready online exchange order created.\n`;
+      successMessage += `Return: #${returnNumber}\n`;
+      successMessage += `New Order: #${newOrder.order_number}\n\n`;
+      
+      if (exchangeData.paymentRefund.type === 'payment') {
+        console.log(`Payment Type: Additional payment from customer`);
+        console.log(`Amount Collected: ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        successMessage += `💳 Customer paid additional: ৳${exchangeData.paymentRefund.total.toLocaleString()}\n`;
+        successMessage += `(New items cost more than returned items)`;
+      } else if (exchangeData.paymentRefund.type === 'refund') {
+        console.log(`Payment Type: Additional refund to customer`);
+        console.log(`Amount Refunded: ৳${exchangeData.paymentRefund.total.toLocaleString()}`);
+        successMessage += `💵 Additional refund to customer: ৳${exchangeData.paymentRefund.total.toLocaleString()}\n`;
+        successMessage += `(Returned items cost more than new items)\n`;
+        successMessage += `Please give customer the refund difference in cash/selected method`;
+      } else {
+        console.log(`Payment Type: Even exchange`);
+        successMessage += `Even exchange - no payment difference`;
       }
-      if (settlement.surplus_paid > 0) {
-        successMessage += `Customer paid additional: ৳${Number(settlement.surplus_paid).toLocaleString()}\n`;
-      }
-      if (settlement.refund_paid > 0) {
-        successMessage += `Refund paid now: ৳${Number(settlement.refund_paid).toLocaleString()}\n`;
-      }
-      if (settlement.remaining_refund_due > 0) {
-        successMessage += `Remaining store credit/refund due: ৳${Number(settlement.remaining_refund_due).toLocaleString()}\n`;
-      }
-
+      
+      console.log('✅ ========================================\n');
+      
       alert(successMessage);
+      
       setShowExchangeModal(false);
       setSelectedOrderForAction(null);
     } catch (error: any) {
-      console.error('❌ Exchange processing failed:', error);
+      console.error('\n❌ ========================================');
+      console.error('❌ EXCHANGE PROCESSING FAILED!');
+      console.error('❌ ========================================');
+      console.error('Error details:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('❌ ========================================\n');
+      
       const errorMsg = error.response?.data?.message || error.message || 'Failed to process exchange';
-      alert(`❌ Exchange failed: ${errorMsg}`);
-      throw error;
+      alert(`❌ Exchange failed: ${errorMsg}\n\nPlease check the console for details.`);
     }
   };
 
@@ -562,17 +609,17 @@ export default function PurchaseHistoryPage() {
   };
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch =
+    const matchesSearch = 
       order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customer?.phone?.includes(searchTerm);
-
+    
     const matchesStore = !selectedStore || order.store.id === parseInt(selectedStore);
-
+    
     const orderDate = new Date(order.created_at);
     const matchesStartDate = !startDate || orderDate >= new Date(startDate);
     const matchesEndDate = !endDate || orderDate <= new Date(endDate);
-
+    
     return matchesSearch && matchesStore && matchesStartDate && matchesEndDate;
   });
 
@@ -580,9 +627,9 @@ export default function PurchaseHistoryPage() {
     const amount = parseFloat(order.total_amount.replace(/,/g, ''));
     return sum + (isNaN(amount) ? 0 : amount);
   }, 0);
-
+  
   const totalOrders = filteredOrders.length;
-
+  
   const totalDue = filteredOrders.reduce((sum, order) => {
     const amount = parseFloat(order.outstanding_amount.replace(/,/g, ''));
     return sum + (isNaN(amount) ? 0 : amount);
@@ -602,8 +649,8 @@ export default function PurchaseHistoryPage() {
                   Purchase History
                 </h1>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {userRole === 'branch-manager'
-                    ? 'View and manage your store counter sales'
+                  {userRole === 'store_manager' 
+                    ? 'View and manage your store counter sales' 
                     : 'View and manage all counter sales transactions'}
                 </p>
               </div>
@@ -639,25 +686,23 @@ export default function PurchaseHistoryPage() {
                       className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-
-                  {!canSelectStore && scopedStoreId ? (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        readOnly
-                        value={
-                          stores.find((s) => String(s.id) === String(selectedStore))
-                            ? `${stores.find((s) => String(s.id) === String(selectedStore))?.name ?? ''} - ${stores.find((s) => String(s.id) === String(selectedStore))?.location ?? ''}`
-                            : 'Loading Store...'
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white text-sm cursor-not-allowed"
-                      />
-                    </div>
+                  
+                  {!canSelectStore && userRole !== 'branch-manager' && scopedStoreId ? (
+                    <input
+                      type="text"
+                      readOnly
+                      value={
+                        stores.find((s) => String(s.id) === String(selectedStore))
+                          ? `${stores.find((s) => String(s.id) === String(selectedStore))?.name ?? ''} - ${stores.find((s) => String(s.id) === String(selectedStore))?.location ?? ''}`
+                          : 'My Store'
+                      }
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white text-sm"
+                    />
                   ) : (
                     <select
                       value={selectedStore}
                       onChange={(e) => setSelectedStore(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">All Stores</option>
                       {stores.map((store) => (
@@ -667,14 +712,14 @@ export default function PurchaseHistoryPage() {
                       ))}
                     </select>
                   )}
-
+                  
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
                     className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-
+                  
                   <input
                     type="date"
                     value={endDate}
@@ -706,21 +751,23 @@ export default function PurchaseHistoryPage() {
                               <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-400">
                                 {order.order_number}
                               </span>
-                              <span className={`text-xs px-2 py-1 rounded ${order.payment_status === 'paid'
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                order.payment_status === 'paid'
                                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                   : order.payment_status === 'partial'
-                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                                }`}>
-                                {order.payment_status === 'paid' ? 'Paid' :
-                                  order.payment_status === 'partial' ? 'Partial' : 'Pending'}
+                                  ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                              }`}>
+                                {order.payment_status === 'paid' ? 'Paid' : 
+                                 order.payment_status === 'partial' ? 'Partial' : 'Pending'}
                               </span>
-                              <span className={`text-xs px-2 py-1 rounded ${order.status === 'confirmed'
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                order.status === 'confirmed'
                                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                                   : order.status === 'cancelled'
-                                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
-                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                }`}>
+                                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-400'
+                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                              }`}>
                                 {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                               </span>
                             </div>
@@ -757,7 +804,7 @@ export default function PurchaseHistoryPage() {
                               </div>
                             </div>
                           </div>
-
+                          
                           <div className="flex items-center gap-2">
                             <div className="text-right mr-4">
                               <div className="text-xs text-gray-600 dark:text-gray-400">Total</div>
@@ -770,7 +817,7 @@ export default function PurchaseHistoryPage() {
                                 </div>
                               )}
                             </div>
-
+                            
                             <div className="relative">
                               <button
                                 type="button"
@@ -787,14 +834,14 @@ export default function PurchaseHistoryPage() {
                               >
                                 <MoreVertical className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                               </button>
-
+                              
                               {activeMenu === order.id && menuPosition && (
                                 <div className="fixed w-48 bg-white dark:bg-gray-800 rounded-lg shadow-2xl border-2 border-gray-300 dark:border-gray-600 z-50" style={{ top: menuPosition.top, left: menuPosition.left }}>
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handlePrint(order);
+                                       handlePrint(order);
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 rounded-t-lg transition-colors"
                                   >
@@ -806,19 +853,7 @@ export default function PurchaseHistoryPage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleEditCustomer(order);
-                                    }}
-                                    className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors"
-                                  >
-                                    <Edit className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                                    <span>Edit Customer</span>
-                                  </button>
-                                  <div className="h-px bg-gray-200 dark:bg-gray-700"></div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleExchange(order);
+                                       handleExchange(order);
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 flex items-center gap-3 transition-colors"
                                   >
@@ -830,7 +865,7 @@ export default function PurchaseHistoryPage() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleReturn(order);
+                                       handleReturn(order);
                                     }}
                                     className="w-full px-4 py-3 text-left text-sm font-medium text-gray-900 dark:text-white hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-3 rounded-b-lg transition-colors"
                                   >
@@ -840,7 +875,7 @@ export default function PurchaseHistoryPage() {
                                 </div>
                               )}
                             </div>
-
+                            
                             <button
                               onClick={() => handleExpandOrder(order.id)}
                               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
@@ -1035,29 +1070,6 @@ export default function PurchaseHistoryPage() {
             setSelectedOrderForAction(null);
           }}
           onExchange={handleExchangeSubmit}
-        />
-      )}
-
-      {showCustomerModal && selectedCustomerForEdit && (
-        <CustomerFormModal
-          mode="edit"
-          customer={selectedCustomerForEdit}
-          initial={{
-            name: selectedCustomerForEdit.name,
-            phone: selectedCustomerForEdit.phone,
-            address: selectedCustomerForEdit.address || '',
-            customer_type: 'counter',
-          }}
-          onClose={() => {
-            setShowCustomerModal(false);
-            setSelectedCustomerForEdit(null);
-          }}
-          onSaved={(savedCustomer: any) => {
-            // Re-fetch orders to show updated customer info
-            fetchOrders();
-            setShowCustomerModal(false);
-            setSelectedCustomerForEdit(null);
-          }}
         />
       )}
     </div>

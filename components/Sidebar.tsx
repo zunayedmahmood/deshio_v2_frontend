@@ -113,24 +113,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       ],
     },
     { icon: ShoppingCart, label: 'POS', href: '/pos' },
-    {
-      icon: FileText,
-      label: 'POS Reports',
-      subMenu: [
-        { label: 'Overview', href: '/pos-reports' },
-        { label: 'Product Analysis', href: '/pos-reports/products' },
-        { label: 'Store & Staff', href: '/pos-reports/stores' },
-      ],
-    },
     { icon: ClipboardList, label: 'Purchase History', href: '/purchase-history' },
     { icon: ShoppingCart, label: 'Social Commerce', href: '/social-commerce' },
-    {
-      icon: ShoppingCart,
-      label: 'Social-Media Live',
-      subMenu: [
-        { label: 'Live Products', href: '/live/products' },
-      ],
-    },
     {
       icon: Wrench,
       label: 'Services',

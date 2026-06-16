@@ -35,14 +35,7 @@ export default function Toast({ message, type = 'success', duration = 3000, floa
   };
 
   return (
-    <div
-      data-testid={`toast-${type}`}
-      data-toast="true"
-      data-toast-type={type}
-      data-toast-message={message}
-      role={type === 'error' ? 'alert' : 'status'}
-      className={`${floating ? 'fixed top-4 right-4 z-50' : 'relative'} flex items-start gap-3 px-4 py-3 rounded-xl border bg-[#121212]/95 backdrop-blur ${borderColors[type]} shadow-[0_12px_40px_rgba(0,0,0,0.45)] animate-slide-in max-w-md`}
-    >
+    <div className={`${floating ? 'fixed top-4 right-4 z-50' : 'relative'} flex items-start gap-3 px-4 py-3 rounded-xl border bg-[#121212]/95 backdrop-blur ${borderColors[type]} shadow-[0_12px_40px_rgba(0,0,0,0.45)] animate-slide-in max-w-md`}>
       {icons[type]}
       <p className="text-sm font-medium text-white/90 flex-1 whitespace-pre-line leading-relaxed">
         {message}

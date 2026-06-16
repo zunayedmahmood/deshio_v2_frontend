@@ -2200,9 +2200,14 @@ export default function SocialCommercePage() {
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
 
   const handleConfirmOrder = async () => {
-    let cleanPhone = userPhone ? userPhone.replace(/\D/g, '') : '';
-    if (cleanPhone.startsWith('880')) {
-      cleanPhone = '0' + cleanPhone.slice(3);
+    let cleanPhone = userPhone ? userPhone.trim() : '';
+    if (isInternational) {
+      cleanPhone = cleanPhone.replace(/[^0-9+\-\s()]/g, '').trim();
+    } else {
+      cleanPhone = cleanPhone.replace(/\D/g, '');
+      if (cleanPhone.startsWith('880')) {
+        cleanPhone = '0' + cleanPhone.slice(3);
+      }
     }
 
     if (!userName || !cleanPhone) {
@@ -2210,9 +2215,16 @@ export default function SocialCommercePage() {
       return;
     }
 
-    if (cleanPhone.length !== 11) {
+    if (!isInternational && cleanPhone.length !== 11) {
       alert('Mobile number must be exactly 11 digits.');
       return;
+    }
+    if (isInternational) {
+      const intlDigits = cleanPhone.replace(/\D/g, '');
+      if (intlDigits.length < 7 || intlDigits.length > 20) {
+        alert('International phone number must contain 7 to 20 digits.');
+        return;
+      }
     }
     if (cart.length === 0) {
       alert('Please add products to cart');
@@ -2416,6 +2428,13 @@ export default function SocialCommercePage() {
             quantity: item.quantity,
             unit_price: item.unit_price,
             discount_amount: item.discount_amount,
+            ...(item.isDefective
+              ? {
+                is_defective: true,
+                defective_product_id: item.defectId,
+                source: 'defective_resale',
+              }
+              : {}),
           })),
         // ✅ NEW: Add services array
         services: cart

@@ -12,13 +12,11 @@ import {
   Download,
   X,
   Loader2,
-  Search,
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from "@/contexts/ThemeContext";
-import axios from '@/lib/axios';
 
 // Services
 import orderService from '@/services/orderService';
@@ -42,12 +40,14 @@ import CustomerFormModal from '@/components/pos/CustomerFormModal';
 import { useCustomerLookup } from '@/lib/hooks/useCustomerLookup';
 import { checkQZStatus, printReceipt } from '@/lib/qz-tray';
 import DailyCashReportModal from '@/components/pos/DailyCashReportModal';
-import OpenOrderLockRescueWidget from '@/components/barcode/OpenOrderLockRescueWidget';
 
 interface Store {
   id: number;
   name: string;
   address: string;
+  phone?: string;
+  mobile?: string;
+  contact_phone?: string;
   type: string;
   is_active: boolean;
 }
@@ -121,8 +121,6 @@ export default function POSPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState('');
-  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
-  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   // User Info
   const [userRole, setUserRole] = useState<string>('');
@@ -149,21 +147,9 @@ export default function POSPage() {
   // Products (for manual entry)
   const [products, setProducts] = useState<Product[]>([]);
   const [product, setProduct] = useState('');
-  const [manualSearchQuery, setManualSearchQuery] = useState('');
   const [minPriceFilter, setMinPriceFilter] = useState('');
   const [maxPriceFilter, setMaxPriceFilter] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
-
-  const employeeDropdownRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(event.target as Node)) {
-        setShowEmployeeDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
   const [sellingPrice, setSellingPrice] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -174,7 +160,6 @@ export default function POSPage() {
   const [customerName, setCustomerName] = useState('');
   const [mobileNo, setMobileNo] = useState('');
   const [address, setAddress] = useState('');
-  const [orderNotes, setOrderNotes] = useState('');
 
   // ✅ Customer lookup (existing customer by phone + last purchase)
   const customerLookup = useCustomerLookup({ debounceMs: 500, minLength: 6 });
@@ -282,13 +267,6 @@ export default function POSPage() {
   // ✅ Reports
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
 
-  // ✅ Inline barcode order-lock rescue popup
-  const [openOrderLockHint, setOpenOrderLockHint] = useState<{
-    barcode: string;
-    message?: string;
-    signal: number;
-  } | null>(null);
-
   // ============ TOAST HELPER ============
   const showToast = (message: string, type: 'success' | 'error') => {
     const id = Date.now();
@@ -297,6 +275,67 @@ export default function POSPage() {
       () => setToasts((prev) => prev.filter((toast) => toast.id !== id)),
       5000
     );
+  };
+
+  const buildPrintableOrderWithStore = async (order: any) => {
+    const storeId = Number(order?.store?.id || order?.store_id || selectedOutlet || 0);
+
+    let storeDetails: any =
+      outlets.find((o) => Number(o.id) === storeId) ||
+      outlets.find((o) => String(o.id) === String(selectedOutlet));
+
+    if ((!storeDetails?.address || !(storeDetails?.phone || storeDetails?.mobile || storeDetails?.contact_phone)) && storeId) {
+      try {
+        const res: any = await storeService.getStore(storeId);
+        storeDetails = res?.data ?? res ?? storeDetails;
+      } catch (err) {
+        console.warn('Failed to fetch full store details for receipt:', err);
+      }
+    }
+
+    const storePhone =
+      order?.store?.phone ||
+      order?.store?.mobile ||
+      order?.store?.contact_phone ||
+      order?.store_phone ||
+      order?.storePhone ||
+      order?.branch_phone ||
+      order?.branchPhone ||
+      storeDetails?.phone ||
+      storeDetails?.mobile ||
+      storeDetails?.contact_phone ||
+      '';
+
+    const storeAddress =
+      order?.store?.address ||
+      order?.store_address ||
+      order?.storeAddress ||
+      order?.branch_address ||
+      order?.branchAddress ||
+      storeDetails?.address ||
+      '';
+
+    return {
+      ...order,
+      store: {
+        ...(typeof order?.store === 'object' ? order.store : {}),
+        id: storeId || order?.store?.id,
+        name:
+          order?.store?.name ||
+          order?.store_name ||
+          order?.storeName ||
+          order?.branch_name ||
+          order?.branchName ||
+          storeDetails?.name ||
+          '',
+        address: storeAddress,
+        phone: storePhone,
+      },
+      store_address: storeAddress,
+      store_phone: storePhone,
+      branch_address: order?.branch_address || order?.branchAddress || storeAddress,
+      branch_phone: order?.branch_phone || order?.branchPhone || storePhone,
+    };
   };
 
   // ============ DEFECT ITEM LOADING ============
@@ -368,7 +407,7 @@ export default function POSPage() {
         price: defectItem.sellingPrice,
         discount: 0,
         amount: defectItem.sellingPrice,
-        availableQty: Math.max(1, Number((defectItem as any).quantity || (defectItem as any).availableQty || 999)),
+        availableQty: 1,
         barcode: defectItem.barcode,
         isDefective: true,
         defectId: defectItem.id,
@@ -439,12 +478,10 @@ export default function POSPage() {
     const discountValue =
       discountPercent > 0 ? (baseAmount * discountPercent) / 100 : discountAmount;
 
-    const selectedProductName = selectedBatch.product?.name || products.find((p) => String(p.id) === String(product))?.name || product;
-
     const newItem: ExtendedCartItem = {
       id: Date.now() + Math.random(),
       productId: selectedBatch.product.id,
-      productName: selectedProductName,
+      productName: product,
       batchId: selectedBatch.id,
       batchNumber: selectedBatch.batch_number,
       qty: quantity,
@@ -456,7 +493,7 @@ export default function POSPage() {
     };
 
     setCart((prev) => [...prev, newItem]);
-    showToast(`✓ Added: ${selectedProductName} (${quantity} units)`, 'success');
+    showToast(`✓ Added: ${product} (${quantity} units)`, 'success');
 
     // Reset form
     setProduct('');
@@ -486,9 +523,13 @@ export default function POSPage() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          // Defective/used resale items come from Extra Panel, not normal sellable stock.
-          // Allow quantity edits when there are multiple used/defective units being sold together.
-          if (newQty <= item.availableQty || item.isDefective) {
+          // ✅ Prevent quantity changes for defective items
+          if (item.isDefective) {
+            showToast('Cannot change quantity of defective items', 'error');
+            return item;
+          }
+
+          if (newQty <= item.availableQty) {
             const baseAmount = item.price * newQty;
             const discountValue =
               item.discount > 0
@@ -499,7 +540,6 @@ export default function POSPage() {
               ...item,
               qty: newQty,
               amount: baseAmount - discountValue,
-              discount: discountValue,
             };
           }
         }
@@ -555,9 +595,9 @@ export default function POSPage() {
 
   // ============ PRODUCT SELECTION (Manual Mode) ============
 
-  const handleProductSelect = (productId: string) => {
-    setProduct(productId);
-    const selectedProd = products.find((p) => String(p.id) === String(productId));
+  const handleProductSelect = (productName: string) => {
+    setProduct(productName);
+    const selectedProd = products.find((p) => p.name === productName);
 
     if (selectedProd && selectedProd.batches && selectedProd.batches.length > 0) {
       const firstBatch = selectedProd.batches[0];
@@ -576,7 +616,6 @@ export default function POSPage() {
   // ============ CALCULATIONS ============
 
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
-  const grossSubtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
   const total = subtotal + transportCost;
 
@@ -730,12 +769,8 @@ export default function POSPage() {
               tax_amount: taxAmount, // VAT inclusive — no extra tax
             };
 
-            if (item.isDefective) {
-              itemPayload.is_defective = true;
-              itemPayload.defective_product_id = item.defectId;
-              itemPayload.source = 'defective_resale';
-              if (item.barcode) itemPayload.defective_barcode = item.barcode;
-            } else if (item.barcode) {
+            // ✅ CRITICAL: Only include barcode for NON-defective items
+            if (!item.isDefective && item.barcode) {
               itemPayload.barcode = item.barcode;
             }
 
@@ -761,9 +796,8 @@ export default function POSPage() {
             category: item.serviceCategory,
           })),
 
-        // ✅ FIXED: Global discount_amount should be 0 because item discounts are already sent in the items array.
-        // If a global discount field is added to the UI later, it should be sent here.
-        discount_amount: 0,
+        // ✅ FIXED: Add totals correctly
+        discount_amount: totalDiscount,
         shipping_amount: transportCost,
 
         // ✅ FIXED: start_date should be undefined instead of null
@@ -777,7 +811,12 @@ export default function POSPage() {
           }
           : {}),
 
-        notes: orderNotes.trim(),
+        // ✅ Add notes if any
+        ...(address || change > 0
+          ? {
+            notes: `${address ? `Address: ${address}` : ''}${address && change > 0 ? ', ' : ''}${change > 0 ? `Change Given: ৳${change.toFixed(2)}` : ''}`.trim(),
+          }
+          : {}),
       };
 
       console.log('═══════════════════════════════════');
@@ -787,18 +826,7 @@ export default function POSPage() {
 
       // Create order
       console.log('📦 Creating order...');
-      const hasManualProductItems = cart.some((item: any) => !item.isService && !item.isDefective && !item.barcode);
-      const hasDefectiveItems = cart.some((item: any) => item.isDefective);
-      if (hasManualProductItems && hasDefectiveItems) {
-        throw new Error('Please complete manual-entry products and defective products as separate POS sales.');
-      }
-      const order = hasManualProductItems
-        ? ((await axios.post('/manual-relabel-sale', orderPayload)).data?.data)
-        : await orderService.create(orderPayload);
-
-      if (!order?.id) {
-        throw new Error('Order creation failed: missing order ID in response.');
-      }
+      const order = await orderService.create(orderPayload);
 
       console.log('✅ Order created:', order.order_number);
       showToast(`Order #${order.order_number} created!`, 'success');
@@ -882,41 +910,19 @@ export default function POSPage() {
 
           const paymentSplits: any[] = [];
 
-          // ✅ SEQUENTIAL NORMALIZATION: subtract "change" from all payment methods until change is 0
-          // Priority for reduction: Cash -> Nagad -> Bkash -> Card
-          let remainingChange = change;
-          
+          // ✅ FIXED: If there's overpayment, reduce it from cash first
           let adjustedCashPaid = cashPaid;
-          let adjustedNagadPaid = nagadPaid;
-          let adjustedBkashPaid = bkashPaid;
           let adjustedCardPaid = cardPaid;
+          let adjustedBkashPaid = bkashPaid;
+          let adjustedNagadPaid = nagadPaid;
 
-          if (remainingChange > 0 && adjustedCashPaid > 0) {
-            const reduction = Math.min(adjustedCashPaid, remainingChange);
-            adjustedCashPaid -= reduction;
-            remainingChange -= reduction;
+          if (change > 0) {
+            // Customer overpaid - reduce cash payment by the change amount
+            adjustedCashPaid = Math.max(0, cashPaid - change);
+            console.log(
+              `⚠️ Overpayment detected. Reducing cash from ৳${cashPaid} to ৳${adjustedCashPaid}`
+            );
           }
-          if (remainingChange > 0 && adjustedNagadPaid > 0) {
-            const reduction = Math.min(adjustedNagadPaid, remainingChange);
-            adjustedNagadPaid -= reduction;
-            remainingChange -= reduction;
-          }
-          if (remainingChange > 0 && adjustedBkashPaid > 0) {
-            const reduction = Math.min(adjustedBkashPaid, remainingChange);
-            adjustedBkashPaid -= reduction;
-            remainingChange -= reduction;
-          }
-          if (remainingChange > 0 && adjustedCardPaid > 0) {
-            const reduction = Math.min(adjustedCardPaid, remainingChange);
-            adjustedCardPaid -= reduction;
-            remainingChange -= reduction;
-          }
-
-          console.log(`💰 Payment normalization:`, {
-            original: { cashPaid, cardPaid, bkashPaid, nagadPaid, totalPaid },
-            adjusted: { adjustedCashPaid, adjustedCardPaid, adjustedBkashPaid, adjustedNagadPaid, totalToCharge: amountToCharge },
-            changeReturned: change
-          });
 
           // Save exact split for receipt printing
           receiptPaymentBreakdown = {
@@ -1026,34 +1032,25 @@ export default function POSPage() {
                 category: c.serviceCategory ?? c.category,
               }));
 
-            const printableOrder = {
+            const printableOrderBase = {
               ...(fullOrder as any),
-              payment_breakdown: {
-                cash: cashPaid,
-                card: cardPaid,
-                bkash: bkashPaid,
-                nagad: nagadPaid,
-              },
-              tendered_amount: totalPaid,
+              payment_breakdown: receiptPaymentBreakdown,
               change_amount: change,
-              cashPaid: cashPaid,
-              cardPaid: cardPaid,
-              bkashPaid: bkashPaid,
-              nagadPaid: nagadPaid,
-              amounts: {
-                ...(fullOrder as any)?.amounts,
-                paid: totalPaid,
-              },
+              cashPaid: receiptPaymentBreakdown.cash,
+              cardPaid: receiptPaymentBreakdown.card,
+              bkashPaid: receiptPaymentBreakdown.bkash,
+              nagadPaid: receiptPaymentBreakdown.nagad,
               ...(!hasServiceInServerOrder && serviceFallbackFromCart.length > 0
                 ? { services: serviceFallbackFromCart }
                 : {}),
             };
 
-            await printReceipt(printableOrder, undefined, { template: 'pos_receipt', title: 'POS Receipt' });
-            showToast('✅ POS receipt printed', 'success');
+            const printableOrder = await buildPrintableOrderWithStore(printableOrderBase);
+            await printReceipt(printableOrder, undefined, { template: 'pos_receipt' });
+            showToast('✅ Receipt printed', 'success');
           } catch (e: any) {
-            console.error('❌ POS receipt auto-print failed:', e);
-            showToast(`POS receipt print failed: ${e?.message || 'Unknown error'}`, 'error');
+            console.error('❌ Receipt auto-print failed:', e);
+            showToast(`Receipt print failed: ${e?.message || 'Unknown error'}`, 'error');
           }
         })();
       }
@@ -1132,8 +1129,9 @@ export default function POSPage() {
         showToast('QZ Tray offline - opening receipt preview (Print → Save as PDF)', 'error');
       }
       const fullOrder = await orderService.getById(lastCompletedOrderId);
-      await printReceipt(fullOrder, undefined, { template: 'pos_receipt', title: 'POS Receipt' });
-      showToast('✅ POS receipt printed', 'success');
+      const printableOrder = await buildPrintableOrderWithStore(fullOrder);
+      await printReceipt(printableOrder, undefined, { template: 'pos_receipt' });
+      showToast('✅ Receipt printed', 'success');
     } catch (e: any) {
       console.error('❌ Receipt print failed:', e);
       showToast(`Receipt print failed: ${e?.message || 'Unknown error'}`, 'error');
@@ -1153,7 +1151,6 @@ export default function POSPage() {
     setNagadPaid(0);
     setTransportCost(0);
     setAutoCustomerId(null);
-    setOrderNotes('');
 
     // ✅ Clear lookup input + last order UI as well
     (customerLookup as any)?.clear?.();
@@ -1225,7 +1222,7 @@ export default function POSPage() {
 
   const fetchOutlets = async (role: string, storeId: string) => {
     try {
-      const response = await storeService.getStores({ is_active: true, per_page: 100 });
+      const response = await storeService.getStores({ is_active: true });
 
       // ✅ FIXED: Handle response type correctly
       if (!response || (typeof response === 'object' && 'success' in response && !response.success)) {
@@ -1271,15 +1268,77 @@ export default function POSPage() {
 
     try {
       console.log('🔄 Fetching products and batches for store:', selectedOutlet);
-      setIsFetchingBatches(true);
 
-      // ✅ Use the robust getBatchesAll which handles pagination automatically (up to 2000 items)
-      const allBatches = await batchService.getBatchesAll({
-        store_id: parseInt(selectedOutlet),
-        status: 'available',
-      }, { max_items: 5000 });
+      let allBatches: Batch[] = [];
 
-      console.log('✅ Fetched', allBatches.length, 'total available batches');
+      // ✅ ROBUST: Try multiple batch fetching methods with fallbacks (like social commerce)
+
+      // Method 1: Try getAvailableBatches
+      try {
+        const batchesData = await batchService.getAvailableBatches(parseInt(selectedOutlet));
+        console.log('✅ Raw batches from getAvailableBatches:', batchesData);
+
+        if (batchesData && batchesData.length > 0) {
+          allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
+          console.log('✅ Fetched', allBatches.length, 'batches (method: getAvailableBatches)');
+        }
+      } catch (err) {
+        console.warn('⚠️ getAvailableBatches failed, trying getBatchesArray...', err);
+      }
+
+      // Method 2: Try getBatchesArray if Method 1 failed
+      if (allBatches.length === 0) {
+        try {
+          const batchesData = await batchService.getBatchesArray({
+            store_id: parseInt(selectedOutlet),
+            status: 'available',
+          });
+          console.log('✅ Raw batches from getBatchesArray:', batchesData);
+
+          if (batchesData && batchesData.length > 0) {
+            allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
+            console.log('✅ Fetched', allBatches.length, 'batches (method: getBatchesArray)');
+          }
+        } catch (err) {
+          console.warn('⚠️ getBatchesArray failed, trying getBatchesByStore...', err);
+        }
+      }
+
+      // Method 3: Try getBatchesByStore if Method 2 failed
+      if (allBatches.length === 0) {
+        try {
+          const batchesData = await batchService.getBatchesByStore(parseInt(selectedOutlet));
+          console.log('✅ Raw batches from getBatchesByStore:', batchesData);
+
+          if (batchesData && batchesData.length > 0) {
+            allBatches = batchesData.filter((batch: any) => batch.quantity > 0);
+            console.log('✅ Fetched', allBatches.length, 'batches (method: getBatchesByStore)');
+          }
+        } catch (err) {
+          console.warn('⚠️ getBatchesByStore failed, trying getBatches...', err);
+        }
+      }
+
+      // Method 4: Fall back to getBatches (standard method) if all else failed
+      if (allBatches.length === 0) {
+        try {
+          const batchResponse = await batchService.getBatches({
+            store_id: parseInt(selectedOutlet),
+            status: 'available',
+            per_page: 5000,
+          });
+
+          allBatches = batchResponse.success && batchResponse.data?.data
+            ? batchResponse.data.data.filter((batch: Batch) => batch.quantity > 0)
+            : [];
+
+          console.log('✅ Fetched', allBatches.length, 'batches (method: getBatches)');
+        } catch (err) {
+          console.error('❌ All batch fetch methods failed:', err);
+          showToast('Failed to load product batches', 'error');
+          return;
+        }
+      }
 
       if (allBatches.length === 0) {
         console.log('⚠️ No batches found for store:', selectedOutlet);
@@ -1291,7 +1350,7 @@ export default function POSPage() {
       // ✅ Group batches by product_id
       const batchesByProduct = new Map<number, Batch[]>();
       allBatches.forEach((batch: any) => {
-        const productId = Number(batch.product?.id || batch.product_id);
+        const productId = batch.product?.id || batch.product_id;
         if (productId) {
           if (!batchesByProduct.has(productId)) {
             batchesByProduct.set(productId, []);
@@ -1305,7 +1364,6 @@ export default function POSPage() {
       // ✅ Fetch all products (page through backend caps)
       const productResponse: any = await productService.getAll({
         is_archived: false,
-        group_by_sku: false,
         per_page: 50000,
       });
 
@@ -1340,8 +1398,6 @@ export default function POSPage() {
     } catch (error) {
       console.error('❌ Error fetching products:', error);
       showToast('Failed to load products', 'error');
-    } finally {
-      setIsFetchingBatches(false);
     }
   };
 
@@ -1513,91 +1569,27 @@ export default function POSPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Employee <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative" ref={employeeDropdownRef}>
-                    <div
-                      className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white flex items-center justify-between cursor-pointer ${
-                        role === 'pos-salesman' ? 'opacity-75 bg-gray-200 dark:bg-gray-800 cursor-not-allowed' : ''
-                      }`}
-                      onClick={() => role !== 'pos-salesman' && setShowEmployeeDropdown(!showEmployeeDropdown)}
-                    >
-                      <span className="truncate">
-                        {selectedEmployee 
-                          ? employees.find(e => e.id === selectedEmployee)?.name || 'Select Employee'
-                          : 'Select Employee'}
-                      </span>
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    </div>
-
-                    {showEmployeeDropdown && (
-                      <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
-                        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-                          <input
-                            type="text"
-                            placeholder="Search employee..."
-                            autoFocus
-                            className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                            value={employeeSearchQuery}
-                            onChange={(e) => setEmployeeSearchQuery(e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </div>
-                        <div className="max-h-60 overflow-y-auto">
-                          <div
-                            className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
-                            onClick={() => {
-                              setSelectedEmployee('');
-                              setShowEmployeeDropdown(false);
-                              setEmployeeSearchQuery('');
-                            }}
-                          >
-                            Select Employee
-                          </div>
-                          {employees
-                            .filter(emp => 
-                              emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
-                              emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
-                            )
-                            .map((emp) => (
-                              <div
-                                key={emp.id}
-                                className={`px-4 py-2 text-sm cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 ${
-                                  selectedEmployee === emp.id ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'
-                                }`}
-                                onClick={() => {
-                                  setSelectedEmployee(emp.id);
-                                  setShowEmployeeDropdown(false);
-                                  setEmployeeSearchQuery('');
-                                }}
-                              >
-                                <div className="font-medium">{emp.name}</div>
-                                <div className="text-[11px] text-gray-500 dark:text-gray-400">{emp.role}</div>
-                              </div>
-                            ))}
-                          {role !== 'pos-salesman' && (
-                            <div
-                              className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400 font-medium border-t border-gray-100 dark:border-gray-700/50 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                              onClick={() => {
-                                setShowAddEmployeeModal(true);
-                                setSelectedEmployee('');
-                                setShowEmployeeDropdown(false);
-                                setEmployeeSearchQuery('');
-                              }}
-                            >
-                              + Add New Employee
-                            </div>
-                          )}
-                          {employees.filter(emp => 
-                            emp.name.toLowerCase().includes(employeeSearchQuery.toLowerCase()) ||
-                            emp.role.toLowerCase().includes(employeeSearchQuery.toLowerCase())
-                          ).length === 0 && (
-                            <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center italic">
-                              No employees found
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => {
+                      if (e.target.value === 'add_new') {
+                        setShowAddEmployeeModal(true);
+                        setSelectedEmployee('');
+                      } else {
+                        setSelectedEmployee(e.target.value);
+                      }
+                    }}
+                    disabled={role === 'pos-salesman'}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-75 disabled:bg-gray-200 dark:disabled:bg-gray-800"
+                  >
+                    <option value="">Select Employee</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.name} - {emp.role}
+                      </option>
+                    ))}
+                    {role !== 'pos-salesman' && <option value="add_new">+ Add New Employee</option>}
+                  </select>
                 </div>
 
                 <div>
@@ -1642,14 +1634,6 @@ export default function POSPage() {
                       selectedOutlet={selectedOutlet}
                       onProductScanned={handleProductScanned}
                       onError={(msg) => showToast(msg, 'error')}
-                      onOpenOrderLock={(payload) => {
-                        setOpenOrderLockHint({
-                          barcode: payload.barcode,
-                          message: payload.message,
-                          signal: Date.now(),
-                        });
-                        showToast('Open order lock detected. Use the floating rescue popup.', 'error');
-                      }}
                     />
                   )}
 
@@ -1687,93 +1671,43 @@ export default function POSPage() {
                             />
                           </div>
 
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              placeholder="Search by SKU, Product Name or ID..."
-                              value={manualSearchQuery}
-                              onChange={(e) => setManualSearchQuery(e.target.value)}
-                              disabled={!selectedOutlet}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                            
-                            <select
-                              value={product}
-                              onChange={(e) => handleProductSelect(e.target.value)}
-                              disabled={!selectedOutlet}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-                            >
-                              <option value="">
-                                {manualSearchQuery ? 'Matching Products' : 'Select Product'}
-                              </option>
-                              {products
-                                .filter((p) => {
-                                  if (!p.batches || p.batches.length === 0) return false;
+                          <select
+                            value={product}
+                            onChange={(e) => handleProductSelect(e.target.value)}
+                            disabled={!selectedOutlet}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                          >
+                            <option value="">Select Product</option>
+                            {products
+                              .filter((p) => {
+                                if (!p.batches || p.batches.length === 0) return false;
 
-                                  const query = manualSearchQuery.toLowerCase().trim();
-                                  const min =
-                                    minPriceFilter.trim() !== '' && Number.isFinite(Number(minPriceFilter))
-                                      ? Number(minPriceFilter)
-                                      : null;
-                                  const max =
-                                    maxPriceFilter.trim() !== '' && Number.isFinite(Number(maxPriceFilter))
-                                      ? Number(maxPriceFilter)
-                                      : null;
+                                const min =
+                                  minPriceFilter.trim() !== '' && Number.isFinite(Number(minPriceFilter))
+                                    ? Number(minPriceFilter)
+                                    : null;
+                                const max =
+                                  maxPriceFilter.trim() !== '' && Number.isFinite(Number(maxPriceFilter))
+                                    ? Number(maxPriceFilter)
+                                    : null;
 
-                                  // Apply manual search query filter
-                                  if (query) {
-                                    const skuMatch = p.sku?.toLowerCase().includes(query);
-                                    const nameMatch = p.name.toLowerCase().includes(query);
-                                    const idMatch = String(p.id) === query;
-                                    if (!skuMatch && !nameMatch && !idMatch) return false;
-                                  }
+                                if (min === null && max === null) return p.batches.length > 0;
 
-                                  if (min === null && max === null) return true;
+                                return p.batches.some((b) => {
+                                  if (Number(b.quantity) <= 0) return false;
 
-                                  return p.batches.some((b) => {
-                                    if (Number(b.quantity) <= 0) return false;
-                                    const price = Number(String(b.sell_price ?? '0').replace(/[^0-9.-]/g, ''));
-                                    if (min !== null && price < min) return false;
-                                    if (max !== null && price > max) return false;
-                                    return true;
-                                  });
-                                })
-                                .sort((a, b) => {
-                                  if (!manualSearchQuery) return 0;
-                                  const query = manualSearchQuery.toLowerCase().trim();
-                                  
-                                  // 1. Exact SKU/ID match
-                                  const aExact = a.sku?.toLowerCase() === query || String(a.id) === query;
-                                  const bExact = b.sku?.toLowerCase() === query || String(b.id) === query;
-                                  if (aExact && !bExact) return -1;
-                                  if (!aExact && bExact) return 1;
-
-                                  // 2. Starts with name/sku
-                                  const aStarts = a.name.toLowerCase().startsWith(query) || a.sku?.toLowerCase().startsWith(query);
-                                  const bStarts = b.name.toLowerCase().startsWith(query) || b.sku?.toLowerCase().startsWith(query);
-                                  if (aStarts && !bStarts) return -1;
-                                  if (!aStarts && bStarts) return 1;
-
-                                  const nameCompare = a.name.localeCompare(b.name);
-                                  if (nameCompare !== 0) return nameCompare;
-                                  return Number(a.id) - Number(b.id);
-                                })
-                                .slice(0, manualSearchQuery ? 100 : 50) // Limit results for performance
-                                .map((prod) => (
-                                  <option key={prod.id} value={String(prod.id)}>
-                                    {prod.name} {prod.sku ? `(${prod.sku})` : ''} — {prod.batches?.length || 0} batches
-                                  </option>
-                                ))}
-                            </select>
-                            {manualSearchQuery && products.filter(p => {
-                              const q = manualSearchQuery.toLowerCase().trim();
-                              return p.sku?.toLowerCase().includes(q) || 
-                                     p.name.toLowerCase().includes(q) || 
-                                     String(p.id) === q;
-                            }).length === 0 && (
-                              <p className="text-[11px] text-red-500 italic">No products found matching your search.</p>
-                            )}
-                          </div>
+                                  const price = Number(String(b.sell_price ?? '0').replace(/[^0-9.-]/g, ''));
+                                  if (min !== null && price < min) return false;
+                                  if (max !== null && price > max) return false;
+                                  return true;
+                                });
+                              })
+                              .map((prod) => (
+                                <option key={prod.id} value={prod.name}>
+                                  {prod.name} ({prod.batches?.length || 0} batches)
+                                </option>
+                              ))}
+                          </select>
                         </div>
 
                         <div>
@@ -1847,15 +1781,6 @@ export default function POSPage() {
                     </div>
                   )}
 
-                  {/* Service Selector */}
-                  <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                    <ServiceSelector 
-                      onAddService={addServiceToCart}
-                      darkMode={darkMode}
-                      allowManualPrice={true}
-                    />
-                  </div>
-
                   {/* Customer Details */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
@@ -1885,13 +1810,6 @@ export default function POSPage() {
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                      />
-                      <textarea
-                        placeholder="Order Notes (e.g. special instructions, gift wrapping)..."
-                        value={orderNotes}
-                        onChange={(e) => setOrderNotes(e.target.value)}
-                        className="col-span-3 mt-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        rows={2}
                       />
                     </div>
 
@@ -2024,7 +1942,7 @@ export default function POSPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-700 dark:text-gray-300">Sub Total</span>
                       <span className="text-gray-900 dark:text-white font-medium">
-                        ৳{grossSubtotal.toFixed(2)}
+                        ৳{subtotal.toFixed(2)}
                       </span>
                     </div>
 
@@ -2397,15 +2315,6 @@ export default function POSPage() {
           }}
         />
       )}
-      <OpenOrderLockRescueWidget
-        contextLabel="POS"
-        selectedStoreId={selectedOutlet}
-        detectedBarcode={openOrderLockHint?.barcode || null}
-        detectedMessage={openOrderLockHint?.message || null}
-        triggerKey={openOrderLockHint?.signal || null}
-        onRevived={(barcode) => showToast(`Barcode ${barcode} revived. Scan again now.`, 'success')}
-      />
-
       <DailyCashReportModal
         isOpen={showDailyReportModal}
         onClose={() => setShowDailyReportModal(false)}

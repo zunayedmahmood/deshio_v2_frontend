@@ -16,7 +16,6 @@ const axiosInstance = axios.create({
 // Public routes that don't require authentication (NO trailing slashes)
 const PUBLIC_ROUTES = [
   '/catalog',        // Matches /catalog, /catalog/products, etc.
-  '/live/products-feed',
   '/login',
   '/forgot-password',
   '/reset-password',
