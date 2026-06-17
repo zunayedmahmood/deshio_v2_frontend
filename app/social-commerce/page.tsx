@@ -2200,8 +2200,10 @@ export default function SocialCommercePage() {
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
 
   const handleConfirmOrder = async () => {
-    let cleanPhone = userPhone ? userPhone.trim() : '';
-    if (isInternational) {
+    const rawPhone = userPhone ? userPhone.trim() : '';
+    let cleanPhone = rawPhone;
+    const rawPhoneLooksInternational = rawPhone.startsWith('+');
+    if (isInternational || rawPhoneLooksInternational) {
       cleanPhone = cleanPhone.replace(/[^0-9+\-\s()]/g, '').trim();
     } else {
       cleanPhone = cleanPhone.replace(/\D/g, '');
@@ -2215,16 +2217,17 @@ export default function SocialCommercePage() {
       return;
     }
 
-    if (!isInternational && cleanPhone.length !== 11) {
-      alert('Mobile number must be exactly 11 digits.');
-      return;
-    }
-    if (isInternational) {
-      const intlDigits = cleanPhone.replace(/\D/g, '');
-      if (intlDigits.length < 7 || intlDigits.length > 20) {
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    const phoneIsInternational = isInternational || rawPhoneLooksInternational;
+
+    if (phoneIsInternational) {
+      if (phoneDigits.length < 7 || phoneDigits.length > 20) {
         alert('International phone number must contain 7 to 20 digits.');
         return;
       }
+    } else if (!/^(?:0)?1[3-9]\d{8}$/.test(cleanPhone)) {
+      alert('Bangladesh mobile number must be 11 digits, or turn on International for country-code numbers.');
+      return;
     }
     if (cart.length === 0) {
       alert('Please add products to cart');
@@ -2711,7 +2714,7 @@ export default function SocialCommercePage() {
                         <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">User Phone Number*</label>
                         <input
                           type="text"
-                          placeholder="Phone Number"
+                          placeholder={isInternational ? "+1 555 123 4567" : "01712345678"}
                           value={userPhone}
                           onChange={(e) => setUserPhone(e.target.value)}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"

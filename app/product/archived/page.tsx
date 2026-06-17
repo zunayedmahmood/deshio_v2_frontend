@@ -37,6 +37,17 @@ export default function ArchivedProductsPage() {
     setToast({ message, type });
   };
 
+  const runSearchNow = () => {
+    setDebouncedSearchQuery(searchQuery.trim());
+    setCurrentPage(1);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setDebouncedSearchQuery('');
+    setCurrentPage(1);
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearchQuery(searchQuery.trim());
@@ -202,17 +213,39 @@ export default function ArchivedProductsPage() {
             </div>
 
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-6 shadow-sm">
-              <div className="flex flex-col md:flex-row gap-3">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  runSearchNow();
+                }}
+                className="flex flex-col md:flex-row gap-3"
+              >
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
-                    type="text"
-                    placeholder="Search archived products by name or SKU..."
+                    type="search"
+                    placeholder="Search archived products by name, SKU, category, vendor, color, or size..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-12 pr-4 py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-gray-500 text-sm"
                   />
                 </div>
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold hover:bg-gray-800 dark:hover:bg-gray-100"
+                >
+                  <Search className="w-4 h-4" />
+                  Search
+                </button>
+                {searchQuery || debouncedSearchQuery ? (
+                  <button
+                    type="button"
+                    onClick={clearSearch}
+                    className="inline-flex items-center justify-center px-4 py-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Clear
+                  </button>
+                ) : null}
                 <select
                   value={sortBy}
                   onChange={(e) => {
@@ -227,7 +260,7 @@ export default function ArchivedProductsPage() {
                   <option value="price_asc">Price: Low to High</option>
                   <option value="price_desc">Price: High to Low</option>
                 </select>
-              </div>
+              </form>
               <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 Showing {products.length} of {totalProducts} archived product group{totalProducts === 1 ? '' : 's'} using the same `/products` search pipeline as Product List.
               </div>
