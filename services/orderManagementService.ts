@@ -299,6 +299,24 @@ class OrderManagementService {
     }
   }
 
+
+  /**
+   * Reopen a confirmed order for safe edit without clearing scanned barcodes/store.
+   */
+  async reopenConfirmedForEdit(orderId: number, reason?: string): Promise<any> {
+    try {
+      console.log('🔓 Reopening confirmed order for edit:', orderId);
+      const response = await axiosInstance.post(`/order-management/orders/${orderId}/reopen-confirmed-for-edit`, {
+        reason: reason || 'edit_after_confirmation',
+      });
+      console.log('✅ Confirmed order reopened for edit');
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Failed to reopen confirmed order:', error);
+      throw new Error(error.response?.data?.message || 'Failed to reopen confirmed order for edit');
+    }
+  }
+
   /**
    * Revert order assignment back to pending_assignment
    */
