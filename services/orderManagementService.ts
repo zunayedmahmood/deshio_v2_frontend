@@ -299,6 +299,31 @@ class OrderManagementService {
     }
   }
 
+  /**
+   * Assign/reassign a pickup store for service-only online orders.
+   * This intentionally preserves the service_only status and does not touch
+   * normal product-order packing/Pathao behaviour.
+   */
+  async assignServiceOnlyPickupStore(orderId: number, payload: AssignStorePayload): Promise<any> {
+    const normalizedOrderId = Number(orderId);
+    const normalizedStoreId = Number(payload?.store_id);
+
+    if (!normalizedOrderId || !normalizedStoreId) {
+      throw new Error('Invalid order/store selection');
+    }
+
+    try {
+      const response = await axiosInstance.post(
+        `/order-management/orders/${normalizedOrderId}/assign-service-pickup-store`,
+        { store_id: normalizedStoreId, notes: payload?.notes }
+      );
+      return response.data?.data?.order || response.data?.data || response.data;
+    } catch (error: any) {
+      console.error('❌ Failed to assign service-only pickup store:', error);
+      throw new Error(error.response?.data?.message || error?.message || 'Failed to assign service-only pickup store');
+    }
+  }
+
 
   /**
    * Reopen a confirmed order for safe edit without clearing scanned barcodes/store.

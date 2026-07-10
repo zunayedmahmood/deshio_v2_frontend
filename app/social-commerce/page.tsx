@@ -2401,13 +2401,19 @@ export default function SocialCommercePage() {
         }
       }
 
+      const cartProductItems = cart.filter((item) => !item.isService);
+      const cartServiceItems = cart.filter((item) => item.isService);
+      const isServiceOnlyCart = cartProductItems.length === 0 && cartServiceItems.length > 0;
+      const shouldKeepSelectedStoreForServiceOnly = !effectiveEditOrderId && isServiceOnlyCart && !!selectedStore;
+      const effectiveStoreAssignmentMode = shouldKeepSelectedStoreForServiceOnly ? 'manual' : storeAssignmentMode;
+
       const orderData = {
         order_type: 'social_commerce',
         ...(!effectiveEditOrderId
           ? {
-              store_assignment_mode: storeAssignmentMode,
-              ...(storeAssignmentMode === 'manual' && selectedStore ? { store_id: Number(selectedStore) } : {}),
-              ...(storeAssignmentMode === 'manual' && selectedStoreName ? { selected_store_name: selectedStoreName } : {}),
+              store_assignment_mode: effectiveStoreAssignmentMode,
+              ...((effectiveStoreAssignmentMode === 'manual' || shouldKeepSelectedStoreForServiceOnly) && selectedStore ? { store_id: Number(selectedStore) } : {}),
+              ...((effectiveStoreAssignmentMode === 'manual' || shouldKeepSelectedStoreForServiceOnly) && selectedStoreName ? { selected_store_name: selectedStoreName } : {}),
             }
           : {}),
         ...(effectiveEditOrderId ? { editOrderId: effectiveEditOrderId } : {}),
@@ -2422,8 +2428,7 @@ export default function SocialCommercePage() {
         },
         shipping_address,
         // ✅ Separate products and services
-        items: cart
-          .filter((item) => !item.isService)
+        items: cartProductItems
           .map((item) => ({
             ...(item.id ? { id: item.id } : {}),
             product_id: item.product_id,
@@ -2440,8 +2445,7 @@ export default function SocialCommercePage() {
               : {}),
           })),
         // ✅ NEW: Add services array
-        services: cart
-          .filter((item) => item.isService)
+        services: cartServiceItems
           .map((item) => ({
             service_id: item.serviceId,
             service_name: item.productName,

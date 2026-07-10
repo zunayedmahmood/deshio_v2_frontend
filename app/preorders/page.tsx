@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { AlertCircle, Eye, Loader2, RefreshCw, Search, Plus, X } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
-import orderService, { type Order as BackendOrder } from '@/services/orderService';
+import type { Order as BackendOrder } from '@/services/orderService';
+import axios from '@/lib/axios';
 
 type AlertType = 'success' | 'error';
 
@@ -93,13 +94,6 @@ const formatDateTime = (v?: string | null) => {
   return d.toLocaleString();
 };
 
-const isPreorder = (o: BackendOrder): boolean => {
-  const anyO: any = o as any;
-  if (typeof anyO.is_preorder === 'boolean') return anyO.is_preorder;
-  const notes = normalize((o as any).notes);
-  return notes.includes('pre-order') || notes.includes('preorder');
-};
-
 export default function PreordersPage() {
   const { darkMode, setDarkMode } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -120,17 +114,28 @@ export default function PreordersPage() {
     setLoading(true);
     setError(null);
     try {
-      // We fetch a larger page and filter client-side to avoid relying on backend filters.
-      const res = await orderService.getAll({
-        per_page: 200,
-        page: 1,
-        sort_by: 'created_at',
-        sort_order: 'desc',
-      });
+      // Use the dedicated preorder endpoint. The previous implementation fetched only
+      // the newest 200 generic orders and filtered them in the browser, which caused
+      // valid preorders to disappear as normal order volume increased.
+      const perPage = 500;
+      let page = 1;
+      let lastPage = 1;
+      const allOrders: BackendOrder[] = [];
 
-      const data = (res?.data || []).filter(isPreorder);
+      do {
+        const response = await axios.get('/pre-orders', {
+          params: { per_page: perPage, page },
+        });
+        const payload = response?.data?.data;
+        const data = Array.isArray(payload?.orders) ? payload.orders : [];
+        allOrders.push(...(data as BackendOrder[]));
 
-      setOrders(data);
+        const pagination = payload?.pagination || {};
+        lastPage = Number(pagination.last_page || page) || page;
+        page += 1;
+      } while (page <= lastPage && page <= 50);
+
+      setOrders(allOrders);
     } catch (e: any) {
       const msg = e?.message || 'Failed to load preorders';
       setError(msg);
