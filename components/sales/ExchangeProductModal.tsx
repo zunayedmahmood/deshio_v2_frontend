@@ -24,7 +24,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
   const [allowPartialRefunds, setAllowPartialRefunds] = useState(false);
   const [scanningMode, setScanningMode] = useState<'return' | 'replacement'>('return');
   const [isOnlineExchange, setIsOnlineExchange] = useState(originalOrderIsOnline);
-  const [deferReturnReceipt, setDeferReturnReceipt] = useState(originalOrderIsOnline);
+  const [deferReturnReceipt, setDeferReturnReceipt] = useState(false);
 
   const returnInputRef = useRef<HTMLInputElement>(null);
   const replacementInputRef = useRef<HTMLInputElement>(null);
@@ -59,10 +59,6 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     if (!deferReturnReceipt && returnInputRef.current) returnInputRef.current.focus();
     if (deferReturnReceipt && replacementInputRef.current) replacementInputRef.current.focus();
   }, []);
-
-  useEffect(() => {
-    if (isOnlineExchange) setDeferReturnReceipt(true);
-  }, [isOnlineExchange]);
 
   const fetchStores = async () => {
     try {
@@ -758,7 +754,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                   {removedItems.length === 0 && (
                     <div className="text-center py-12 border-4 border-dotted border-gray-100 dark:border-gray-800 rounded-3xl">
                       <Barcode className="w-12 h-12 text-gray-200 dark:text-gray-800 mx-auto mb-4" />
-                      <p className="text-xs font-black text-gray-300 dark:text-gray-700 uppercase tracking-widest">Select original product to mark return pending</p>
+                      <p className="text-xs font-black text-gray-300 dark:text-gray-700 uppercase tracking-widest">{deferReturnReceipt ? 'Select original product to mark return pending' : 'Scan item barcode to begin return'}</p>
                     </div>
                   )}
                 </div>

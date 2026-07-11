@@ -122,6 +122,9 @@ interface Order {
 
   // Intended courier marker
   intendedCourier?: string | null;
+  invoicePrinted?: boolean;
+  invoicePrintCount?: number;
+  lastInvoicePrintedAt?: string | null;
   hasActiveReturn?: boolean;
   activeReturn?: any;
 
@@ -710,6 +713,7 @@ export default function OrdersDashboard() {
 
   const parseMoney = (val: any) => Number(String(val ?? '0').replace(/[^0-9.-]/g, ''));
   const cleanText = (val: any) => (val == null ? '' : String(val)).trim();
+  const PATHAO_ADDRESS_LIMIT = 220;
 
   const normalizeShippingObject = (shipping: any): any => {
     if (!shipping || typeof shipping !== 'object') return shipping;
@@ -774,6 +778,22 @@ export default function OrdersDashboard() {
     if (typeof s.full_address === 'string') return s.full_address;
 
     return '';
+  };
+
+  const formatPathaoRecipientAddress = (shipping: any): string => {
+    if (!shipping) return '';
+    if (typeof shipping === 'string') return shipping.trim();
+    const s: any = normalizeShippingObject(shipping) || {};
+    const parts = [
+      s.address_line1 || s.address_line_1 || s.street || (typeof s.address === 'string' ? s.address : ''),
+      s.address_line2 || s.address_line_2,
+      s.landmark,
+      s.area || s.thana || s.upazila,
+      s.city || s.district,
+      s.postal_code || s.postalCode || s.zip,
+      s.country,
+    ];
+    return parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
   };
 
 
@@ -1108,6 +1128,9 @@ export default function OrdersDashboard() {
       paymentStatusLabel: statusLabel(pStatusRaw || 'pending'),
 
       intendedCourier: order.intended_courier ?? order.intendedCourier ?? null,
+      invoicePrinted: Boolean(order.invoice_printed || order.invoicePrinted),
+      invoicePrintCount: Number(order.invoice_print_count ?? order.invoicePrintCount ?? 0) || 0,
+      lastInvoicePrintedAt: order.last_invoice_printed_at ?? order.lastInvoicePrintedAt ?? null,
       hasActiveReturn: Boolean(order.has_active_return || order.hasActiveReturn || order.active_return || order.activeReturn),
       activeReturn: order.active_return ?? order.activeReturn ?? null,
 
@@ -2184,6 +2207,30 @@ When the courier brings back the original product, open this order/lookup and cl
     );
   };
 
+
+  const getInvoicePrintedBadge = (order: Order) => {
+    if (!isSocialOrder(order)) return null;
+
+    if (order.invoicePrinted) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+          title={order.lastInvoicePrintedAt ? `Last invoice print: ${new Date(order.lastInvoicePrintedAt).toLocaleString()}` : 'Invoice print recorded'}
+        >
+          <CheckCircle className="h-3 w-3" />
+          Invoice printed{order.invoicePrintCount && order.invoicePrintCount > 1 ? ` ×${order.invoicePrintCount}` : ''}
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800">
+        <Printer className="h-3 w-3" />
+        Invoice not printed
+      </span>
+    );
+  };
+
   const totalRevenue = orders.reduce((sum, order) => sum + order.amounts.total, 0);
   const paidOrders = orders.filter((o) => normalize(o.paymentStatus) === 'paid').length;
   const dueOrders = orders.filter((o) => normalize(o.paymentStatus) !== 'paid').length;
@@ -2661,6 +2708,54 @@ When the courier brings back the original product, open this order/lookup and cl
     return t === 'social_commerce' || t === 'social' || lbl.includes('social');
   };
 
+
+  const markInvoicePrintedLocally = (
+    orderId: number,
+    result?: { invoice_print_count?: number; last_invoice_printed_at?: string | null }
+  ) => {
+    setOrders((prev) => prev.map((o) => {
+      if (o.id !== orderId) return o;
+      const nextCount = Number(result?.invoice_print_count ?? (o.invoicePrintCount || 0) + 1) || 1;
+      return {
+        ...o,
+        invoicePrinted: true,
+        invoicePrintCount: nextCount,
+        lastInvoicePrintedAt: result?.last_invoice_printed_at ?? new Date().toISOString(),
+      };
+    }));
+    setSelectedOrder((prev) => {
+      if (!prev || prev.id !== orderId) return prev;
+      const nextCount = Number(result?.invoice_print_count ?? (prev.invoicePrintCount || 0) + 1) || 1;
+      return {
+        ...prev,
+        invoicePrinted: true,
+        invoicePrintCount: nextCount,
+        lastInvoicePrintedAt: result?.last_invoice_printed_at ?? new Date().toISOString(),
+      };
+    });
+  };
+
+  const recordInvoicePrintActivity = async (
+    orderId: number,
+    mode: 'browser_preview' | 'qz_tray',
+    printerName?: string,
+    batchId?: string
+  ) => {
+    try {
+      const result = await orderService.logInvoicePrint(orderId, {
+        print_mode: mode,
+        printer_name: printerName || null,
+        source_page: 'orders',
+        batch_id: batchId || null,
+      });
+      markInvoicePrintedLocally(orderId, result);
+      return true;
+    } catch (error) {
+      console.warn('Invoice print opened, but activity log could not be saved:', error);
+      return false;
+    }
+  };
+
   // ✅ Bulk: Print social commerce invoices (A5)
   const handleBulkPrintInvoices = async () => {
     if (selectedOrders.size === 0) {
@@ -2693,6 +2788,7 @@ When the courier brings back the original product, open this order/lookup and cl
     setBulkPrintProgress({ show: true, current: 0, total: socialList.length, success: 0, failed: 0 });
 
     try {
+      const invoicePrintBatchId = `invoice-${Date.now()}`;
       const fullOrders: any[] = [];
 
       // fetch full orders one-by-one (keeps backend load safe)
@@ -2714,7 +2810,12 @@ When the courier brings back the original product, open this order/lookup and cl
       // If QZ is offline, open ONE bulk preview window (Print → Save as PDF).
       if (!status.connected) {
         await printBulkReceipts(fullOrders, undefined, { template: 'social_invoice', title: 'Social Invoices' });
-        alert('Opened invoice preview. Use Print → Save as PDF.');
+        let loggedCount = 0;
+        for (const fullOrder of fullOrders) {
+          const ok = await recordInvoicePrintActivity(Number(fullOrder?.id), 'browser_preview', undefined, invoicePrintBatchId);
+          if (ok) loggedCount++;
+        }
+        alert(`Opened invoice preview. Use Print → Save as PDF.\nActivity log saved for ${loggedCount}/${fullOrders.length} invoice(s).`);
         return;
       }
 
@@ -2728,6 +2829,7 @@ When the courier brings back the original product, open this order/lookup and cl
 
         try {
           await printReceipt(fullOrder as any, selectedPrinter, { template: 'social_invoice', title: 'Invoice' });
+          await recordInvoicePrintActivity(Number(fullOrder?.id), 'qz_tray', selectedPrinter, invoicePrintBatchId);
           successCount++;
           setBulkPrintProgress((prev) => ({ ...prev, success: successCount }));
         } catch {
@@ -2986,7 +3088,16 @@ When the courier brings back the original product, open this order/lookup and cl
         title: 'Invoice',
       });
 
-      alert('✅ Invoice ready (printed or opened in preview)!');
+      const logged = await recordInvoicePrintActivity(
+        order.id,
+        status.connected ? 'qz_tray' : 'browser_preview',
+        status.connected ? selectedPrinter : undefined
+      );
+
+      alert(logged
+        ? '✅ Invoice ready and activity log saved!'
+        : '✅ Invoice ready, but activity log could not be saved. Please refresh and check permissions.'
+      );
     } finally {
       setSingleActionLoading(null);
     }
@@ -3525,6 +3636,46 @@ When the courier brings back the original product, open this order/lookup and cl
     }
   };
 
+  const getEditableSocialPathaoAddressPreview = () => {
+    if (!editableOrder || normalize(editableOrder.orderType) !== 'social_commerce' || scIsInternational) return '';
+
+    const currentShipping: any =
+      editableOrder.shipping_address && typeof editableOrder.shipping_address === 'object'
+        ? { ...(normalizeShippingObject(editableOrder.shipping_address as any) || {}) }
+        : {};
+    const cityObj = pathaoCities.find((c) => String(c.city_id) === String(pathaoCityId));
+    const zoneObj = pathaoZones.find((z) => String(z.zone_id) === String(pathaoZoneId));
+    const areaObj = pathaoAreas.find((a) => String(a.area_id) === String(pathaoAreaId));
+
+    const previewShipping = scUsePathaoAutoLocation
+      ? {
+        ...currentShipping,
+        street: scStreetAddress,
+        address_line1: scStreetAddress,
+        address_line_1: scStreetAddress,
+        city: currentShipping.city || scCity || 'Dhaka',
+        postal_code: scPostalCode || undefined,
+        country: currentShipping.country || 'Bangladesh',
+      }
+      : {
+        ...currentShipping,
+        street: scStreetAddress,
+        address_line1: scStreetAddress,
+        address_line_1: scStreetAddress,
+        area: areaObj?.area_name || currentShipping.area || '',
+        zone: zoneObj?.zone_name || currentShipping.zone || '',
+        city: cityObj?.city_name || currentShipping.city || '',
+        postal_code: scPostalCode || undefined,
+        country: currentShipping.country || 'Bangladesh',
+      };
+
+    return formatPathaoRecipientAddress(previewShipping);
+  };
+
+  const editableSocialPathaoAddressPreview = getEditableSocialPathaoAddressPreview();
+  const editableSocialPathaoAddressLength = editableSocialPathaoAddressPreview.length;
+  const isEditableSocialPathaoAddressTooLong = editableSocialPathaoAddressLength > PATHAO_ADDRESS_LIMIT;
+
   const handleSaveOrder = async () => {
     if (!editableOrder) return;
 
@@ -3668,6 +3819,14 @@ When the courier brings back the original product, open this order/lookup and cl
         shipping_address.country = normalizedCountry;
       }
 
+      if (orderType === 'social_commerce' && !scIsInternational) {
+        const pathaoAddress = formatPathaoRecipientAddress(shipping_address);
+        if (pathaoAddress.length > PATHAO_ADDRESS_LIMIT) {
+          alert(`Pathao accepts maximum ${PATHAO_ADDRESS_LIMIT} characters for recipient address. Current address is ${pathaoAddress.length} characters. Please shorten it before saving.`);
+          return;
+        }
+      }
+
       const payloadBase: any = {
         customer_name: customerName,
         customer_phone: customerPhone,
@@ -3707,23 +3866,7 @@ When the courier brings back the original product, open this order/lookup and cl
           ? { ...payloadBase, shipping_address }
           : payloadBase;
 
-      let response: any;
-      try {
-        response = await axios.patch(`/orders/${editableOrder.id}`, payloadWithShipping);
-      } catch (error: any) {
-        // Fallback: if backend rejects shipping_address updates, retry without it
-        const backendData = error?.response?.data;
-        const txt = JSON.stringify(backendData || {}).toLowerCase();
-        const maybeShippingErr = txt.includes('shipping_address') || txt.includes('shipping address');
-
-        if (payloadWithShipping?.shipping_address && maybeShippingErr) {
-          response = await axios.patch(`/orders/${editableOrder.id}`, payloadBase);
-        } else {
-          throw error;
-        }
-      }
-
-
+      const response: any = await axios.patch(`/orders/${editableOrder.id}`, payloadWithShipping);
 
       if (response.data?.success) {
         const updated = transformOrder(response.data.data);
@@ -4422,6 +4565,7 @@ When the courier brings back the original product, open this order/lookup and cl
                                   {getOrderTypeBadge(order.orderType)}
                                   {getDeliveryBadge(order.orderNumber)}
                                   {viewMode === 'online' && getCourierBadge(order.intendedCourier)}
+                                  {getInvoicePrintedBadge(order)}
                                   {order.isInstallment && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                                       EMI
@@ -4533,6 +4677,7 @@ When the courier brings back the original product, open this order/lookup and cl
                                   )}
                                   {getDeliveryBadge(order.orderNumber)}
                                   {viewMode === 'online' && getCourierBadge(order.intendedCourier)}
+                                  {getInvoicePrintedBadge(order)}
                                 </div>
                                 {pathaoLookupByOrderNumber[order.orderNumber]?.is_sent_via_pathao &&
                                   pathaoLookupByOrderNumber[order.orderNumber]?.pathao_consignment_id && (
@@ -5832,11 +5977,21 @@ When the courier brings back the original product, open this order/lookup and cl
                               rows={scUsePathaoAutoLocation ? 3 : 2}
                               value={scStreetAddress}
                               onChange={(e) => setScStreetAddress(e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-black dark:text-white text-sm"
+                              className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-800 text-black dark:text-white text-sm ${isEditableSocialPathaoAddressTooLong ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600'}`}
                               placeholder={
                                 scUsePathaoAutoLocation ? 'House 71, Road 15, Sector 11, Uttara, Dhaka' : 'House 12, Road 5, etc.'
                               }
                             />
+                            <div className="mt-1 flex items-start justify-between gap-2 text-[11px]">
+                              <span className={isEditableSocialPathaoAddressTooLong ? 'font-semibold text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                                Pathao address: {editableSocialPathaoAddressLength}/{PATHAO_ADDRESS_LIMIT} characters
+                              </span>
+                              {isEditableSocialPathaoAddressTooLong && (
+                                <span className="max-w-[260px] text-right font-medium text-red-600 dark:text-red-400">
+                                  Warning: Pathao will reject addresses longer than 220 characters. Please shorten it.
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
