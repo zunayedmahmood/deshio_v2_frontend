@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Loader2, Save, CheckCircle2, AlertCircle, Pencil, X, Check, Printer } from 'lucide-react';
 
 import Header from '@/components/Header';
@@ -32,6 +32,17 @@ type UpdateRow = {
   new_cost_price?: string;
   product_name?: string;
 };
+
+type PriceUpdateDraft = {
+  search?: string;
+  selectedProduct?: ProductPick | null;
+  selectedVariationIds?: number[];
+  sellPrice?: string;
+  costPrice?: string;
+  updatedAt?: string;
+};
+
+const PRICE_UPDATE_DRAFT_KEY = 'deshio_batch_price_update_draft_v1';
 
 export default function BatchPriceUpdatePage() {
   // Layout states (required by your Header/Sidebar)
@@ -69,6 +80,9 @@ export default function BatchPriceUpdatePage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [updates, setUpdates] = useState<UpdateRow[]>([]);
+  const [draftRestoredAt, setDraftRestoredAt] = useState<string | null>(null);
+  const [draftLastSavedAt, setDraftLastSavedAt] = useState<string | null>(null);
+  const restoredVariationIdsRef = useRef<number[] | null>(null);
   
   // Barcode printing (reuse PO barcode-center logic)
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
@@ -90,6 +104,78 @@ export default function BatchPriceUpdatePage() {
     if (!product) return 'Product';
     return String(product.base_name || product.name || 'Product').trim();
   };
+
+  const clearPriceUpdateDraft = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(PRICE_UPDATE_DRAFT_KEY);
+    }
+    restoredVariationIdsRef.current = null;
+    setDraftRestoredAt(null);
+    setDraftLastSavedAt(null);
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const raw = window.localStorage.getItem(PRICE_UPDATE_DRAFT_KEY);
+    if (!raw) return;
+
+    try {
+      const draft = JSON.parse(raw) as PriceUpdateDraft;
+      const savedProduct = draft?.selectedProduct;
+      const savedVariationIds = Array.isArray(draft?.selectedVariationIds)
+        ? draft.selectedVariationIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        : [];
+
+      if (savedProduct?.id) {
+        setSelectedProduct(savedProduct);
+        restoredVariationIdsRef.current = savedVariationIds.length ? savedVariationIds : null;
+        setSelectedVariationIds(savedVariationIds.length ? savedVariationIds : (savedProduct.variant_ids?.length ? savedProduct.variant_ids : [savedProduct.id]));
+        setSearch(draft.search || `${getProductDisplayName(savedProduct)}${savedProduct.sku ? ` (${savedProduct.sku})` : ''}`);
+      } else if (draft?.search) {
+        setSearch(draft.search);
+      }
+
+      setSellPrice(draft?.sellPrice || '');
+      setCostPrice(draft?.costPrice || '');
+      setDraftRestoredAt(draft?.updatedAt || new Date().toISOString());
+      setDraftLastSavedAt(draft?.updatedAt || null);
+    } catch (e) {
+      console.warn('Failed to restore batch price update draft', e);
+      window.localStorage.removeItem(PRICE_UPDATE_DRAFT_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const hasDraft = Boolean(
+      selectedProduct?.id ||
+      search.trim() ||
+      selectedVariationIds.length ||
+      sellPrice.trim() ||
+      costPrice.trim()
+    );
+
+    if (!hasDraft) {
+      window.localStorage.removeItem(PRICE_UPDATE_DRAFT_KEY);
+      setDraftLastSavedAt(null);
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const draft: PriceUpdateDraft = {
+      search,
+      selectedProduct,
+      selectedVariationIds,
+      sellPrice,
+      costPrice,
+      updatedAt,
+    };
+
+    window.localStorage.setItem(PRICE_UPDATE_DRAFT_KEY, JSON.stringify(draft));
+    setDraftLastSavedAt(updatedAt);
+  }, [search, selectedProduct, selectedVariationIds, sellPrice, costPrice]);
 
   const prepareBarcodeSources = async () => {
     setBarcodePrepError(null);
@@ -357,7 +443,15 @@ export default function BatchPriceUpdatePage() {
           .map((p) => ({ id: p.id, name: p.name, base_name: p.base_name, sku: p.sku, variants_count: 1, variant_ids: [p.id] } as ProductPick));
 
         setSkuGroupProducts(exact);
-        setSelectedVariationIds(exact.map((p) => p.id)); // default: select all, user can uncheck
+        const restoredIds = restoredVariationIdsRef.current;
+        if (restoredIds?.length) {
+          const exactIds = new Set(exact.map((p) => Number(p.id)));
+          const validRestoredIds = restoredIds.filter((id) => exactIds.has(Number(id)));
+          setSelectedVariationIds(validRestoredIds.length ? validRestoredIds : exact.map((p) => p.id));
+          restoredVariationIdsRef.current = null;
+        } else {
+          setSelectedVariationIds(exact.map((p) => p.id)); // default: select all, user can uncheck
+        }
         setVariationVisible(12); // default: select all, user can uncheck
       } catch (e) {
         console.error('Failed to load SKU group products', e);
@@ -501,6 +595,7 @@ export default function BatchPriceUpdatePage() {
       sessionStorage.setItem('product_list_refresh_needed', '1');
       // Show update rows from the scoped backend response
       setUpdates(((res?.data?.updates || []) as UpdateRow[]) || []);
+      clearPriceUpdateDraft();
 
       // Reload batches for the currently selected product/variations
       const batchFilters = targetIds.length > 1
@@ -548,6 +643,24 @@ export default function BatchPriceUpdatePage() {
                 <div className="mt-4 flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20 p-3">
                   <CheckCircle2 className="h-5 w-5 text-emerald-700 dark:text-emerald-400 mt-0.5" />
                   <div className="text-emerald-800 dark:text-emerald-200">{successMsg}</div>
+                </div>
+              )}
+
+              {(draftRestoredAt || draftLastSavedAt) && (
+                <div className="mt-4 flex flex-col gap-2 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-blue-800 dark:text-blue-200">
+                    {draftRestoredAt ? 'Recovered your unsaved price-adjustment work after refresh.' : 'Price-adjustment draft is being saved automatically.'}
+                    {draftLastSavedAt ? (
+                      <span className="ml-1 text-blue-700 dark:text-blue-300">Last saved {new Date(draftLastSavedAt).toLocaleTimeString()}.</span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearPriceUpdateDraft}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-200 dark:border-blue-800 bg-white dark:bg-gray-900 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                  >
+                    <X className="h-4 w-4" /> Clear saved draft
+                  </button>
                 </div>
               )}
 

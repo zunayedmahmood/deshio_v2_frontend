@@ -20,6 +20,8 @@ import employeeService from '@/services/employeeService';
 // -----------------------------
 
 const PATHAO_ADDRESS_LIMIT = 220;
+const PREORDER_STORE_KEYWORD = 'office';
+const isOfficeStore = (store: any) => String(store?.name ?? '').trim().toLowerCase().includes(PREORDER_STORE_KEYWORD);
 
 interface DefectItem {
   id: string;
@@ -960,25 +962,22 @@ export default function PreOrderPage() {
         storesData = (response as any).data;
       }
 
-      const normalized = (s: any) => String(s ?? '').toLowerCase().trim();
       const activeStores = storesData.filter((store) => store?.id);
-      const officeStore = activeStores.find((s) => normalized(s?.name).includes('office'));
-      const savedStoreId = getSavedSelectedStore();
-      const savedStore = savedStoreId
-        ? activeStores.find((store) => String(store.id) === String(savedStoreId))
-        : null;
-      const targetStore = savedStore || officeStore || activeStores[0];
+      const exactOfficeStore = activeStores.find((s) => String(s?.name ?? '').trim().toLowerCase() === 'office');
+      const officeStore = exactOfficeStore || activeStores.find(isOfficeStore);
+      const officeStores = officeStore ? [officeStore] : [];
 
-      setStores(activeStores);
-      setSelectedStore((prev) => {
-        if (prev && activeStores.some((store) => String(store.id) === String(prev))) {
-          persistSelectedStore(prev);
-          return prev;
-        }
-        const next = targetStore ? String(targetStore.id) : '';
+      setStores(officeStores);
+      setStoreAssignmentMode('auto');
+      setSelectedStore(() => {
+        const next = officeStore ? String(officeStore.id) : '';
         if (next) persistSelectedStore(next);
         return next;
       });
+
+      if (!officeStore) {
+        showToast('No active Office store found. Preorders can only be created for the Office store.', 'error');
+      }
     } catch (error) {
       console.error('Error fetching stores:', error);
       setStores([]);
@@ -1155,6 +1154,62 @@ export default function PreOrderPage() {
     }
 
     return Array.from(byProduct.values());
+  };
+
+  const normalizeCatalogProductsPayload = (body: any): any[] => {
+    if (Array.isArray(body)) return body;
+    const data = body?.data ?? body;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.products)) return data.products;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
+  };
+
+  const buildPreorderProductResultsFromCatalog = (products: any[]) => {
+    return (products || [])
+      .map((prod: any) => {
+        const pid = Number(prod?.id ?? prod?.product_id ?? 0);
+        if (!pid) return null;
+
+        const rawPrice =
+          prod?.sell_price ??
+          prod?.selling_price ??
+          prod?.price ??
+          prod?.regular_price ??
+          prod?.price_display ??
+          prod?.default_price ??
+          0;
+        const price = parseSellPrice(rawPrice);
+        const stock = Number(
+          prod?.available_quantity ??
+          prod?.available_stock ??
+          prod?.stock_quantity ??
+          prod?.quantity ??
+          0
+        ) || 0;
+
+        return {
+          id: pid,
+          name: String(prod?.name ?? prod?.product_name ?? 'Unknown product'),
+          sku: String(prod?.sku ?? prod?.product_sku ?? ''),
+          attributes: {
+            Price: price,
+            mainImage: getProductCardImage(prod),
+          },
+          available: Math.max(0, stock),
+          selected_store_id: selectedStore || '',
+          minPrice: price,
+          maxPrice: price,
+          batchesCount: 0,
+          expiryDate: null,
+          daysUntilExpiry: null,
+          relevance_score: Number(prod?.relevance_score ?? 0) || 0,
+          search_stage: 'preorder_catalog',
+          isPreorderProduct: true,
+        };
+      })
+      .filter(Boolean);
   };
 
   const formatPriceRangeLabel = (p: any) => {
@@ -1926,23 +1981,31 @@ export default function PreOrderPage() {
       setIsSearching(true);
 
       try {
-        // Single unified search using batchService
-        const batches = await batchService.getBatchesAll({
-          store_id: storeId,
-          status: 'available',
+        // Preorders are allowed to be created for unavailable products, so do NOT
+        // depend on store batch availability here. Search the product catalog first
+        // and prefer out-of-stock products, with a fallback to all products if the
+        // backend has no in_stock filter match.
+        let products: any[] = [];
+        const catalogParams: any = {
           search: q || undefined,
-          min_sell_price: min,
-          max_sell_price: max,
-          exact_price: exact,
-        }, { max_items: 2000 }); // Fast search with capped results
+          per_page: q ? 50 : 100,
+          in_stock: false,
+        };
 
-        const results = buildProductResultsFromBatches(batches, {
-          defaultStage: q ? 'advanced' : 'price',
-          defaultScore: 0,
-        });
+        const firstResponse = await axios.get('/catalog/products', { params: catalogParams });
+        products = normalizeCatalogProductsPayload(firstResponse.data);
 
-        // Optional local sanity filter for price
-        const finalResults = results.filter((p: any) => {
+        if (products.length === 0) {
+          const fallbackResponse = await axios.get('/catalog/products', {
+            params: {
+              search: q || undefined,
+              per_page: q ? 50 : 100,
+            },
+          });
+          products = normalizeCatalogProductsPayload(fallbackResponse.data);
+        }
+
+        let finalResults = buildPreorderProductResultsFromCatalog(products).filter((p: any) => {
           const price = Number(p?.attributes?.Price ?? p?.minPrice ?? 0);
           if (exact !== undefined && price !== exact) return false;
           if (min !== undefined && price < min) return false;
@@ -1950,7 +2013,23 @@ export default function PreOrderPage() {
           return true;
         });
 
-        // Sort: cheaper batches first
+        // Last-resort fallback: if catalog search is unavailable, use the Office batch search.
+        if (finalResults.length === 0) {
+          const batches = await batchService.getBatchesAll({
+            store_id: storeId,
+            status: 'available',
+            search: q || undefined,
+            min_sell_price: min,
+            max_sell_price: max,
+            exact_price: exact,
+          }, { max_items: 500 });
+
+          finalResults = buildProductResultsFromBatches(batches, {
+            defaultStage: q ? 'office_batch_fallback' : 'office_price_fallback',
+            defaultScore: 0,
+          });
+        }
+
         finalResults.sort((a: any, b: any) => {
           return Number(a?.attributes?.Price ?? 0) - Number(b?.attributes?.Price ?? 0);
         });
@@ -1959,7 +2038,7 @@ export default function PreOrderPage() {
           setSearchResults(finalResults);
         }
       } catch (error) {
-        console.error('❌ Social commerce search failed:', error);
+        console.error('❌ Preorder product search failed:', error);
         if (searchReqId === productSearchReqRef.current) {
           setSearchResults([]);
         }
@@ -2058,7 +2137,7 @@ export default function PreOrderPage() {
     const discPer = parseFloat(discountPercent) || 0;
     const discTk = parseFloat(discountTk) || 0;
 
-    if (qty > selectedProduct.available && !selectedProduct.isDefective) {
+    if (qty > selectedProduct.available && !selectedProduct.isDefective && !selectedProduct.isPreorderProduct) {
       alert(`Only ${selectedProduct.available} units available in this store`);
       return;
     }
@@ -2115,7 +2194,7 @@ export default function PreOrderPage() {
     const qty = parseInt(quantity);
     const discPer = parseFloat(discountPercent) || 0;
     const discTk = parseFloat(discountTk) || 0;
-    if (qty > selectedProduct.available && !selectedProduct.isDefective) {
+    if (qty > selectedProduct.available && !selectedProduct.isDefective && !selectedProduct.isPreorderProduct) {
       alert(`Only ${selectedProduct.available} units available in this store`);
       return;
     }
@@ -2259,8 +2338,8 @@ export default function PreOrderPage() {
       alert('Please add products to cart');
       return;
     }
-    if (!selectedStore) {
-      alert('Please select a store');
+    if (!selectedStore || !selectedStoreName || !isOfficeStore({ name: selectedStoreName })) {
+      alert('Preorders can only be created for the Office store. Please make sure an active Office store exists.');
       return;
     }
     if (!selectedEmployee) {
@@ -2268,7 +2347,7 @@ export default function PreOrderPage() {
       return;
     }
 
-    if (!editOrderId && productItemsForStoreAssignment.length > 0 && storeAssignmentMode === 'manual') {
+    if (false && !editOrderId && productItemsForStoreAssignment.length > 0 && storeAssignmentMode === 'manual') {
       setIsLoadingStoreAvailability(true);
       try {
         const response = await axios.post('/order-management/cart-store-availability', {
@@ -2435,8 +2514,8 @@ export default function PreOrderPage() {
       const cartProductItems = cart.filter((item) => !item.isService);
       const cartServiceItems = cart.filter((item) => item.isService);
       const isServiceOnlyCart = cartProductItems.length === 0 && cartServiceItems.length > 0;
-      const shouldKeepSelectedStoreForServiceOnly = !effectiveEditOrderId && isServiceOnlyCart && !!selectedStore;
-      const effectiveStoreAssignmentMode = shouldKeepSelectedStoreForServiceOnly ? 'manual' : storeAssignmentMode;
+      const shouldKeepSelectedStoreForServiceOnly = false;
+      const effectiveStoreAssignmentMode = 'auto';
 
       const orderData = {
         order_type: 'social_commerce',
@@ -2445,8 +2524,8 @@ export default function PreOrderPage() {
         ...(!effectiveEditOrderId
           ? {
               store_assignment_mode: effectiveStoreAssignmentMode,
-              ...((effectiveStoreAssignmentMode === 'manual' || shouldKeepSelectedStoreForServiceOnly) && selectedStore ? { store_id: Number(selectedStore) } : {}),
-              ...((effectiveStoreAssignmentMode === 'manual' || shouldKeepSelectedStoreForServiceOnly) && selectedStoreName ? { selected_store_name: selectedStoreName } : {}),
+              store_id: selectedStore ? Number(selectedStore) : undefined,
+              selected_store_name: selectedStoreName || 'Office',
             }
           : {}),
         ...(effectiveEditOrderId ? { editOrderId: effectiveEditOrderId } : {}),
@@ -2670,20 +2749,22 @@ export default function PreOrderPage() {
                 </div>
                 <div className="w-full sm:w-72">
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Store to search / manually assign
+                    Preorder store
                   </label>
                   <select
                     value={selectedStore}
                     onChange={(e) => { const nextStore = e.target.value; setSelectedStore(nextStore); persistSelectedStore(nextStore); }}
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    disabled
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-100"
                   >
-                    <option value="">Select store</option>
+                    <option value="">Office store not found</option>
                     {stores.map((store) => (
                       <option key={store.id} value={store.id}>
-                        {store.name}{store.is_online ? ' • online' : ''}
+                        {store.name}
                       </option>
                     ))}
                   </select>
+                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">Preorders are locked to Office. Other stores are not allowed here.</p>
                   {selectedStore && isLoadingData && <p className="mt-1 text-xs text-blue-600">Loading store info...</p>}
                   {selectedStore && !isLoadingData && typeof availableBatchCount === 'number' && (
                     <p className="mt-1 text-xs text-green-600">{availableBatchCount} batches available in selected store</p>
@@ -2698,7 +2779,7 @@ export default function PreOrderPage() {
                     <button
                       type="button"
                       onClick={() => setStoreAssignmentMode('auto')}
-                      disabled={!!editOrderId}
+                      disabled
                       className={`px-3 py-1.5 rounded border text-xs font-semibold flex items-center justify-center gap-1.5 ${storeAssignmentMode === 'auto'
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'} disabled:opacity-50`}
@@ -2708,7 +2789,7 @@ export default function PreOrderPage() {
                     <button
                       type="button"
                       onClick={() => setStoreAssignmentMode('manual')}
-                      disabled={!!editOrderId || !selectedStore}
+                      disabled
                       className={`px-3 py-1.5 rounded border text-xs font-semibold flex items-center justify-center gap-1.5 ${storeAssignmentMode === 'manual'
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'} disabled:opacity-50`}
@@ -2718,10 +2799,8 @@ export default function PreOrderPage() {
                   </div>
                   <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                     {editOrderId
-                      ? 'Existing order store assignment is preserved while editing.'
-                      : storeAssignmentMode === 'manual'
-                        ? 'Selected store must be able to fulfill this cart before Amount Details.'
-                        : 'Order will enter the assignment queue after Amount Details.'}
+                      ? 'Existing preorder store is preserved while editing.'
+                      : 'Preorders stay in the dedicated preorder page and are always saved against Office.'}
                   </p>
                 </div>
               </div>
@@ -3557,8 +3636,8 @@ export default function PreOrderPage() {
                                 </p>
                                 <p className="mt-1">
                                   {storeAssignmentMode === 'manual'
-                                    ? 'This selected store will be sent to Amount Details and saved with the order.'
-                                    : 'The order will be created as pending_assignment and handled from Store Assignment/Bulk Store Assignment.'}
+                                    ? 'Office will be saved with this preorder.'
+                                    : 'This preorder will stay in the preorder list, not the normal Orders page.'}
                                 </p>
                               </div>
                             </div>

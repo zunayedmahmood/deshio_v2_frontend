@@ -125,6 +125,10 @@ interface Order {
   invoicePrinted?: boolean;
   invoicePrintCount?: number;
   lastInvoicePrintedAt?: string | null;
+  lastInvoicePrintedBy?: number | null;
+  lastInvoicePrintedByName?: string | null;
+  lastInvoicePrintedByEmail?: string | null;
+  lastInvoicePrintedByEmployeeCode?: string | null;
   hasActiveReturn?: boolean;
   activeReturn?: any;
 
@@ -1131,6 +1135,10 @@ export default function OrdersDashboard() {
       invoicePrinted: Boolean(order.invoice_printed || order.invoicePrinted),
       invoicePrintCount: Number(order.invoice_print_count ?? order.invoicePrintCount ?? 0) || 0,
       lastInvoicePrintedAt: order.last_invoice_printed_at ?? order.lastInvoicePrintedAt ?? null,
+      lastInvoicePrintedBy: order.last_invoice_printed_by ?? order.lastInvoicePrintedBy ?? null,
+      lastInvoicePrintedByName: order.last_invoice_printed_by_name ?? order.lastInvoicePrintedByName ?? null,
+      lastInvoicePrintedByEmail: order.last_invoice_printed_by_email ?? order.lastInvoicePrintedByEmail ?? null,
+      lastInvoicePrintedByEmployeeCode: order.last_invoice_printed_by_employee_code ?? order.lastInvoicePrintedByEmployeeCode ?? null,
       hasActiveReturn: Boolean(order.has_active_return || order.hasActiveReturn || order.active_return || order.activeReturn),
       activeReturn: order.active_return ?? order.activeReturn ?? null,
 
@@ -1333,6 +1341,7 @@ export default function OrdersDashboard() {
         status: orderStatusFilter === 'All Order Status' ? undefined : orderStatusFilter,
         payment_status: paymentStatusFilter === 'All Payment Status' ? undefined : paymentStatusFilter,
         intended_courier: courierFilter === 'All Couriers' ? undefined : courierFilter,
+        exclude_preorders: true,
       };
 
       if (viewMode === 'installments') {
@@ -2212,13 +2221,19 @@ When the courier brings back the original product, open this order/lookup and cl
     if (!isSocialOrder(order)) return null;
 
     if (order.invoicePrinted) {
+      const printedByText = order.lastInvoicePrintedByName
+        ? ` by ${order.lastInvoicePrintedByName}${order.lastInvoicePrintedByEmployeeCode ? ` (${order.lastInvoicePrintedByEmployeeCode})` : ''}`
+        : '';
+      const printedAtText = order.lastInvoicePrintedAt
+        ? `Last invoice print: ${new Date(order.lastInvoicePrintedAt).toLocaleString()}`
+        : 'Invoice print recorded';
       return (
         <span
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-          title={order.lastInvoicePrintedAt ? `Last invoice print: ${new Date(order.lastInvoicePrintedAt).toLocaleString()}` : 'Invoice print recorded'}
+          title={`${printedAtText}${printedByText}`}
         >
           <CheckCircle className="h-3 w-3" />
-          Invoice printed{order.invoicePrintCount && order.invoicePrintCount > 1 ? ` ×${order.invoicePrintCount}` : ''}
+          Invoice printed{order.invoicePrintCount && order.invoicePrintCount > 1 ? ` ×${order.invoicePrintCount}` : ''}{order.lastInvoicePrintedByName ? ` by ${order.lastInvoicePrintedByName}` : ''}
         </span>
       );
     }
@@ -2711,7 +2726,14 @@ When the courier brings back the original product, open this order/lookup and cl
 
   const markInvoicePrintedLocally = (
     orderId: number,
-    result?: { invoice_print_count?: number; last_invoice_printed_at?: string | null }
+    result?: {
+      invoice_print_count?: number;
+      last_invoice_printed_at?: string | null;
+      last_invoice_printed_by?: number | null;
+      last_invoice_printed_by_name?: string | null;
+      last_invoice_printed_by_email?: string | null;
+      last_invoice_printed_by_employee_code?: string | null;
+    }
   ) => {
     setOrders((prev) => prev.map((o) => {
       if (o.id !== orderId) return o;
@@ -2721,6 +2743,10 @@ When the courier brings back the original product, open this order/lookup and cl
         invoicePrinted: true,
         invoicePrintCount: nextCount,
         lastInvoicePrintedAt: result?.last_invoice_printed_at ?? new Date().toISOString(),
+        lastInvoicePrintedBy: result?.last_invoice_printed_by ?? o.lastInvoicePrintedBy ?? null,
+        lastInvoicePrintedByName: result?.last_invoice_printed_by_name ?? o.lastInvoicePrintedByName ?? null,
+        lastInvoicePrintedByEmail: result?.last_invoice_printed_by_email ?? o.lastInvoicePrintedByEmail ?? null,
+        lastInvoicePrintedByEmployeeCode: result?.last_invoice_printed_by_employee_code ?? o.lastInvoicePrintedByEmployeeCode ?? null,
       };
     }));
     setSelectedOrder((prev) => {
@@ -2731,6 +2757,10 @@ When the courier brings back the original product, open this order/lookup and cl
         invoicePrinted: true,
         invoicePrintCount: nextCount,
         lastInvoicePrintedAt: result?.last_invoice_printed_at ?? new Date().toISOString(),
+        lastInvoicePrintedBy: result?.last_invoice_printed_by ?? prev.lastInvoicePrintedBy ?? null,
+        lastInvoicePrintedByName: result?.last_invoice_printed_by_name ?? prev.lastInvoicePrintedByName ?? null,
+        lastInvoicePrintedByEmail: result?.last_invoice_printed_by_email ?? prev.lastInvoicePrintedByEmail ?? null,
+        lastInvoicePrintedByEmployeeCode: result?.last_invoice_printed_by_employee_code ?? prev.lastInvoicePrintedByEmployeeCode ?? null,
       };
     });
   };

@@ -127,6 +127,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       ],
     },
     { icon: Package, label: 'Orders', href: '/orders' },
+    { icon: Users, label: 'Customer Rewards', href: '/customer-rewards' },
     { icon: CreditCard, label: 'Installments', href: '/orders?view=installments' },
     { icon: Package, label: 'Online Order Packing', href: '/social-commerce/package' },
     { icon: Package, label: 'PreOrders', href: '/preorders' },

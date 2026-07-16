@@ -27,6 +27,7 @@ const EVENT_OPTIONS = [
   { value: 'created', label: 'Created' },
   { value: 'updated', label: 'Updated' },
   { value: 'deleted', label: 'Deleted' },
+  { value: 'invoice_printed', label: 'Invoice printed' },
 ];
 
 function toYmd(d: Date) {

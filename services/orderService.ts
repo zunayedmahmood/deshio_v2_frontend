@@ -709,6 +709,9 @@ const orderService = {
     invoice_print_count: number;
     last_invoice_printed_at: string;
     last_invoice_printed_by?: number | null;
+    last_invoice_printed_by_name?: string | null;
+    last_invoice_printed_by_email?: string | null;
+    last_invoice_printed_by_employee_code?: string | null;
   }> {
     try {
       const response = await axiosInstance.post(`/order-management/orders/${orderId}/log-invoice-print`, {

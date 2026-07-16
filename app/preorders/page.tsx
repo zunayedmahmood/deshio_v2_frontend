@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import Link from 'next/link';
-import { AlertCircle, Eye, Loader2, RefreshCw, Search, Plus, X } from 'lucide-react';
+import { AlertCircle, Eye, Loader2, RefreshCw, Search, Plus, X, Ban, CalendarDays } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import type { Order as BackendOrder } from '@/services/orderService';
@@ -105,6 +105,9 @@ export default function PreordersPage() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   const [selected, setSelected] = useState<BackendOrder | null>(null);
 
@@ -124,7 +127,15 @@ export default function PreordersPage() {
 
       do {
         const response = await axios.get('/pre-orders', {
-          params: { per_page: perPage, page },
+          params: {
+            per_page: perPage,
+            page,
+            search: query.trim() || undefined,
+            status: status || undefined,
+            payment_status: paymentStatus || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
+          },
         });
         const payload = response?.data?.data;
         const data = Array.isArray(payload?.orders) ? payload.orders : [];
@@ -145,6 +156,37 @@ export default function PreordersPage() {
     }
   };
 
+  const canCancelPreorder = (order: BackendOrder | null | undefined) => {
+    const s = normalize(order?.status);
+    return !!order && !['cancelled', 'canceled', 'completed', 'delivered', 'refunded'].includes(s);
+  };
+
+  const handleCancelPreorder = async (order: BackendOrder) => {
+    if (!canCancelPreorder(order)) {
+      setAlert({ type: 'error', message: 'This preorder cannot be cancelled from this page.' });
+      return;
+    }
+
+    const confirmed = window.confirm(`Cancel preorder ${order.order_number}?`);
+    if (!confirmed) return;
+
+    const reason = window.prompt('Cancellation reason', 'Customer cancelled preorder') || 'Cancelled from preorder page';
+    setCancellingId(order.id);
+    try {
+      const response = await axios.post(`/pre-orders/${order.id}/cancel`, { reason });
+      if (response.data?.success === false) {
+        throw new Error(response.data?.message || 'Failed to cancel preorder');
+      }
+      setAlert({ type: 'success', message: 'Preorder cancelled successfully' });
+      setSelected(null);
+      await fetchPreorders();
+    } catch (e: any) {
+      setAlert({ type: 'error', message: e?.response?.data?.message || e?.message || 'Failed to cancel preorder' });
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem('darkMode');
     if (saved) setDarkMode(saved === 'true');
@@ -155,6 +197,15 @@ export default function PreordersPage() {
   useEffect(() => {
     localStorage.setItem('darkMode', String(darkMode));
   }, [darkMode]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      fetchPreorders();
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, status, paymentStatus, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
     const q = normalize(query);
@@ -172,10 +223,14 @@ export default function PreordersPage() {
 
       const matchesStatus = !status || normalize(o.status) === normalize(status);
       const matchesPay = !paymentStatus || normalize(o.payment_status) === normalize(paymentStatus);
+      const rawDate = o.created_at || o.order_date || '';
+      const dateKey = rawDate ? String(rawDate).slice(0, 10) : '';
+      const matchesDateFrom = !dateFrom || (dateKey && dateKey >= dateFrom);
+      const matchesDateTo = !dateTo || (dateKey && dateKey <= dateTo);
 
-      return matchesQuery && matchesStatus && matchesPay;
+      return matchesQuery && matchesStatus && matchesPay && matchesDateFrom && matchesDateTo;
     });
-  }, [orders, query, status, paymentStatus]);
+  }, [orders, query, status, paymentStatus, dateFrom, dateTo]);
 
   return (
     <div className={`${darkMode ? 'dark' : ''} flex min-h-screen`}>
@@ -215,7 +270,7 @@ export default function PreordersPage() {
 
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
                 <div className="relative">
@@ -260,6 +315,50 @@ export default function PreordersPage() {
                   <option value="failed">Failed</option>
                   <option value="refunded">Refunded</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From date</label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">To date</label>
+                <div className="relative">
+                  <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-5 flex flex-wrap gap-2 justify-end">
+                <button
+                  onClick={fetchPreorders}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm"
+                  type="button"
+                >
+                  <Search className="w-4 h-4" />
+                  Search preorders
+                </button>
+                <button
+                  onClick={() => { setQuery(''); setStatus(''); setPaymentStatus(''); setDateFrom(''); setDateTo(''); setTimeout(fetchPreorders, 0); }}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+                  type="button"
+                >
+                  Clear filters
+                </button>
               </div>
             </div>
           </div>
@@ -343,14 +442,27 @@ export default function PreordersPage() {
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{formatDateTime(o.created_at || o.order_date)}</td>
 
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => setSelected(o)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
-                            type="button"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelected(o)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
+                              type="button"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View
+                            </button>
+                            {canCancelPreorder(o) && (
+                              <button
+                                onClick={() => handleCancelPreorder(o)}
+                                disabled={cancellingId === o.id}
+                                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm disabled:opacity-60"
+                                type="button"
+                              >
+                                {cancellingId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                                Cancel
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -421,6 +533,20 @@ export default function PreordersPage() {
                 <div className="text-sm text-gray-700 dark:text-gray-200">No items returned by API for this order.</div>
               )}
             </div>
+
+            {selected && canCancelPreorder(selected) && (
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleCancelPreorder(selected)}
+                  disabled={cancellingId === selected.id}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400 transition-colors text-sm font-medium"
+                  type="button"
+                >
+                  {cancellingId === selected.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                  Cancel preorder
+                </button>
+              </div>
+            )}
           </div>
         ) : null}
       </Modal>

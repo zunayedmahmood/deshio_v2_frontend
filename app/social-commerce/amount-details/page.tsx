@@ -118,6 +118,11 @@ export default function AmountDetailsPage() {
   // VAT is inclusive in product prices; do not add extra VAT here
   const [transportCost, setTransportCost] = useState('0');
   const [orderDiscountAmount, setOrderDiscountAmount] = useState('0');
+  const [loyaltyRedemptionCode, setLoyaltyRedemptionCode] = useState('');
+  const [loyaltyDiscountAmount, setLoyaltyDiscountAmount] = useState(0);
+  const [loyaltyQuoteMessage, setLoyaltyQuoteMessage] = useState('');
+  const [loyaltyQuotedKey, setLoyaltyQuotedKey] = useState('');
+  const [isQuotingLoyalty, setIsQuotingLoyalty] = useState(false);
 
   // Advanced payment options
   // Default to full Cash on Delivery (no advance)
@@ -323,8 +328,58 @@ export default function AmountDetailsPage() {
   const subtotal = useMemo(() => Math.max(0, grossSubtotal - itemDiscountTotal), [grossSubtotal, itemDiscountTotal]);
   const orderDiscount = useMemo(() => Math.max(0, parseNumber(orderDiscountAmount)), [orderDiscountAmount]);
   const transport = useMemo(() => parseNumber(transportCost), [transportCost]);
-  const total = useMemo(() => Math.max(0, subtotal - orderDiscount + transport), [subtotal, orderDiscount, transport]);
+  const total = useMemo(() => Math.max(0, subtotal - orderDiscount - loyaltyDiscountAmount + transport), [subtotal, orderDiscount, loyaltyDiscountAmount, transport]);
   const remainingBeforeNewPayment = useMemo(() => Math.max(0, total - alreadyPaid), [total, alreadyPaid]);
+  const loyaltyCustomerId = useMemo(() => Number(orderData?.customer?.id || orderData?.customer_id || 0) || 0, [orderData]);
+  const loyaltyQuoteKey = useMemo(() => [
+    loyaltyRedemptionCode.trim().toUpperCase(),
+    loyaltyCustomerId || 'new',
+    subtotal.toFixed(2),
+    transport.toFixed(2),
+    orderDiscount.toFixed(2),
+  ].join('|'), [loyaltyRedemptionCode, loyaltyCustomerId, subtotal, transport, orderDiscount]);
+  const loyaltyQuoteIsStale = Boolean(
+    loyaltyRedemptionCode.trim() && loyaltyDiscountAmount > 0 && loyaltyQuotedKey && loyaltyQuotedKey !== loyaltyQuoteKey
+  );
+
+  useEffect(() => {
+    if (!loyaltyRedemptionCode.trim()) {
+      setLoyaltyDiscountAmount(0);
+      setLoyaltyQuoteMessage('');
+      setLoyaltyQuotedKey('');
+    }
+  }, [loyaltyRedemptionCode]);
+
+  const quoteLoyaltyReward = async () => {
+    const code = loyaltyRedemptionCode.trim();
+    if (!code) {
+      displayToast('Enter a reward redemption code first.', 'error');
+      return;
+    }
+    setIsQuotingLoyalty(true);
+    try {
+      const response = await axios.post('/loyalty/quote-redemption', {
+        redemption_code: code,
+        customer_id: orderData?.customer?.id || orderData?.customer_id || undefined,
+        subtotal,
+        shipping_amount: transport,
+        discount_amount: orderDiscount,
+      });
+      const data = response.data?.data || response.data;
+      const discount = parseNumber(data?.discount_amount);
+      setLoyaltyDiscountAmount(discount);
+      setLoyaltyQuotedKey(loyaltyQuoteKey);
+      setLoyaltyQuoteMessage(`Reward accepted: ৳${discount.toFixed(2)} will be deducted.`);
+      displayToast(`Reward discount ৳${discount.toFixed(2)} applied to calculation.`, 'success');
+    } catch (error: any) {
+      setLoyaltyDiscountAmount(0);
+      setLoyaltyQuotedKey('');
+      setLoyaltyQuoteMessage(error?.response?.data?.message || error.message || 'Reward code is not usable.');
+      displayToast(error?.response?.data?.message || error.message || 'Reward code is not usable.', 'error');
+    } finally {
+      setIsQuotingLoyalty(false);
+    }
+  };
   
   
 
@@ -514,6 +569,16 @@ export default function AmountDetailsPage() {
       }
     }
 
+    if (loyaltyRedemptionCode.trim() && loyaltyDiscountAmount <= 0) {
+      displayToast('Please validate the reward code before placing the order.', 'error');
+      return;
+    }
+
+    if (loyaltyQuoteIsStale) {
+      displayToast('Order amount changed after reward validation. Please re-check the reward code.', 'error');
+      return;
+    }
+
     if (!isEditingExistingOrder && productItemsForStoreAssignment.length > 0 && storeAssignmentMode === 'manual') {
       if (!selectedStoreId) {
         displayToast('Please select a store for manual assignment or use Auto-assign.', 'error');
@@ -568,6 +633,7 @@ export default function AmountDetailsPage() {
           shipping_address: shippingPayload,
           ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
           discount_amount: orderDiscount,
+          ...(loyaltyRedemptionCode.trim() ? { loyalty_redemption_code: loyaltyRedemptionCode.trim().toUpperCase() } : {}),
           shipping_amount: transport,
           services: orderData.services || [],
           ...(String(orderData.notes || '').trim() ? { notes: String(orderData.notes).trim() } : {}),
@@ -656,6 +722,13 @@ export default function AmountDetailsPage() {
           throw new Error(refreshedBody?.message || 'Order updated but failed to reload final details');
         }
         createdOrder = refreshedBody?.data ?? refreshedBody;
+        if (loyaltyRedemptionCode.trim() && !createdOrder?.loyalty_reward_redemption_id) {
+          await axios.post(`/loyalty/orders/${targetOrderId}/apply-redemption`, {
+            redemption_code: loyaltyRedemptionCode.trim().toUpperCase(),
+          });
+          const loyaltyRefetch = await axios.get(`/orders/${targetOrderId}`);
+          createdOrder = loyaltyRefetch.data?.data ?? loyaltyRefetch.data;
+        }
       } else {
         // 1) Create order (sanitize payload)
         const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' ? 'manual' : 'auto';
@@ -707,6 +780,7 @@ export default function AmountDetailsPage() {
             ? { services: orderData.services }
             : {}),
           discount_amount: orderDiscount,
+          ...(loyaltyRedemptionCode.trim() ? { loyalty_redemption_code: loyaltyRedemptionCode.trim().toUpperCase() } : {}),
           shipping_amount: transport,
           ...(paymentOption === 'installment'
             ? {
@@ -1176,6 +1250,12 @@ export default function AmountDetailsPage() {
                       <span className="text-gray-700 dark:text-gray-300">Order Discount</span>
                       <span className="text-red-600 dark:text-red-400">-৳{orderDiscount.toFixed(2)}</span>
                     </div>
+                    {loyaltyDiscountAmount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-emerald-700 dark:text-emerald-300">Reward Discount</span>
+                        <span className="text-emerald-700 dark:text-emerald-300">-৳{loyaltyDiscountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-700 dark:text-gray-300">Shipping Cost</span>
                       <span className="text-gray-900 dark:text-white">৳{transport.toFixed(2)}</span>
@@ -1231,6 +1311,35 @@ export default function AmountDetailsPage() {
                     <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                       This discount applies to the full order after item prices are set.
                     </p>
+                  </div>
+
+                  <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-800 dark:bg-emerald-900/20">
+                    <label className="block text-xs font-semibold text-emerald-900 dark:text-emerald-200 mb-1">Customer Reward Code</label>
+                    <div className="flex gap-2">
+                      <input
+                        value={loyaltyRedemptionCode}
+                        onChange={(e) => setLoyaltyRedemptionCode(e.target.value.toUpperCase())}
+                        disabled={isProcessing || isQuotingLoyalty}
+                        className="flex-1 px-3 py-2 text-sm border border-emerald-300 dark:border-emerald-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        placeholder="Example: RW-ABC12345"
+                      />
+                      <button
+                        type="button"
+                        onClick={quoteLoyaltyReward}
+                        disabled={isProcessing || isQuotingLoyalty || !loyaltyRedemptionCode.trim()}
+                        className="shrink-0 rounded bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {isQuotingLoyalty ? 'Checking...' : 'Check'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[11px] text-emerald-800 dark:text-emerald-300">
+                      Reward discount is validated against this customer and this exact order amount before placing the order.
+                    </p>
+                    {loyaltyQuoteMessage && (
+                      <p className={`mt-2 text-xs ${loyaltyDiscountAmount > 0 && !loyaltyQuoteIsStale ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-600 dark:text-red-400'}`}>
+                        {loyaltyQuoteIsStale ? 'Order amount changed after validation. Please click Check again.' : loyaltyQuoteMessage}
+                      </p>
+                    )}
                   </div>
 
                   {/* Intended Courier Marker */}
@@ -1451,6 +1560,12 @@ export default function AmountDetailsPage() {
                           <span>Order Discount</span>
                           <span className="font-medium text-red-600 dark:text-red-400">-৳{orderDiscount.toFixed(2)}</span>
                         </div>
+                        {loyaltyDiscountAmount > 0 && (
+                          <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
+                            <span>Reward Discount</span>
+                            <span className="font-medium">-৳{loyaltyDiscountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between">
                           <span>Shipping</span>
                           <span className="font-medium">৳{transport.toFixed(2)}</span>
