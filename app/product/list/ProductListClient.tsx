@@ -455,6 +455,77 @@ export default function ProductPage() {
     return Number.isFinite(n) ? n : 0;
   };
 
+  const parseMoneyValue = (value: any): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(String(value).replace(/[^0-9.-]/g, ''));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return n;
+  };
+
+  const extractBatchSellingPrice = (batches: any): number | null => {
+    if (!Array.isArray(batches) || batches.length === 0) return null;
+
+    const livePrices = batches
+      .filter((batch: any) => {
+        const active = batch?.is_active === undefined ? true : Boolean(batch.is_active);
+        const available = batch?.availability === undefined ? true : Boolean(batch.availability);
+        const qty = Number(batch?.quantity ?? batch?.available_quantity ?? batch?.stock_quantity ?? 0) || 0;
+        return active && available && qty > 0;
+      })
+      .map((batch: any) => parseMoneyValue(batch?.sell_price ?? batch?.sellPrice ?? batch?.selling_price ?? batch?.price))
+      .filter((v): v is number => v !== null);
+
+    if (livePrices.length > 0) return Math.min(...livePrices);
+
+    const fallbackPrices = batches
+      .filter((batch: any) => {
+        const active = batch?.is_active === undefined ? true : Boolean(batch.is_active);
+        const available = batch?.availability === undefined ? true : Boolean(batch.availability);
+        return active && available;
+      })
+      .map((batch: any) => parseMoneyValue(batch?.sell_price ?? batch?.sellPrice ?? batch?.selling_price ?? batch?.price))
+      .filter((v): v is number => v !== null);
+
+    return fallbackPrices.length > 0 ? Math.min(...fallbackPrices) : null;
+  };
+
+  const extractSellingPrice = (item: any): number | null => {
+    const batchPrice = extractBatchSellingPrice(item?.batches);
+    if (batchPrice !== null) return batchPrice;
+
+    const candidates = [
+      item?.selling_price,
+      item?.sellingPrice,
+      item?.sell_price,
+      item?.sellPrice,
+      item?.min_batch_price,
+      item?.min_price,
+      item?.lowest_price,
+      item?.inventory_summary?.lowest_price,
+      item?.base_price,
+      item?.basePrice,
+      item?.price,
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = parseMoneyValue(candidate);
+      if (parsed !== null) return parsed;
+    }
+
+    return null;
+  };
+
+  const buildPriceFields = (item: any) => {
+    const sellingPrice = extractSellingPrice(item);
+    return {
+      sellingPrice,
+      selling_price: sellingPrice,
+      sellPrice: sellingPrice,
+      sell_price: sellingPrice,
+      price: sellingPrice,
+    };
+  };
+
   const buildStockFields = (item: any) => {
     const stockQuantity = toNumber(item?.stock_quantity);
     const onlineStockQuantity = toNumber(item?.online_stock_quantity);
@@ -508,6 +579,7 @@ export default function ProductPage() {
             variation_suffix: (product as any).variation_suffix,
             image: primaryImageUrl,
             ...buildStockFields(product),
+            ...buildPriceFields(product),
           },
           ...serverVariants.map((v: any) => {
             const vImg = v.images?.[0];
@@ -526,6 +598,7 @@ export default function ProductPage() {
               variation_suffix: v.variation_suffix,
               image: vImgUrl,
               ...buildStockFields(v),
+              ...buildPriceFields(v),
             };
           }),
         ];
@@ -541,6 +614,12 @@ export default function ProductPage() {
           hasVariations: allVariants.length > 1,
           vendorId: product.vendor_id,
           vendorName: vendorsById[product.vendor_id] ?? null,
+          sellingPrice: (() => {
+            const prices = allVariants
+              .map((v) => parseMoneyValue((v as any).sellingPrice ?? (v as any).selling_price ?? (v as any).sellPrice ?? (v as any).sell_price ?? (v as any).price))
+              .filter((v): v is number => v !== null);
+            return prices.length ? Math.min(...prices) : null;
+          })(),
           stockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.stockQuantity) || 0), 0),
           onlineStockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.onlineStockQuantity) || 0), 0),
           offlineStockQuantity: allVariants.reduce((sum, v) => sum + (Number(v.offlineStockQuantity) || 0), 0),
@@ -599,6 +678,7 @@ export default function ProductPage() {
         variation_suffix: (product as any).variation_suffix,
         image: variantImageUrl,
         ...buildStockFields(product),
+        ...buildPriceFields(product),
       });
     });
 
@@ -614,6 +694,10 @@ export default function ProductPage() {
       group.dispatchPendingQuantity = group.variants.reduce((sum, v) => sum + (Number(v.dispatchPendingQuantity) || 0), 0);
       group.dispatchMovingQuantity = group.variants.reduce((sum, v) => sum + (Number(v.dispatchMovingQuantity) || 0), 0);
       group.totalWithTransitQuantity = group.variants.reduce((sum, v) => sum + (Number(v.totalWithTransitQuantity) || 0), 0);
+      const prices = group.variants
+        .map((v: any) => parseMoneyValue(v.sellingPrice ?? v.selling_price ?? v.sellPrice ?? v.sell_price ?? v.price))
+        .filter((v): v is number => v !== null);
+      group.sellingPrice = prices.length ? Math.min(...prices) : null;
       if (!group.primaryImage) {
         group.primaryImage = group.variants.find(v => v.image)?.image || null;
       }
@@ -805,11 +889,20 @@ export default function ProductPage() {
         ));
         setToast({ message: `Increased quantity for ${variant.name}`, type: 'success' });
       } else {
-        // Need to get selling price for this variant
+        // Use the product-list/batch price first. The catalog detail endpoint can expose
+        // stale empty-batch/product-table fallback prices (often 1), so it is only a fallback.
         try {
-          const detail: any = await catalogService.getProduct(variant.id);
-          const p = detail?.product ?? detail?.data?.product ?? detail?.data ?? detail;
-          const price = Number(p?.selling_price ?? p?.sellingPrice ?? 0);
+          let price = extractSellingPrice(variant);
+
+          if (price === null) {
+            const detail: any = await catalogService.getProduct(variant.id);
+            const p = detail?.product ?? detail?.data?.product ?? detail?.data ?? detail;
+            price = extractSellingPrice(p);
+          }
+
+          if (price === null) {
+            throw new Error('No valid selling price found for selected product');
+          }
           
           const newItem: QueuedProduct = {
             id: variant.id,
@@ -835,8 +928,15 @@ export default function ProductPage() {
     }
 
     if (selectMode && redirectPath) {
-      const url = `${redirectPath}?productId=${variant.id}&productName=${encodeURIComponent(variant.name)}&productSku=${encodeURIComponent(variant.sku)}`;
-      router.push(url);
+      const params = new URLSearchParams({
+        productId: String(variant.id),
+        productName: variant.name,
+        productSku: variant.sku,
+      });
+      const price = extractSellingPrice(variant);
+      if (price !== null) params.set('productPrice', String(price));
+      const separator = redirectPath.includes('?') ? '&' : '?';
+      router.push(`${redirectPath}${separator}${params.toString()}`);
     }
   };
 
@@ -1304,8 +1404,8 @@ export default function ProductPage() {
                       stockFilter={stockStatus}
                       productGroup={{
                         ...group,
-                        sellingPrice: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.selling_price ?? null : null,
-                        inStock: group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.in_stock ?? null : null,
+                        sellingPrice: group.sellingPrice ?? (group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.selling_price ?? null : null),
+                        inStock: group.inStock ?? (group.variants?.[0]?.id ? catalogMetaById[group.variants[0].id]?.in_stock ?? null : null),
                         stockQuantity: group.stockQuantity,
                         onlineStockQuantity: group.onlineStockQuantity,
                         offlineStockQuantity: group.offlineStockQuantity,

@@ -21,6 +21,10 @@ interface DefectItem {
   costPrice?: number;
   costPriceSource?: string;
   vendorReturnValue?: number;
+  vendorId?: number;
+  vendorName?: string;
+  vendorPhone?: string;
+  vendorEmail?: string;
   returnReason?: string;
   store?: string;
   image?: string;
@@ -48,6 +52,19 @@ export default function ReturnToVendorModal({
   const [returnNotes, setReturnNotes] = useState('');
   const [loadingVendors, setLoadingVendors] = useState(false);
 
+  const selectedDefectItems = allDefects.filter(d => selectedDefects.includes(d.id));
+  const selectedVendorIds = Array.from(new Set(
+    selectedDefectItems
+      .map(item => item.vendorId)
+      .filter((vendorId): vendorId is number => Number.isFinite(Number(vendorId)))
+  ));
+  const hasMixedVendors = selectedVendorIds.length > 1;
+  const hasMissingVendor = selectedDefectItems.some(item => !item.vendorId);
+  const inferredVendorId = selectedVendorIds.length === 1 ? selectedVendorIds[0] : null;
+  const inferredVendorFromItem = inferredVendorId
+    ? selectedDefectItems.find(item => item.vendorId === inferredVendorId)
+    : null;
+
   useEffect(() => {
     if (isOpen) {
       fetchVendors();
@@ -68,9 +85,35 @@ export default function ReturnToVendorModal({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (hasMixedVendors) {
+      setSelectedVendor('');
+      return;
+    }
+
+    if (inferredVendorId) {
+      setSelectedVendor(String(inferredVendorId));
+      return;
+    }
+
+    setSelectedVendor('');
+  }, [isOpen, hasMixedVendors, inferredVendorId, selectedDefects.join(',')]);
+
   const handleSubmit = async () => {
+    if (hasMixedVendors) {
+      alert('Selected items belong to multiple vendors. Please return items from one vendor at a time.');
+      return;
+    }
+
     if (!selectedVendor) {
       alert('Please select a vendor');
+      return;
+    }
+
+    if (inferredVendorId && Number(selectedVendor) !== inferredVendorId) {
+      alert('The return vendor must match the selected product vendor.');
       return;
     }
 
@@ -93,7 +136,6 @@ export default function ReturnToVendorModal({
     onClose();
   };
 
-  const selectedDefectItems = allDefects.filter(d => selectedDefects.includes(d.id));
   const totalValue = selectedDefectItems.reduce((sum, item) => sum + Number(item.costPrice || item.vendorReturnValue || 0), 0);
   const missingCostCount = selectedDefectItems.filter(item => Number(item.costPrice || item.vendorReturnValue || 0) <= 0).length;
 
@@ -146,6 +188,53 @@ export default function ReturnToVendorModal({
             </div>
           </div>
 
+          {/* Inferred Vendor */}
+          <div className={`mb-6 p-4 rounded-lg border ${
+            hasMixedVendors
+              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              : hasMissingVendor
+                ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+          }`}>
+            <div className="flex items-start gap-3">
+              <Truck className={`w-5 h-5 mt-0.5 ${
+                hasMixedVendors
+                  ? 'text-red-600 dark:text-red-400'
+                  : hasMissingVendor
+                    ? 'text-yellow-600 dark:text-yellow-400'
+                    : 'text-purple-600 dark:text-purple-400'
+              }`} />
+              <div>
+                <p className={`text-sm font-semibold ${
+                  hasMixedVendors
+                    ? 'text-red-800 dark:text-red-300'
+                    : hasMissingVendor
+                      ? 'text-yellow-800 dark:text-yellow-300'
+                      : 'text-purple-800 dark:text-purple-300'
+                }`}>
+                  {hasMixedVendors
+                    ? 'Multiple vendors selected'
+                    : inferredVendorId
+                      ? `Vendor preselected: ${inferredVendorFromItem?.vendorName || vendors.find(v => v.id === inferredVendorId)?.name || `Vendor #${inferredVendorId}`}`
+                      : 'Vendor could not be detected from selected product'}
+                </p>
+                <p className={`mt-1 text-xs ${
+                  hasMixedVendors
+                    ? 'text-red-700 dark:text-red-400'
+                    : hasMissingVendor
+                      ? 'text-yellow-700 dark:text-yellow-400'
+                      : 'text-purple-700 dark:text-purple-400'
+                }`}>
+                  {hasMixedVendors
+                    ? 'Please select products from one vendor only. Return-to-vendor should be processed vendor-wise.'
+                    : inferredVendorId
+                      ? 'The return vendor is taken from the product/vendor record and locked for this return.'
+                      : 'Select the vendor manually only if this product record does not have a vendor assigned.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Selected Items */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
@@ -167,6 +256,12 @@ export default function ReturnToVendorModal({
                         <span className="font-mono">{item.barcode}</span>
                         <span>•</span>
                         <span>{item.store}</span>
+                        {item.vendorName && (
+                          <>
+                            <span>•</span>
+                            <span className="text-purple-700 dark:text-purple-300">Vendor: {item.vendorName}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -207,16 +302,31 @@ export default function ReturnToVendorModal({
               <select
                 value={selectedVendor}
                 onChange={(e) => setSelectedVendor(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                disabled={loading}
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={loading || hasMixedVendors || Boolean(inferredVendorId)}
               >
-                <option value="">Choose vendor...</option>
+                <option value="">{hasMixedVendors ? 'Select one vendor group first' : 'Choose vendor...'}</option>
+                {inferredVendorId && !vendors.some(vendor => vendor.id === inferredVendorId) && (
+                  <option value={inferredVendorId}>
+                    {inferredVendorFromItem?.vendorName || `Vendor #${inferredVendorId}`}
+                  </option>
+                )}
                 {vendors.map(vendor => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.name} {vendor.phone ? `(${vendor.phone})` : ''}
                   </option>
                 ))}
               </select>
+            )}
+            {inferredVendorId && !hasMixedVendors && (
+              <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
+                Vendor is preselected from the product record, so staff cannot accidentally return it to another vendor.
+              </p>
+            )}
+            {hasMixedVendors && (
+              <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                Mixed-vendor returns are blocked. Deselect items from other vendors and submit one vendor return at a time.
+              </p>
             )}
             {selectedVendor && (
               <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -282,7 +392,7 @@ export default function ReturnToVendorModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={loading || !selectedVendor || !returnNotes.trim()}
+            disabled={loading || hasMixedVendors || !selectedVendor || (Boolean(inferredVendorId) && Number(selectedVendor) !== inferredVendorId) || !returnNotes.trim()}
             className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
           >
             {loading ? (

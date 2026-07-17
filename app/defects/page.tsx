@@ -27,10 +27,16 @@ interface DefectItem {
   sellingPrice?: number;
   originalSellingPrice?: number;
   costPrice?: number;
+  costPriceSource?: string;
+  vendorReturnValue?: number;
   returnReason?: string;
   store?: string;
   image?: string;
   batchId?: number;
+  vendorId?: number;
+  vendorName?: string;
+  vendorPhone?: string;
+  vendorEmail?: string;
 }
 
 const formatPrice = (price: number | undefined | null): string => {
@@ -158,6 +164,10 @@ export default function DefectsPage() {
           mappedStatus = 'pending';
         }
 
+        const productVendor = d.product?.vendor || null;
+        const returnVendor = d.vendor || null;
+        const sourceVendor = productVendor || returnVendor;
+
         return {
           id: d.id.toString(),
           barcode: d.barcode?.barcode || '',
@@ -167,12 +177,18 @@ export default function DefectsPage() {
           addedBy: d.identifiedBy?.name || 'System',
           addedAt: d.identified_at,
           originalSellingPrice: parsePrice(d.original_price),
-          costPrice: parsePrice(d.product?.cost_price),
+          costPrice: parsePrice(d.cost_price ?? d.product?.cost_price),
+          costPriceSource: d.cost_price_source,
+          vendorReturnValue: parsePrice(d.vendor_return_value),
           returnReason: d.defect_description,
           store: d.store?.name,
           image: imageUrl,
           sellingPrice: parsePrice(d.suggested_selling_price),
           batchId: d.product_batch_id,
+          vendorId: sourceVendor?.id ?? d.product?.vendor_id ?? d.vendor_id,
+          vendorName: sourceVendor?.name,
+          vendorPhone: sourceVendor?.phone,
+          vendorEmail: sourceVendor?.email,
         };
       });
       
@@ -761,6 +777,12 @@ export default function DefectsPage() {
                                         <MapPin className="w-3 h-3" />
                                         {defect.store || 'N/A'}
                                       </span>
+                                      {defect.vendorName && (
+                                        <span className="flex items-center gap-1 text-purple-700 dark:text-purple-300">
+                                          <Truck className="w-3 h-3" />
+                                          Vendor: {defect.vendorName}
+                                        </span>
+                                      )}
                                       <span className="flex items-center gap-1">
                                         <Calendar className="w-3 h-3" />
                                         {new Date(defect.addedAt).toLocaleDateString()}

@@ -21,6 +21,14 @@ export interface ProductVariant {
   dispatchPendingQuantity?: number | null;
   dispatchMovingQuantity?: number | null;
   totalWithTransitQuantity?: number | null;
+  /** Current sell price from live product batch/list endpoint. */
+  sellingPrice?: number | null;
+  selling_price?: number | null;
+  sellPrice?: number | null;
+  sell_price?: number | null;
+  basePrice?: number | null;
+  base_price?: number | null;
+  price?: number | null;
 }
 
 export interface ProductGroup {
@@ -36,6 +44,12 @@ export interface ProductGroup {
   vendorId?: number;
   vendorName?: string | null;
   sellingPrice?: number | null;
+  selling_price?: number | null;
+  sellPrice?: number | null;
+  sell_price?: number | null;
+  basePrice?: number | null;
+  base_price?: number | null;
+  price?: number | null;
   inStock?: boolean | null;
   stockQuantity?: number | null;
   onlineStockQuantity?: number | null;

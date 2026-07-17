@@ -423,6 +423,8 @@ export default function PreOrderPage() {
           if (!ex.sku && item?.sku) ex.sku = String(item.sku);
           if (!ex.name && (item?.name || item?.productName)) ex.name = String(item.name || item.productName);
           if (!ex.store_id && item?.store_id) ex.store_id = String(item.store_id);
+          const priceRaw = Number(item?.unit_price ?? item?.price ?? item?.selling_price ?? 0);
+          if ((!ex.unit_price || Number(ex.unit_price) <= 0) && Number.isFinite(priceRaw) && priceRaw > 0) ex.unit_price = priceRaw;
         } else {
           byId.set(id, {
             id,
@@ -430,6 +432,10 @@ export default function PreOrderPage() {
             sku: String(item?.sku || ''),
             image: item?.image ? String(item.image) : null,
             store_id: item?.store_id ? String(item.store_id) : '',
+            unit_price: (() => {
+              const n = Number(item?.unit_price ?? item?.price ?? item?.selling_price ?? 0);
+              return Number.isFinite(n) && n > 0 ? n : 0;
+            })(),
             qty,
             ts: Number(item?.ts || 0) || Date.now(),
           });
@@ -1729,8 +1735,26 @@ export default function PreOrderPage() {
             missingNames.push(String(q?.name || `#${pid}`));
             continue;
           }
+
+          const queuedPrice = Number(q?.unit_price ?? q?.price ?? q?.selling_price ?? 0);
+          const batchPrice = Number(String(p?.attributes?.Price ?? '0').replace(/[^0-9.-]/g, '')) || 0;
+          const effectivePrice = Number.isFinite(queuedPrice) && queuedPrice > 0 && (batchPrice <= 0 || (batchPrice === 1 && queuedPrice !== 1))
+            ? queuedPrice
+            : batchPrice;
+          const productForCart = effectivePrice > 0
+            ? {
+                ...p,
+                attributes: {
+                  ...(p.attributes || {}),
+                  Price: effectivePrice,
+                },
+                minPrice: effectivePrice,
+                maxPrice: Math.max(Number(p?.maxPrice ?? 0) || 0, effectivePrice),
+              }
+            : p;
+
           for (let i = 0; i < qty; i += 1) {
-            selectedProducts.push(p);
+            selectedProducts.push(productForCart);
           }
         }
 
@@ -2532,10 +2556,12 @@ export default function PreOrderPage() {
       const shouldKeepSelectedStoreForServiceOnly = false;
       const effectiveStoreAssignmentMode = 'auto';
 
+      const preorderNoteText = orderNotes?.trim() || 'Preorder created from preorder panel';
+
       const orderData = {
         order_type: 'social_commerce',
         is_preorder: true,
-        preorder_notes: orderNotes?.trim() || 'Preorder created from preorder panel',
+        preorder_notes: preorderNoteText,
         ...(!effectiveEditOrderId
           ? {
               store_assignment_mode: effectiveStoreAssignmentMode,
@@ -2584,7 +2610,7 @@ export default function PreOrderPage() {
           })),
         shipping_amount: shippingAmountState || 0,
         discount_amount: discountAmountState || 0,
-        notes: orderNotes?.trim() || '',
+        notes: `[PREORDER] ${preorderNoteText}`.trim(),
       };
 
       sessionStorage.setItem(

@@ -776,14 +776,33 @@ export default function AmountDetailsPage() {
           },
           shipping_address: shippingPayload,
           delivery_address: shippingPayload,
-          items: itemPayloads.map((item: any) => ({
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            discount_amount: item.discount_amount || 0,
-            // VAT is inclusive; do not add extra tax
-            tax_amount: 0,
-          })),
+          items: itemPayloads.map((item: any) => {
+            const defectiveProductId = item.defective_product_id ?? item.defectId;
+            const isDefectiveResale = Boolean(
+              item.is_defective ||
+              item.isDefective ||
+              item.source === 'defective_resale' ||
+              defectiveProductId
+            );
+
+            return {
+              product_id: item.product_id,
+              ...(item.batch_id ? { batch_id: item.batch_id } : {}),
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              discount_amount: item.discount_amount || 0,
+              // VAT is inclusive; do not add extra tax
+              tax_amount: 0,
+              ...(isDefectiveResale
+                ? {
+                    is_defective: true,
+                    defective_product_id: Number(defectiveProductId),
+                    source: 'defective_resale',
+                    ...(item.defective_barcode || item.barcode ? { defective_barcode: item.defective_barcode || item.barcode } : {}),
+                  }
+                : {}),
+            };
+          }),
           // ✅ Services (kept separate from items)
           ...(Array.isArray(orderData.services) && orderData.services.length > 0
             ? { services: orderData.services }
