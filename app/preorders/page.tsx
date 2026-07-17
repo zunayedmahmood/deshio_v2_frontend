@@ -113,7 +113,16 @@ export default function PreordersPage() {
 
   const [alert, setAlert] = useState<{ type: AlertType; message: string } | null>(null);
 
+  const hasDateRangeError = !!dateFrom && !!dateTo && dateFrom > dateTo;
+
   const fetchPreorders = async () => {
+    if (hasDateRangeError) {
+      const msg = 'From date cannot be after To date.';
+      setError(msg);
+      setAlert({ type: 'error', message: msg });
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -135,6 +144,7 @@ export default function PreordersPage() {
             payment_status: paymentStatus || undefined,
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
+            date_field: 'order_date',
           },
         });
         const payload = response?.data?.data;
@@ -185,6 +195,15 @@ export default function PreordersPage() {
     } finally {
       setCancellingId(null);
     }
+  };
+
+
+  const handleClearFilters = () => {
+    setQuery('');
+    setStatus('');
+    setPaymentStatus('');
+    setDateFrom('');
+    setDateTo('');
   };
 
   useEffect(() => {
@@ -244,7 +263,7 @@ export default function PreordersPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Preorders</h1>
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                View all preorder requests created by the system when items are out of stock.
+                View, date-search, and cancel preorder requests from the dedicated preorder queue.
               </p>
             </div>
 
@@ -343,17 +362,24 @@ export default function PreordersPage() {
                 </div>
               </div>
 
+              {hasDateRangeError && (
+                <div className="md:col-span-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                  From date cannot be after To date. Please fix the date range before searching.
+                </div>
+              )}
+
               <div className="md:col-span-5 flex flex-wrap gap-2 justify-end">
                 <button
                   onClick={fetchPreorders}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm"
+                  disabled={hasDateRangeError}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors text-sm"
                   type="button"
                 >
                   <Search className="w-4 h-4" />
                   Search preorders
                 </button>
                 <button
-                  onClick={() => { setQuery(''); setStatus(''); setPaymentStatus(''); setDateFrom(''); setDateTo(''); setTimeout(fetchPreorders, 0); }}
+                  onClick={handleClearFilters}
                   className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm"
                   type="button"
                 >

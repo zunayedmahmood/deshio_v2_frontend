@@ -265,6 +265,26 @@ const toExchangeModalOrder = (o: BackendOrder): ExchangeModalOrder => ({
 
 const normalize = (v: any) => String(v ?? '').trim().toLowerCase();
 
+const isPreorderRecord = (order: any): boolean => {
+  const notes = normalize(order?.notes);
+  const preorderNotes = normalize(order?.preorder_notes);
+  const metadata = (() => {
+    try {
+      return typeof order?.metadata === 'string' ? normalize(order.metadata) : normalize(JSON.stringify(order?.metadata || {}));
+    } catch {
+      return '';
+    }
+  })();
+
+  return Boolean(order?.is_preorder)
+    || normalize(order?.order_type) === 'preorder'
+    || preorderNotes.length > 0
+    || notes.includes('pre-order')
+    || notes.includes('preorder')
+    || metadata.includes('preorder_panel')
+    || metadata.includes('preorder_office');
+};
+
 const titleCase = (s: string) =>
   s
     .replace(/_/g, ' ')
@@ -1368,8 +1388,12 @@ export default function OrdersDashboard() {
         setTotalPages(res.last_page || 1);
       }
 
-      // No client sorting necessary since backend returns sorted records based on query
-      const transformedOrders = allOrders.map((o: any) => transformOrder(o));
+      // No client sorting necessary since backend returns sorted records based on query.
+      // Backend excludes preorders, but keep a frontend guard too so cached/stale
+      // responses or alternate deployments cannot leak preorder rows into Orders.
+      const transformedOrders = allOrders
+        .filter((o: any) => !isPreorderRecord(o))
+        .map((o: any) => transformOrder(o));
       const hydrated = await hydrateCouriersFromDB(transformedOrders);
 
       setOrders(hydrated);

@@ -270,7 +270,14 @@ export default function AmountDetailsPage() {
     parsedOrder.subtotal = itemSubtotal + serviceSubtotal;
 
     setOrderData(parsedOrder);
-    if (parsedOrder.store_assignment_mode === 'manual' && parsedOrder.store_id) {
+    if (parsedOrder.is_preorder && parsedOrder.store_id) {
+      // Preorder flow is Office-only. Keep the selected store visible here,
+      // but do not allow the social-commerce auto/manual logic to clear it
+      // just because stock may not be available yet. Backend also enforces
+      // Office-only when saving.
+      setStoreAssignmentMode('manual');
+      setSelectedStoreId(String(parsedOrder.store_id));
+    } else if (parsedOrder.store_assignment_mode === 'manual' && parsedOrder.store_id) {
       setStoreAssignmentMode('manual');
       setSelectedStoreId(String(parsedOrder.store_id));
     } else {
@@ -731,13 +738,15 @@ export default function AmountDetailsPage() {
         }
       } else {
         // 1) Create order (sanitize payload)
-        const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' ? 'manual' : 'auto';
+        const isPreorderOrder = Boolean(orderData.is_preorder);
+        const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' || isPreorderOrder ? 'manual' : 'auto';
         const requestedStoreId = Number(orderData.store_id || selectedStoreId || 0) || null;
         const canUseManualStoreAssignment = !isEditingExistingOrder
           && requestedAssignmentMode === 'manual'
           && requestedStoreId
           && (
-            selectedStoreAvailability?.can_fulfill_entire_order
+            isPreorderOrder
+            || selectedStoreAvailability?.can_fulfill_entire_order
             // Service-only social-commerce orders have no product stock to reserve,
             // but Pathao still needs a pickup store. Keep the selected store on the
             // order so service-only orders can be sent to Pathao later.

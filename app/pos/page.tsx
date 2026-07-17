@@ -267,7 +267,7 @@ export default function POSPage() {
   });
 
   // ✅ Defect Item State
-  const [defectItem, setDefectItem] = useState<{
+  const [defectItems, setDefectItems] = useState<Array<{
     id: string;
     barcode: string;
     productId: number;
@@ -275,9 +275,10 @@ export default function POSPage() {
     sellingPrice: number;
     batchId: number;
     store?: string;
+    storeId?: number;
     costPrice?: number;
     originalPrice?: number;
-  } | null>(null);
+  }>>([]);
 
   // ✅ Reports
   const [showDailyReportModal, setShowDailyReportModal] = useState(false);
@@ -302,37 +303,59 @@ export default function POSPage() {
   // ============ DEFECT ITEM LOADING ============
 
   /**
-   * ✅ Check for defect item in URL and sessionStorage
+   * ✅ Check for single or multiple defect items in URL and sessionStorage
    */
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const defectId = urlParams.get('defect');
+    const defectIds = urlParams.get('defects');
 
-    if (defectId) {
+    if (defectId || defectIds) {
       console.log('═══════════════════════════════════');
-      console.log('🔍 DEFECT ID IN URL:', defectId);
+      console.log('🔍 DEFECT SALE PARAMS:', { defectId, defectIds });
 
+      const savedDefects = sessionStorage.getItem('defectItems');
       const savedDefect = sessionStorage.getItem('defectItem');
-      console.log('📦 Checking sessionStorage:', savedDefect);
+      const rawPayload = savedDefects || savedDefect;
+      console.log('📦 Checking sessionStorage:', rawPayload);
 
-      if (savedDefect) {
+      if (rawPayload) {
         try {
-          const parsedDefect = JSON.parse(savedDefect);
-          console.log('✅ Loaded defect from sessionStorage:', parsedDefect);
+          const parsed = JSON.parse(rawPayload);
+          const parsedDefects = Array.isArray(parsed) ? parsed : [parsed];
+          const validDefects = parsedDefects.filter(Boolean);
 
-          // Validate required fields
-          if (!parsedDefect.batchId) {
-            console.error('❌ Missing batch_id in defect data');
-            showToast(
-              'Error: Defect item is missing batch information',
-              'error'
-            );
+          if (validDefects.length === 0) {
+            showToast('No defect item data found', 'error');
             return;
           }
 
-          setDefectItem(parsedDefect);
-          showToast(`Defect item loaded: ${parsedDefect.productName}`, 'success');
+          const missingBatch = validDefects.find((item: any) => !item.batchId);
+          if (missingBatch) {
+            console.error('❌ Missing batch_id in defect data', missingBatch);
+            showToast(`Error: ${missingBatch.productName || 'Defect item'} is missing batch information`, 'error');
+            return;
+          }
 
+          const storeIds = new Set(validDefects.map((item: any) => item.storeId || 0).filter(Boolean));
+          if (storeIds.size > 1) {
+            showToast('Selected defect items are from multiple stores. Please sell one store at a time.', 'error');
+            return;
+          }
+          const onlyStoreId = Array.from(storeIds)[0];
+          if (onlyStoreId && !selectedOutlet) {
+            setSelectedOutlet(String(onlyStoreId));
+          }
+
+          setDefectItems(validDefects);
+          showToast(
+            validDefects.length === 1
+              ? `Defect item loaded: ${validDefects[0].productName}`
+              : `${validDefects.length} defect items loaded for one POS order`,
+            'success'
+          );
+
+          console.log('✅ Loaded defect item(s):', validDefects);
           console.log('═══════════════════════════════════');
         } catch (error) {
           console.error('❌ Error parsing defect data:', error);
@@ -341,7 +364,7 @@ export default function POSPage() {
       } else {
         console.warn('⚠️ No defect data in sessionStorage');
         showToast(
-          'Defect item data not found. Please return to defects page.',
+          'Defect item data not found. Please return to the Extra panel.',
           'error'
         );
       }
@@ -349,17 +372,16 @@ export default function POSPage() {
   }, []);
 
   /**
-   * ✅ Auto-add defect item to cart when outlet is selected
+   * ✅ Auto-add defect items to cart when outlet is selected
    */
   useEffect(() => {
-    if (defectItem && selectedOutlet) {
-      console.log('🎯 Auto-adding defect item to cart');
-      console.log('Defect:', defectItem);
+    if (defectItems.length > 0 && selectedOutlet) {
+      console.log('🎯 Auto-adding defect items to cart');
+      console.log('Defects:', defectItems);
       console.log('Selected outlet:', selectedOutlet);
 
-      // Create cart item from defect
-      const newItem: ExtendedCartItem = {
-        id: Date.now(),
+      const newItems: ExtendedCartItem[] = defectItems.map((defectItem, index) => ({
+        id: Date.now() + index,
         productId: defectItem.productId,
         productName: `${defectItem.productName} [DEFECTIVE]`,
         batchId: defectItem.batchId,
@@ -372,16 +394,22 @@ export default function POSPage() {
         barcode: defectItem.barcode,
         isDefective: true,
         defectId: defectItem.id,
-      };
+      }));
 
-      setCart([newItem]);
-      showToast(`✓ Defect item added: ${defectItem.productName}`, 'success');
+      setCart(newItems);
+      showToast(
+        newItems.length === 1
+          ? `✓ Defect item added: ${defectItems[0].productName}`
+          : `✓ ${newItems.length} defect items added to one POS order`,
+        'success'
+      );
 
       // Clear from sessionStorage after adding
       sessionStorage.removeItem('defectItem');
-      setDefectItem(null);
+      sessionStorage.removeItem('defectItems');
+      setDefectItems([]);
     }
-  }, [defectItem, selectedOutlet]);
+  }, [defectItems, selectedOutlet]);
 
   // ============ CART MANAGEMENT ============
 
@@ -1470,11 +1498,13 @@ export default function POSPage() {
 
                 <div className="flex items-center gap-3">
                   {/* ✅ Defect Item Indicator */}
-                  {defectItem && (
+                  {defectItems.length > 0 && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg">
                       <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                       <span className="text-sm font-medium text-orange-900 dark:text-orange-300">
-                        Defective Item Ready: {defectItem.productName}
+                        {defectItems.length === 1
+                          ? `Defective Item Ready: ${defectItems[0].productName}`
+                          : `${defectItems.length} defective items ready for one POS order`}
                       </span>
                     </div>
                   )}

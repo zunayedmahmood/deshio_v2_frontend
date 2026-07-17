@@ -22,6 +22,12 @@ import employeeService from '@/services/employeeService';
 const PATHAO_ADDRESS_LIMIT = 220;
 const PREORDER_STORE_KEYWORD = 'office';
 const isOfficeStore = (store: any) => String(store?.name ?? '').trim().toLowerCase().includes(PREORDER_STORE_KEYWORD);
+const getOnlyOfficeStore = (stores: any[]) => {
+  const activeStores = (stores || []).filter((store) => store?.id);
+  return activeStores.find((s) => String(s?.name ?? '').trim().toLowerCase() === PREORDER_STORE_KEYWORD)
+    || activeStores.find(isOfficeStore)
+    || null;
+};
 
 interface DefectItem {
   id: string;
@@ -962,9 +968,7 @@ export default function PreOrderPage() {
         storesData = (response as any).data;
       }
 
-      const activeStores = storesData.filter((store) => store?.id);
-      const exactOfficeStore = activeStores.find((s) => String(s?.name ?? '').trim().toLowerCase() === 'office');
-      const officeStore = exactOfficeStore || activeStores.find(isOfficeStore);
+      const officeStore = getOnlyOfficeStore(storesData);
       const officeStores = officeStore ? [officeStore] : [];
 
       setStores(officeStores);
@@ -1533,8 +1537,11 @@ export default function PreOrderPage() {
           if (incomingEditOrderNumber) setEditOrderNumber(incomingEditOrderNumber);
           if (ep.salesmanId !== undefined && ep.salesmanId !== null) setSelectedEmployee(String(ep.salesmanId));
           if (typeof ep.salesBy === 'string') setSalesBy(ep.salesBy);
-          if (typeof ep.storeId === 'string') { setSelectedStore(ep.storeId); persistSelectedStore(ep.storeId); }
-          if (ep.storeAssignmentMode === 'manual' || ep.storeAssignmentMode === 'auto') setStoreAssignmentMode(ep.storeAssignmentMode);
+          // Store is intentionally not restored from edit prefill for preorders.
+          // Preorders are locked to the active Office store only; fetchStores() and
+          // the office-lock effect above enforce the correct store even if older
+          // saved preorder data contains another store_id.
+          setStoreAssignmentMode('auto');
           if (typeof ep.userName === 'string') setUserName(ep.userName);
           if (typeof ep.userPhone === 'string') setUserPhone(ep.userPhone);
           if (typeof ep.userEmail === 'string') setUserEmail(ep.userEmail);
@@ -1603,14 +1610,11 @@ export default function PreOrderPage() {
         if (typeof d.internationalCity === 'string') setInternationalCity(d.internationalCity);
         if (typeof d.internationalPostalCode === 'string') setInternationalPostalCode(d.internationalPostalCode);
         if (typeof d.deliveryAddress === 'string') setDeliveryAddress(d.deliveryAddress);
-        if (typeof d.selectedStore === 'string' && d.selectedStore) {
-          setSelectedStore(d.selectedStore);
-          persistSelectedStore(d.selectedStore);
-        } else {
-          const savedStoreId = getSavedSelectedStore();
-          if (savedStoreId) setSelectedStore(savedStoreId);
-        }
-        if (d.storeAssignmentMode === 'manual' || d.storeAssignmentMode === 'auto') setStoreAssignmentMode(d.storeAssignmentMode);
+        // Never restore a non-Office store from a saved preorder draft.
+        // The active Office store is loaded from the store API and enforced globally.
+        const savedStoreId = getSavedSelectedStore();
+        if (savedStoreId) setSelectedStore(savedStoreId);
+        setStoreAssignmentMode('auto');
         if (typeof d.searchQuery === 'string') setSearchQuery(d.searchQuery);
         if (typeof d.minPrice === 'string') setMinPrice(d.minPrice);
         if (typeof d.maxPrice === 'string') setMaxPrice(d.maxPrice);
@@ -1870,6 +1874,17 @@ export default function PreOrderPage() {
     };
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    const officeStore = stores[0];
+    if (!officeStore?.id) return;
+
+    const officeStoreId = String(officeStore.id);
+    if (String(selectedStore || '') !== officeStoreId) {
+      setSelectedStore(officeStoreId);
+      persistSelectedStore(officeStoreId);
+    }
+  }, [stores, selectedStore]);
 
   useEffect(() => {
     if (!selectedStore) {

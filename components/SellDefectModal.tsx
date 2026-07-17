@@ -6,7 +6,7 @@ interface DefectItem {
   barcode: string;
   productId: number;
   productName: string;
-  status: 'pending' | 'approved' | 'sold';
+  status: 'pending' | 'approved' | 'sold' | 'returned_to_vendor';
   addedBy: string;
   addedAt: string;
   originalOrderId?: number;
@@ -14,7 +14,10 @@ interface DefectItem {
   sellingPrice?: number;
   returnReason?: string;
   store?: string;
+  storeId?: number;
+  batchId?: number;
 }
+
 
 interface SellDefectModalProps {
   isOpen: boolean;

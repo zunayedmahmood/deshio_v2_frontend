@@ -28,6 +28,7 @@ interface DefectItem {
   productName: string;
   sellingPrice?: number;
   store?: string;
+  storeId?: number;
   batchId: number;
 }
 
@@ -1759,28 +1760,46 @@ export default function SocialCommercePage() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const defectId = urlParams.get('defect');
+    const defectIds = urlParams.get('defects');
 
-    if (defectId) {
-      console.log('🔍 DEFECT ID IN URL:', defectId);
+    if (defectId || defectIds) {
+      console.log('🔍 DEFECT SALE PARAMS:', { defectId, defectIds });
 
-      const defectData = sessionStorage.getItem('defectItem');
+      const defectData = sessionStorage.getItem('defectItems') || sessionStorage.getItem('defectItem');
       console.log('📦 Checking sessionStorage:', defectData);
 
       if (defectData) {
         try {
-          const defect = JSON.parse(defectData);
-          console.log('✅ Loaded defect from sessionStorage:', defect);
+          const parsed = JSON.parse(defectData);
+          const defects: DefectItem[] = (Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean);
 
-          if (!defect.batchId) {
-            console.error('❌ Missing batch_id in defect data');
-            showToast('Error: Defect item is missing batch information', 'error');
+          if (defects.length === 0) {
+            showToast('No defective items found in session', 'error');
             return;
           }
 
-          setDefectiveProduct(defect);
+          const missingBatch = defects.find((defect: any) => !defect.batchId);
+          if (missingBatch) {
+            console.error('❌ Missing batch_id in defect data', missingBatch);
+            showToast(`Error: ${missingBatch.productName || 'Defect item'} is missing batch information`, 'error');
+            return;
+          }
 
-          const defectCartItem: CartProduct = {
-            id: Date.now(),
+          const storeIds = new Set(defects.map((defect: any) => defect.storeId || 0).filter(Boolean));
+          if (storeIds.size > 1) {
+            showToast('Selected defect items are from multiple stores. Please sell one store at a time.', 'error');
+            return;
+          }
+          const onlyStoreId = Array.from(storeIds)[0];
+          if (onlyStoreId) {
+            setSelectedStore(String(onlyStoreId));
+            persistSelectedStore(String(onlyStoreId));
+          }
+
+          setDefectiveProduct(defects[0]);
+
+          const defectCartItems: CartProduct[] = defects.map((defect, index) => ({
+            id: `defect-${defect.id}-${Date.now()}-${index}`,
             product_id: defect.productId,
             batch_id: defect.batchId,
             productName: `${defect.productName}`,
@@ -1790,18 +1809,24 @@ export default function SocialCommercePage() {
             amount: defect.sellingPrice || 0,
             isDefective: true,
             defectId: defect.id,
-          };
+          }));
 
-          setCart([defectCartItem]);
-          showToast(`Defective item added to cart: ${defect.productName}`, 'success');
+          setCart(defectCartItems);
+          showToast(
+            defects.length === 1
+              ? `Defective item added to cart: ${defects[0].productName}`
+              : `${defects.length} defective items added to one Social Commerce order`,
+            'success'
+          );
           sessionStorage.removeItem('defectItem');
+          sessionStorage.removeItem('defectItems');
         } catch (error) {
           console.error('❌ Error parsing defect data:', error);
           showToast('Error loading defect item', 'error');
         }
       } else {
         console.warn('⚠️ No defect data in sessionStorage');
-        showToast('Defect item data not found. Please return to defects page.', 'error');
+        showToast('Defect item data not found. Please return to the Extra panel.', 'error');
       }
     }
   }, []);
@@ -2569,7 +2594,7 @@ export default function SocialCommercePage() {
                   <div className="w-full sm:w-auto flex items-center flex-wrap gap-2 px-4 py-2 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg">
                     <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                     <span className="text-sm font-medium text-orange-900 dark:text-orange-300">
-                      Defective Item: {defectiveProduct.productName}
+                      Defective Item: {defectiveProduct.productName}{cart.filter((item) => item.isDefective).length > 1 ? ` + ${cart.filter((item) => item.isDefective).length - 1} more` : ''}
                     </span>
                   </div>
                 )}

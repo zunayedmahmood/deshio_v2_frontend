@@ -12,6 +12,9 @@ export interface DefectiveProduct {
   severity: Severity;
   status: DefectiveStatus;
   original_price: number;
+  cost_price?: number;
+  cost_price_source?: string;
+  vendor_return_value?: number;
   suggested_selling_price?: number;
   minimum_selling_price?: number;
   actual_selling_price?: number;
@@ -105,6 +108,11 @@ export interface SellDefectiveRequest {
 export interface DisposeRequest {
   disposal_notes?: string;
 }
+
+export interface RestoreToInventoryRequest {
+  restore_notes?: string;
+}
+
 
 export interface ReturnToVendorRequest {
   vendor_id: number;
@@ -268,6 +276,14 @@ class DefectiveProductService {
    */
   async dispose(id: number, data?: DisposeRequest) {
     const response = await axiosInstance.post(`${this.basePath}/${id}/dispose`, data || {});
+    return response.data;
+  }
+
+  /**
+   * Remove defect/extra marking and restore barcode to normal inventory
+   */
+  async restoreToInventory(id: number, data?: RestoreToInventoryRequest) {
+    const response = await axiosInstance.post(`${this.basePath}/${id}/restore-to-inventory`, data || {});
     return response.data;
   }
 

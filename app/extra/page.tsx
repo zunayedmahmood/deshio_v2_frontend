@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
-import { Search, Barcode, User, Package, Trash2, ShoppingCart, AlertCircle, StoreIcon, ChevronDown, ChevronUp, Calendar, MapPin, Image as ImageIcon, Truck } from 'lucide-react';
+import { Search, Barcode, User, Package, Trash2, ShoppingCart, AlertCircle, StoreIcon, ChevronDown, ChevronUp, Calendar, MapPin, Image as ImageIcon, Truck, RotateCcw, X, DollarSign } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import SellDefectModal from '@/components/SellDefectModal';
@@ -29,12 +29,21 @@ interface DefectItem {
   sellingPrice?: number;
   originalSellingPrice?: number;
   costPrice?: number;
+  costPriceSource?: string;
+  vendorReturnValue?: number;
   returnReason?: string;
   store?: string;
+  storeId?: number;
   vendor?: string;
   image?: string;
   batchId?: number;
   barcodeStatus?: string;
+}
+
+interface DefectSaleItem extends DefectItem {
+  batchId: number;
+  sellingPrice: number;
+  storeId?: number;
 }
 
 const formatPrice = (price: number | undefined | null): string => {
@@ -85,6 +94,12 @@ export default function DefectsPage() {
   const [selectedDefect, setSelectedDefect] = useState<DefectItem | null>(null);
   const [sellPrice, setSellPrice] = useState('');
   const [sellType, setSellType] = useState<'pos' | 'social'>('pos');
+
+  // Bulk sell modal
+  const [bulkSellModalOpen, setBulkSellModalOpen] = useState(false);
+  const [bulkSellItems, setBulkSellItems] = useState<DefectSaleItem[]>([]);
+  const [bulkSellPrices, setBulkSellPrices] = useState<Record<string, string>>({});
+  const [bulkSellType, setBulkSellType] = useState<'pos' | 'social'>('pos');
   
   // Vendor return
   const [returnToVendorModalOpen, setReturnToVendorModalOpen] = useState(false);
@@ -188,9 +203,20 @@ export default function DefectsPage() {
           addedBy: d.identifiedBy?.name || 'System',
           addedAt: d.identified_at,
           originalSellingPrice: parsePrice(d.original_price),
-          costPrice: parsePrice(d.product?.cost_price),
+          costPrice: parsePrice(
+            d.cost_price ??
+            d.vendor_return_value ??
+            d.metadata?.vendor_return_unit_cost ??
+            d.metadata?.cost_price_snapshot ??
+            d.batch?.cost_price ??
+            d.barcode?.batch?.cost_price ??
+            d.product?.cost_price
+          ),
+          costPriceSource: d.cost_price_source || d.metadata?.vendor_return_cost_source,
+          vendorReturnValue: parsePrice(d.vendor_return_value),
           returnReason: d.defect_description,
           store: d.store?.name,
+          storeId: d.store_id,
           vendor: d.product?.vendor?.name || d.vendor?.name,
           image: imageUrl,
           sellingPrice: parsePrice(d.suggested_selling_price),
@@ -302,58 +328,166 @@ export default function DefectsPage() {
     }
   };
 
+  const prepareDefectForSale = async (defect: DefectItem): Promise<DefectSaleItem> => {
+    const fullDetails = await defectIntegrationService.getDefectiveById(defect.id);
+
+    if (!fullDetails.product_batch_id) {
+      throw new Error(`${defect.productName} is missing batch information and cannot be sold.`);
+    }
+
+    let currentStatus = fullDetails.status;
+
+    if (currentStatus === 'identified') {
+      await defectIntegrationService.inspectDefect(defect.id, {
+        severity: fullDetails.severity || 'moderate',
+        internal_notes: 'Auto-inspected for sale preparation',
+      });
+      currentStatus = 'inspected';
+    }
+
+    if (currentStatus === 'inspected') {
+      await defectIntegrationService.makeAvailableForSale(defect.id);
+      currentStatus = 'available_for_sale';
+    } else if (currentStatus === 'sold') {
+      throw new Error(`${defect.productName} has already been sold.`);
+    } else if (currentStatus !== 'available_for_sale') {
+      throw new Error(`${defect.productName} cannot be sold while status is ${currentStatus}.`);
+    }
+
+    const suggestedPrice = Number.parseFloat(
+      fullDetails.suggested_selling_price?.toString() ||
+      defect.sellingPrice?.toString() ||
+      fullDetails.original_price?.toString() ||
+      '0'
+    );
+
+    return {
+      ...defect,
+      batchId: fullDetails.product_batch_id,
+      storeId: fullDetails.store_id || defect.storeId,
+      sellingPrice: Number.isFinite(suggestedPrice) ? suggestedPrice : 0,
+    };
+  };
+
   const handleSellClick = async (defect: DefectItem) => {
     setLoading(true);
-    
+    setErrorMessage('');
+
     try {
-      const fullDetails = await defectIntegrationService.getDefectiveById(defect.id);
-      
-      if (!fullDetails.product_batch_id) {
-        throw new Error('Missing batch_id - cannot proceed with sale');
-      }
-      
-      let currentStatus = fullDetails.status;
-      
-      if (currentStatus === 'identified') {
-        await defectIntegrationService.inspectDefect(defect.id, {
-          severity: fullDetails.severity || 'moderate',
-          internal_notes: 'Auto-inspected for sale preparation',
-        });
-        
-        setSuccessMessage('Product inspected');
-        currentStatus = 'inspected';
-      }
-      
-      if (currentStatus === 'inspected') {
-        await defectIntegrationService.makeAvailableForSale(defect.id);
-        setSuccessMessage('Product ready for sale');
-        currentStatus = 'available_for_sale';
-      } else if (currentStatus === 'sold') {
-        throw new Error('This product has already been sold');
-      } else if (currentStatus !== 'available_for_sale') {
-        throw new Error(`Cannot sell product with status: ${currentStatus}`);
-      }
-      
-      setSelectedDefect({
-        ...defect,
-        batchId: fullDetails.product_batch_id,
-      });
-      
-      const suggestedPrice = fullDetails.suggested_selling_price?.toString() || 
-                            defect.sellingPrice?.toString() || 
-                            '0';
-      
-      setSellPrice(suggestedPrice);
+      const saleItem = await prepareDefectForSale(defect);
+
+      setSelectedDefect(saleItem);
+      setSellPrice(saleItem.sellingPrice > 0 ? saleItem.sellingPrice.toString() : '0');
       setSellType('pos');
       setSellModalOpen(true);
-      
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 
-                          error.message || 
-                          'Unknown error occurred';
-      
-      setErrorMessage(`Failed: ${errorMessage}`);
-      
+      const message = error.response?.data?.message || error.message || 'Unknown error occurred';
+      setErrorMessage(`Failed: ${message}`);
+      setTimeout(() => setErrorMessage(''), 7000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkSellClick = async () => {
+    if (selectedDefectsForVendor.length === 0) {
+      alert('Please select items to sell');
+      return;
+    }
+
+    const selectedItems = pendingDefects.filter((defect) => selectedDefectsForVendor.includes(defect.id));
+
+    if (selectedItems.length === 0) {
+      alert('Selected items are no longer available for sale');
+      return;
+    }
+
+    const storeNames = new Set(selectedItems.map((item) => item.store || 'N/A'));
+    if (storeNames.size > 1) {
+      alert('Please select items from one store only. A single POS/Social order cannot mix extra items from multiple stores.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const preparedItems: DefectSaleItem[] = [];
+      for (const defect of selectedItems) {
+        preparedItems.push(await prepareDefectForSale(defect));
+      }
+
+      const storeIds = new Set(preparedItems.map((item) => item.storeId || 0).filter(Boolean));
+      if (storeIds.size > 1) {
+        throw new Error('Selected items belong to different stores. Please sell items from one store in one order.');
+      }
+
+      const prices: Record<string, string> = {};
+      preparedItems.forEach((item) => {
+        prices[item.id] = item.sellingPrice > 0 ? item.sellingPrice.toString() : '';
+      });
+
+      setBulkSellItems(preparedItems);
+      setBulkSellPrices(prices);
+      setBulkSellType('pos');
+      setBulkSellModalOpen(true);
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Could not prepare selected items for sale';
+      setErrorMessage(message);
+      setTimeout(() => setErrorMessage(''), 8000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkSell = async () => {
+    if (bulkSellItems.length === 0) {
+      alert('No items selected');
+      return;
+    }
+
+    const invalidItem = bulkSellItems.find((item) => {
+      const price = Number.parseFloat(bulkSellPrices[item.id] || '0');
+      return !Number.isFinite(price) || price <= 0;
+    });
+
+    if (invalidItem) {
+      alert(`Please enter a valid selling price for ${invalidItem.productName}`);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const defectItems = bulkSellItems.map((item) => ({
+        id: item.id,
+        barcode: item.barcode,
+        productId: item.productId,
+        productName: item.productName,
+        sellingPrice: Number.parseFloat(bulkSellPrices[item.id]),
+        store: item.store,
+        storeId: item.storeId,
+        batchId: item.batchId,
+      }));
+
+      sessionStorage.setItem('defectItems', JSON.stringify(defectItems));
+      sessionStorage.removeItem('defectItem');
+
+      const ids = defectItems.map((item) => item.id).join(',');
+      const url = bulkSellType === 'pos'
+        ? `/pos?defects=${encodeURIComponent(ids)}`
+        : `/social-commerce?defects=${encodeURIComponent(ids)}`;
+
+      setBulkSellModalOpen(false);
+      setSelectedDefectsForVendor([]);
+
+      setTimeout(() => {
+        window.location.href = url;
+      }, 100);
+    } catch (error: any) {
+      console.error('Error:', error);
+      alert(error.message || 'Error processing bulk sale');
     } finally {
       setLoading(false);
     }
@@ -374,6 +508,7 @@ export default function DefectsPage() {
         productName: selectedDefect.productName,
         sellingPrice: parseFloat(sellPrice),
         store: selectedDefect.store,
+        storeId: selectedDefect.storeId,
         batchId: selectedDefect.batchId,
       };
 
@@ -384,6 +519,7 @@ export default function DefectsPage() {
       }
       
       sessionStorage.setItem('defectItem', JSON.stringify(defectData));
+      sessionStorage.removeItem('defectItems');
 
       const url = sellType === 'pos'
         ? `/pos?defect=${selectedDefect.id}`
@@ -420,6 +556,47 @@ export default function DefectsPage() {
     }
   };
 
+  const handleRestoreToInventory = async (defect: DefectItem) => {
+    const confirmed = confirm(
+      `Restore ${defect.productName} (${defect.barcode}) to regular inventory?\n\n` +
+      'This will remove the defect/used/employee-use marking and make the barcode available for normal POS, online orders, packing, and product search again.'
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      await defectiveProductService.restoreToInventory(parseInt(defect.id), {
+        restore_notes: 'Defect marking reverted from Extra Items panel',
+      });
+
+      await fetchDefects();
+      setSelectedDefectsForVendor(prev => prev.filter(id => id !== defect.id));
+      setSuccessMessage('Defect marking removed. Product is now available for normal sale.');
+      setToast({
+        show: true,
+        message: 'Product restored to regular inventory',
+        type: 'success',
+      });
+      setTimeout(() => setSuccessMessage(''), 4000);
+    } catch (error: any) {
+      console.error('Error restoring item:', error);
+      const message = error.response?.data?.message || error.message || 'Error restoring item';
+      setErrorMessage(message);
+      setToast({
+        show: true,
+        message: 'Failed to restore product',
+        type: 'error',
+      });
+      setTimeout(() => setErrorMessage(''), 7000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleDefectSelection = (defectId: string) => {
     setSelectedDefectsForVendor(prev =>
       prev.includes(defectId)
@@ -447,6 +624,7 @@ export default function DefectsPage() {
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
+      const returnedDefectIds: string[] = [];
 
       for (const defectId of selectedDefectsForVendor) {
         try {
@@ -455,6 +633,7 @@ export default function DefectsPage() {
             vendor_notes: notes,
           });
           successCount++;
+          returnedDefectIds.push(defectId);
         } catch (error: any) {
           errorCount++;
           const errorMsg = error.response?.data?.message || error.message || 'Unknown error';
@@ -463,9 +642,14 @@ export default function DefectsPage() {
       }
 
       if (successCount > 0) {
+        const returnedValue = returnedDefectIds
+          .map(id => defects.find(d => d.id === id))
+          .filter(Boolean)
+          .reduce((sum, item) => sum + Number(item?.costPrice || 0), 0);
+        const formattedReturnedValue = `৳${formatPrice(returnedValue)}`;
         const successMsg = errorCount === 0
-          ? `Successfully returned ${successCount} item${successCount > 1 ? 's' : ''} to vendor!`
-          : `Returned ${successCount} item${successCount > 1 ? 's' : ''} to vendor. ${errorCount} failed.`;
+          ? `Successfully returned ${successCount} item${successCount > 1 ? 's' : ''} to vendor. Total cost value: ${formattedReturnedValue}.`
+          : `Returned ${successCount} item${successCount > 1 ? 's' : ''} to vendor worth ${formattedReturnedValue}. ${errorCount} failed.`;
         
         setToast({
           show: true,
@@ -770,13 +954,31 @@ export default function DefectsPage() {
                         </h3>
                         <div className="flex items-center gap-2">
                           {selectedDefectsForVendor.length > 0 && (
-                            <button
-                              onClick={() => setReturnToVendorModalOpen(true)}
-                              className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
-                            >
-                              <Truck className="w-4 h-4" />
-                              Return to Vendor ({selectedDefectsForVendor.length})
-                            </button>
+                            <>
+                              <button
+                                onClick={handleBulkSellClick}
+                                disabled={loading}
+                                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                              >
+                                <ShoppingCart className="w-4 h-4" />
+                                Sell Selected ({selectedDefectsForVendor.length})
+                              </button>
+                              <button
+                                onClick={() => setReturnToVendorModalOpen(true)}
+                                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                              >
+                                <Truck className="w-4 h-4" />
+                                Return to Vendor ({selectedDefectsForVendor.length})
+                              </button>
+                              <span className="px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-xs font-semibold border border-orange-200 dark:border-orange-800">
+                                Return value: ৳{formatPrice(
+                                  selectedDefectsForVendor
+                                    .map(id => defects.find(d => d.id === id))
+                                    .filter(Boolean)
+                                    .reduce((sum, item) => sum + Number(item?.costPrice || 0), 0)
+                                )}
+                              </span>
+                            </>
                           )}
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             {selectedStore === 'all' ? 'All stores' : stores.find(s => s.id.toString() === selectedStore)?.name}
@@ -909,6 +1111,10 @@ export default function DefectsPage() {
                                           <Calendar className="w-3 h-3" />
                                           {new Date(defect.addedAt).toLocaleDateString()}
                                         </span>
+                                        <span className="flex items-center gap-1 font-semibold text-gray-800 dark:text-gray-200">
+                                          <DollarSign className="w-3 h-3" />
+                                          Cost ৳{formatPrice(defect.costPrice)}
+                                        </span>
                                       </div>
                                     </div>
                                   </div>
@@ -940,6 +1146,14 @@ export default function DefectsPage() {
                                       title="Sell"
                                     >
                                       <ShoppingCart className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleRestoreToInventory(defect)}
+                                      disabled={loading}
+                                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors disabled:opacity-50"
+                                      title="Restore to regular inventory"
+                                    >
+                                      <RotateCcw className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => handleRemove(defect.id)}
@@ -1009,6 +1223,11 @@ export default function DefectsPage() {
                                               <p className="text-sm text-gray-900 dark:text-white font-medium">
                                                 ৳{formatPrice(defect.costPrice)}
                                               </p>
+                                              {defect.costPriceSource && (
+                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                  Source: {defect.costPriceSource.replace(/_/g, ' ')}
+                                                </p>
+                                              )}
                                             </div>
                                           )}
                                           {defect.originalSellingPrice && (
@@ -1126,6 +1345,121 @@ export default function DefectsPage() {
           onSell={handleSell}
           loading={loading}
         />
+      )}
+
+      {/* Bulk Sell Modal */}
+      {bulkSellModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl border border-gray-300 dark:border-gray-600">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Sell selected extra items
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {bulkSellItems.length} item{bulkSellItems.length === 1 ? '' : 's'} will be added to one {bulkSellType === 'pos' ? 'POS' : 'Social Commerce'} order.
+                </p>
+              </div>
+              <button
+                onClick={() => setBulkSellModalOpen(false)}
+                disabled={loading}
+                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+              >
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <StoreIcon className="w-4 h-4" />
+                  Sale Platform
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBulkSellType('pos')}
+                    className={`flex-1 py-2 px-3 border rounded-md text-sm font-medium transition-all ${
+                      bulkSellType === 'pos'
+                        ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    POS
+                  </button>
+                  <button
+                    onClick={() => setBulkSellType('social')}
+                    className={`flex-1 py-2 px-3 border rounded-md text-sm font-medium transition-all ${
+                      bulkSellType === 'social'
+                        ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    Social Commerce
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {bulkSellItems.map((item, index) => (
+                  <div key={item.id} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-6 h-6 rounded-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs font-semibold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <p className="font-medium text-gray-900 dark:text-white truncate">{item.productName}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400 pl-8">
+                          <span className="flex items-center gap-1"><Barcode className="w-3 h-3" />{item.barcode}</span>
+                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{item.store || 'N/A'}</span>
+                          <span>Batch #{item.batchId}</span>
+                        </div>
+                      </div>
+                      <div className="w-36 shrink-0">
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" /> Price
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={bulkSellPrices[item.id] || ''}
+                          onChange={(e) => setBulkSellPrices((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-300">
+                These items will stay marked as extra/defective resale items. If the order is cancelled later, they will return to the Extra panel instead of regular stock.
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex gap-2 justify-end">
+              <button
+                onClick={() => setBulkSellModalOpen(false)}
+                disabled={loading}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkSell}
+                disabled={loading || bulkSellItems.length === 0}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-md font-medium flex items-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                {loading ? 'Processing...' : `Sell ${bulkSellItems.length} item${bulkSellItems.length === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Return to Vendor Modal */}

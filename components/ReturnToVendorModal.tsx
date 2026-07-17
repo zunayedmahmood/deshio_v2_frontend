@@ -19,6 +19,8 @@ interface DefectItem {
   addedAt: string;
   originalSellingPrice?: number;
   costPrice?: number;
+  costPriceSource?: string;
+  vendorReturnValue?: number;
   returnReason?: string;
   store?: string;
   image?: string;
@@ -92,7 +94,8 @@ export default function ReturnToVendorModal({
   };
 
   const selectedDefectItems = allDefects.filter(d => selectedDefects.includes(d.id));
-  const totalValue = selectedDefectItems.reduce((sum, item) => sum + (item.costPrice || 0), 0);
+  const totalValue = selectedDefectItems.reduce((sum, item) => sum + Number(item.costPrice || item.vendorReturnValue || 0), 0);
+  const missingCostCount = selectedDefectItems.filter(item => Number(item.costPrice || item.vendorReturnValue || 0) <= 0).length;
 
   if (!isOpen) return null;
 
@@ -135,7 +138,7 @@ export default function ReturnToVendorModal({
                 </p>
               </div>
               <div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Value (Cost)</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Return Value (Cost)</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   ৳{totalValue.toFixed(2)}
                 </p>
@@ -168,9 +171,11 @@ export default function ReturnToVendorModal({
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                        ৳{(item.costPrice || 0).toFixed(2)}
+                        ৳{Number(item.costPrice || item.vendorReturnValue || 0).toFixed(2)}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Cost</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Cost{item.costPriceSource ? ` • ${item.costPriceSource.replace(/_/g, ' ')}` : ''}
+                      </p>
                     </div>
                   </div>
                   {item.returnReason && (
@@ -182,6 +187,12 @@ export default function ReturnToVendorModal({
               ))}
             </div>
           </div>
+
+          {missingCostCount > 0 && (
+            <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+              {missingCostCount} selected item{missingCostCount === 1 ? '' : 's'} has no cost price snapshot. Please check the batch cost before returning to vendor.
+            </div>
+          )}
 
           {/* Vendor Selection */}
           <div className="mb-6">
@@ -254,7 +265,7 @@ export default function ReturnToVendorModal({
                 Important Notice
               </p>
               <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-                Once returned to vendor, these items cannot be sold or disposed. Ensure vendor details and return notes are accurate.
+                Once returned to vendor, these items cannot be sold or disposed. The total above is the cost value being sent back to the vendor and will be saved with the return record.
               </p>
             </div>
           </div>
@@ -282,7 +293,7 @@ export default function ReturnToVendorModal({
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                Return to Vendor
+                Return to Vendor • ৳{totalValue.toFixed(2)}
               </>
             )}
           </button>
