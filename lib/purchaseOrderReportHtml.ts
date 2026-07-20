@@ -13,6 +13,7 @@ const num = (value: any): number => {
 };
 
 const money = (value: any): string => num(value).toFixed(2);
+const moneyLabel = (value: any): string => `BDT ${money(value)}`;
 
 const intVal = (value: any): number => {
   const parsed = Number(value);
@@ -26,17 +27,32 @@ const fmtDate = (value: any): string => {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+const safeFilePart = (value: any): string => String(value ?? 'report')
+  .trim()
+  .replace(/[^a-z0-9._-]+/gi, '-')
+  .replace(/^-+|-+$/g, '')
+  .slice(0, 80) || 'report';
+
 const employeeName = (value: any): string => {
   if (!value) return '—';
   return value.name || value.full_name || value.employee_name || value.username || value.email || String(value);
 };
 
-const poSubtotal = (po: any): number => num(po?.subtotal ?? po?.subtotal_amount ?? po?.items?.reduce?.((sum: number, item: any) => sum + num(item?.total_cost), 0) ?? 0);
+const itemBatch = (item: any): any => item?.productBatch || item?.product_batch || item?.batch || item?.product_batch_data;
+const itemName = (item: any): string => item?.product_name || item?.product?.name || itemBatch(item)?.product?.name || '—';
+const itemSku = (item: any): string => item?.product_sku || item?.product?.sku || itemBatch(item)?.product?.sku || '';
+const itemOrderedQty = (item: any): number => intVal(item?.quantity_ordered);
+const itemReceivedQty = (item: any): number => intVal(item?.quantity_received);
+const itemPendingQty = (item: any): number => intVal(item?.quantity_pending ?? (itemOrderedQty(item) - itemReceivedQty(item)));
+const itemUnitCost = (item: any): number => num(item?.unit_cost ?? itemBatch(item)?.cost_price);
+const itemTotalCost = (item: any): number => num(item?.total_cost ?? (itemUnitCost(item) * itemOrderedQty(item)));
+
+const poSubtotal = (po: any): number => num(po?.subtotal ?? po?.subtotal_amount ?? po?.items?.reduce?.((sum: number, item: any) => sum + itemTotalCost(item), 0) ?? 0);
 const poTotal = (po: any): number => num(po?.total_amount ?? poSubtotal(po));
 const poPaid = (po: any): number => num(po?.paid_amount);
 const poOutstanding = (po: any): number => num(po?.outstanding_amount ?? (poTotal(po) - poPaid(po)));
-const orderedQty = (po: any): number => (po?.items || []).reduce((sum: number, item: any) => sum + intVal(item?.quantity_ordered), 0);
-const receivedQty = (po: any): number => (po?.items || []).reduce((sum: number, item: any) => sum + intVal(item?.quantity_received), 0);
+const orderedQty = (po: any): number => (po?.items || []).reduce((sum: number, item: any) => sum + itemOrderedQty(item), 0);
+const receivedQty = (po: any): number => (po?.items || []).reduce((sum: number, item: any) => sum + itemReceivedQty(item), 0);
 
 const baseStyle = `
   * { box-sizing: border-box; }
@@ -66,6 +82,21 @@ const baseStyle = `
   @media print { body { background: #fff; padding: 0; } .sheet { border: 0; border-radius: 0; max-width: none; } .print-actions { display: none; } }
 `;
 
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function downloadTextFile(content: string, filename: string, mime: string): void {
+  triggerDownload(new Blob([content], { type: mime }), filename);
+}
+
 export function openPurchaseOrderPrintWindow(html: string): void {
   const win = window.open('', '_blank', 'noopener,noreferrer');
   if (!win) return;
@@ -78,16 +109,16 @@ export function openPurchaseOrderPrintWindow(html: string): void {
 export function buildSinglePurchaseOrderPrintHtml(po: PurchaseOrder | any): string {
   const items = Array.isArray(po?.items) ? po.items : [];
   const rows = items.map((item: any, index: number) => {
-    const qOrdered = intVal(item?.quantity_ordered);
-    const qReceived = intVal(item?.quantity_received);
-    const pending = intVal(item?.quantity_pending ?? (qOrdered - qReceived));
-    const unitCost = num(item?.unit_cost);
-    const totalCost = num(item?.total_cost ?? unitCost * qOrdered);
-    const batch = item?.productBatch || item?.product_batch || item?.batch;
+    const qOrdered = itemOrderedQty(item);
+    const qReceived = itemReceivedQty(item);
+    const pending = itemPendingQty(item);
+    const unitCost = itemUnitCost(item);
+    const totalCost = itemTotalCost(item);
+    const batch = itemBatch(item);
     return `
       <tr>
         <td class="center">${index + 1}</td>
-        <td><strong>${esc(item?.product_name || item?.product?.name || '—')}</strong><br><span class="muted">${esc(item?.product_sku || item?.product?.sku || '')}</span></td>
+        <td><strong>${esc(itemName(item))}</strong><br><span class="muted">${esc(itemSku(item))}</span></td>
         <td class="right">${qOrdered}</td>
         <td class="right">${qReceived}</td>
         <td class="right">${pending}</td>
@@ -228,6 +259,207 @@ export function buildPurchaseOrderSummaryPrintHtml(purchaseOrders: any[], filter
   </div>
 </body>
 </html>`;
+}
+
+type PdfLine = { text: string; size?: number; bold?: boolean; gapAfter?: boolean };
+
+const pdfText = (value: any): string => String(value ?? '')
+  .replace(/[৳]/g, 'BDT ')
+  .replace(/[—–]/g, '-')
+  .replace(/[“”]/g, '"')
+  .replace(/[‘’]/g, "'")
+  .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?');
+
+const escapePdfString = (value: any): string => pdfText(value)
+  .replace(/\\/g, '\\\\')
+  .replace(/\(/g, '\\(')
+  .replace(/\)/g, '\\)');
+
+const wrapPdfLine = (value: any, maxChars = 102): string[] => {
+  const text = pdfText(value).replace(/\s+/g, ' ').trim();
+  if (!text) return [''];
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  words.forEach((word) => {
+    if ((current ? current.length + 1 : 0) + word.length <= maxChars) {
+      current = current ? `${current} ${word}` : word;
+    } else {
+      if (current) lines.push(current);
+      if (word.length > maxChars) {
+        for (let i = 0; i < word.length; i += maxChars) lines.push(word.slice(i, i + maxChars));
+        current = '';
+      } else {
+        current = word;
+      }
+    }
+  });
+  if (current) lines.push(current);
+  return lines;
+};
+
+const buildPdfBlobFromLines = (title: string, rawLines: PdfLine[]): Blob => {
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const marginX = 38;
+  const topY = 805;
+  const bottomY = 42;
+  const lineGap = 14;
+  const pages: PdfLine[][] = [[]];
+  let y = topY;
+
+  const addLine = (line: PdfLine) => {
+    const size = line.size || 10;
+    const needed = (size >= 14 ? 18 : lineGap) + (line.gapAfter ? 8 : 0);
+    if (y - needed < bottomY && pages[pages.length - 1].length > 0) {
+      pages.push([]);
+      y = topY;
+    }
+    pages[pages.length - 1].push(line);
+    y -= needed;
+  };
+
+  rawLines.forEach((line) => {
+    const maxChars = line.size && line.size >= 14 ? 72 : 108;
+    wrapPdfLine(line.text, maxChars).forEach((part, index, arr) => {
+      addLine({ ...line, text: part, gapAfter: index === arr.length - 1 ? line.gapAfter : false });
+    });
+  });
+
+  const fontId = 3 + pages.length * 2;
+  const objects: string[] = [];
+  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  const pageIds = pages.map((_, index) => 3 + index * 2);
+  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+
+  pages.forEach((pageLines, index) => {
+    const pageId = 3 + index * 2;
+    const contentId = pageId + 1;
+    let cursorY = topY;
+    const stream = pageLines.map((line) => {
+      const size = line.size || 10;
+      const text = escapePdfString(line.text);
+      const command = `BT /F1 ${size} Tf ${marginX.toFixed(2)} ${cursorY.toFixed(2)} Td (${text}) Tj ET`;
+      cursorY -= (size >= 14 ? 18 : lineGap) + (line.gapAfter ? 8 : 0);
+      return command;
+    }).join('\n');
+    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
+    objects[contentId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+  objects[fontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+
+  const parts: string[] = ['%PDF-1.4\n'];
+  const offsets: number[] = [0];
+  for (let id = 1; id <= fontId; id += 1) {
+    offsets[id] = parts.join('').length;
+    parts.push(`${id} 0 obj\n${objects[id]}\nendobj\n`);
+  }
+  const xrefOffset = parts.join('').length;
+  parts.push(`xref\n0 ${fontId + 1}\n`);
+  parts.push('0000000000 65535 f \n');
+  for (let id = 1; id <= fontId; id += 1) {
+    parts.push(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`);
+  }
+  parts.push(`trailer\n<< /Size ${fontId + 1} /Root 1 0 R /Title (${escapePdfString(title)}) >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  return new Blob([parts.join('')], { type: 'application/pdf' });
+};
+
+const singlePoPdfLines = (po: any): PdfLine[] => {
+  const items = Array.isArray(po?.items) ? po.items : [];
+  const lines: PdfLine[] = [
+    { text: 'Deshio - Purchase Order Report', size: 16, bold: true },
+    { text: `Generated: ${fmtDate(new Date().toISOString())}`, gapAfter: true },
+    { text: `PO Number: ${po?.po_number || po?.id || '-'}` },
+    { text: `Vendor: ${po?.vendor?.name || '-'}` },
+    { text: `Store / Warehouse: ${po?.store?.name || '-'}` },
+    { text: `Order Date: ${fmtDate(po?.order_date || po?.created_at)} | Expected: ${fmtDate(po?.expected_delivery_date)} | Received: ${fmtDate(po?.received_at)}` },
+    { text: `Status: ${po?.status || '-'} | Payment: ${po?.payment_status || '-'}` },
+    { text: `Created By: ${employeeName(po?.createdBy || po?.created_by)} | Received By: ${employeeName(po?.receivedBy || po?.received_by)}`, gapAfter: true },
+    { text: `Totals: Ordered ${orderedQty(po)} | Received ${receivedQty(po)} | Subtotal ${moneyLabel(poSubtotal(po))} | Total ${moneyLabel(poTotal(po))} | Paid ${moneyLabel(poPaid(po))} | Outstanding ${moneyLabel(poOutstanding(po))}`, gapAfter: true },
+    { text: 'Items', size: 13, bold: true },
+    { text: 'No | Product / SKU | Ordered | Received | Pending | Unit Cost | Sell Price | Batch | Total Cost' },
+    { text: '-'.repeat(116) },
+  ];
+
+  if (items.length === 0) {
+    lines.push({ text: 'No items found.' });
+  } else {
+    items.forEach((item: any, index: number) => {
+      const batch = itemBatch(item);
+      lines.push({
+        text: `${index + 1}. ${itemName(item)}${itemSku(item) ? ` / ${itemSku(item)}` : ''} | Ordered ${itemOrderedQty(item)} | Received ${itemReceivedQty(item)} | Pending ${itemPendingQty(item)} | Cost ${moneyLabel(itemUnitCost(item))} | Sell ${moneyLabel(item?.unit_sell_price)} | Batch ${batch?.batch_number || item?.batch_number || '-'} | Total ${moneyLabel(itemTotalCost(item))}`,
+      });
+    });
+  }
+
+  lines.push({ text: '', gapAfter: true });
+  lines.push({ text: `Tax: ${moneyLabel(po?.tax_amount)} | Discount: ${moneyLabel(po?.discount_amount)} | Shipping: ${moneyLabel(po?.shipping_cost)}` });
+  if (po?.notes) lines.push({ text: `Notes: ${po.notes}` });
+  return lines;
+};
+
+const summaryPdfLines = (purchaseOrders: any[], filters: Record<string, any> = {}): PdfLine[] => {
+  const totals = purchaseOrders.reduce((acc, po) => {
+    acc.count += 1;
+    acc.ordered += orderedQty(po);
+    acc.received += receivedQty(po);
+    acc.total += poTotal(po);
+    acc.paid += poPaid(po);
+    acc.outstanding += poOutstanding(po);
+    return acc;
+  }, { count: 0, ordered: 0, received: 0, total: 0, paid: 0, outstanding: 0 });
+  const filterText = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(' | ') || 'All purchase orders';
+  const lines: PdfLine[] = [
+    { text: 'Deshio - Purchase Order Summary Report', size: 16, bold: true },
+    { text: `Generated: ${fmtDate(new Date().toISOString())}` },
+    { text: `Filters: ${filterText}`, gapAfter: true },
+    { text: `PO Count: ${totals.count} | Ordered Qty: ${totals.ordered} | Received Qty: ${totals.received}` },
+    { text: `Total: ${moneyLabel(totals.total)} | Paid: ${moneyLabel(totals.paid)} | Outstanding: ${moneyLabel(totals.outstanding)}`, gapAfter: true },
+    { text: 'Purchase Orders', size: 13, bold: true },
+    { text: 'No | PO | Vendor | Store | Date | Status | Payment | Ordered | Received | Total | Paid | Outstanding' },
+    { text: '-'.repeat(116) },
+  ];
+
+  if (purchaseOrders.length === 0) {
+    lines.push({ text: 'No purchase orders found.' });
+  } else {
+    purchaseOrders.forEach((po, index) => {
+      lines.push({
+        text: `${index + 1}. ${po?.po_number || '-'} | ${po?.vendor?.name || '-'} | ${po?.store?.name || '-'} | ${fmtDate(po?.order_date || po?.created_at)} | ${po?.status || '-'} | ${po?.payment_status || '-'} | Ordered ${orderedQty(po)} | Received ${receivedQty(po)} | Total ${moneyLabel(poTotal(po))} | Paid ${moneyLabel(poPaid(po))} | Outstanding ${moneyLabel(poOutstanding(po))}`,
+      });
+    });
+  }
+  return lines;
+};
+
+export function downloadSinglePurchaseOrderPdf(po: PurchaseOrder | any): void {
+  const filename = `purchase-order-${safeFilePart(po?.po_number || po?.id)}.pdf`;
+  triggerDownload(buildPdfBlobFromLines(`Purchase Order ${po?.po_number || po?.id || ''}`, singlePoPdfLines(po)), filename);
+}
+
+export function downloadPurchaseOrderSummaryPdf(purchaseOrders: any[], filters: Record<string, any> = {}): void {
+  const filename = `purchase-order-summary-${new Date().toISOString().slice(0, 10)}.pdf`;
+  triggerDownload(buildPdfBlobFromLines('Purchase Order Summary Report', summaryPdfLines(purchaseOrders, filters)), filename);
+}
+
+export function downloadSinglePurchaseOrderHtml(po: PurchaseOrder | any): void {
+  downloadTextFile(
+    buildSinglePurchaseOrderPrintHtml(po),
+    `purchase-order-${safeFilePart(po?.po_number || po?.id)}.html`,
+    'text/html;charset=utf-8;'
+  );
+}
+
+export function downloadPurchaseOrderSummaryHtml(purchaseOrders: any[], filters: Record<string, any> = {}): void {
+  downloadTextFile(
+    buildPurchaseOrderSummaryPrintHtml(purchaseOrders, filters),
+    `purchase-order-summary-${new Date().toISOString().slice(0, 10)}.html`,
+    'text/html;charset=utf-8;'
+  );
 }
 
 export function purchaseOrdersToCsv(purchaseOrders: any[]): string {

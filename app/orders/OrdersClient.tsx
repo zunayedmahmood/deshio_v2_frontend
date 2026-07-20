@@ -1447,7 +1447,7 @@ export default function OrdersDashboard() {
               disabled={isLoading}
               className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-900 text-black dark:text-white focus:outline-none disabled:opacity-50"
             >
-              {[10, 25, 50, 100].map((size) => (
+              {[10, 25, 50, 100, 250].map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>

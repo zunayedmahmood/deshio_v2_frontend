@@ -10,6 +10,10 @@ import { vendorService, Vendor } from '@/services/vendorService';
 import {
   buildPurchaseOrderSummaryPrintHtml,
   buildSinglePurchaseOrderPrintHtml,
+  downloadPurchaseOrderSummaryHtml,
+  downloadPurchaseOrderSummaryPdf,
+  downloadSinglePurchaseOrderHtml,
+  downloadSinglePurchaseOrderPdf,
   openPurchaseOrderPrintWindow,
   purchaseOrdersToCsv,
 } from '@/lib/purchaseOrderReportHtml';
@@ -161,6 +165,14 @@ export default function PurchaseOrderReportsPage() {
     openPurchaseOrderPrintWindow(buildPurchaseOrderSummaryPrintHtml(orders, filterLabels));
   };
 
+  const downloadSummaryPdf = () => {
+    downloadPurchaseOrderSummaryPdf(orders, filterLabels);
+  };
+
+  const downloadSummaryHtml = () => {
+    downloadPurchaseOrderSummaryHtml(orders, filterLabels);
+  };
+
   const downloadSummaryCsv = () => {
     const blob = new Blob([purchaseOrdersToCsv(orders)], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -207,6 +219,32 @@ export default function PurchaseOrderReportsPage() {
     }
   };
 
+  const downloadSinglePoPdf = async (query: string = singlePoSearch) => {
+    setSinglePoBusy(true);
+    setSinglePoError('');
+    try {
+      const po = await fetchExactPo(query);
+      downloadSinglePurchaseOrderPdf(po);
+    } catch (error: any) {
+      setSinglePoError(error?.response?.data?.message || error?.message || 'Failed to download PO PDF');
+    } finally {
+      setSinglePoBusy(false);
+    }
+  };
+
+  const downloadSinglePoHtml = async (query: string = singlePoSearch) => {
+    setSinglePoBusy(true);
+    setSinglePoError('');
+    try {
+      const po = await fetchExactPo(query);
+      downloadSinglePurchaseOrderHtml(po);
+    } catch (error: any) {
+      setSinglePoError(error?.response?.data?.message || error?.message || 'Failed to download PO HTML report');
+    } finally {
+      setSinglePoBusy(false);
+    }
+  };
+
   return (
     <div className={`${darkMode ? 'dark' : ''} flex min-h-screen`}>
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
@@ -227,8 +265,14 @@ export default function PurchaseOrderReportsPage() {
               <button onClick={loadReport} disabled={loadingReport} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-black text-white hover:bg-gray-900 text-sm disabled:opacity-60">
                 <RefreshCw className={`w-4 h-4 ${loadingReport ? 'animate-spin' : ''}`} /> Load Report
               </button>
-              <button onClick={printSummary} disabled={!orders.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm disabled:opacity-60">
-                <Printer className="w-4 h-4" /> Print / Save PDF
+              <button onClick={downloadSummaryPdf} disabled={!orders.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm disabled:opacity-60">
+                <Download className="w-4 h-4" /> Download PDF
+              </button>
+              <button onClick={downloadSummaryHtml} disabled={!orders.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm disabled:opacity-60">
+                <Download className="w-4 h-4" /> Download HTML
+              </button>
+              <button onClick={printSummary} disabled={!orders.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-800 text-sm disabled:opacity-60">
+                <Printer className="w-4 h-4" /> Print
               </button>
               <button onClick={downloadSummaryCsv} disabled={!orders.length} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm disabled:opacity-60">
                 <Download className="w-4 h-4" /> CSV
@@ -340,9 +384,17 @@ export default function PurchaseOrderReportsPage() {
                       <td className="px-4 py-2 text-right">৳{fmtMoney(po.total_amount)}</td>
                       <td className="px-4 py-2 text-right">৳{fmtMoney(poOutstanding(po))}</td>
                       <td className="px-4 py-2 text-right">
-                        <button onClick={() => printSinglePo(String(po.id))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-xs">
-                          <Eye className="w-3 h-3" /> Exact Report
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => downloadSinglePoPdf(String(po.id))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs">
+                            <Download className="w-3 h-3" /> PDF
+                          </button>
+                          <button onClick={() => downloadSinglePoHtml(String(po.id))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs">
+                            <Download className="w-3 h-3" /> HTML
+                          </button>
+                          <button onClick={() => printSinglePo(String(po.id))} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-xs">
+                            <Eye className="w-3 h-3" /> Open
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -360,8 +412,14 @@ export default function PurchaseOrderReportsPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-2 max-w-xl">
               <input value={singlePoSearch} onChange={(e) => { setSinglePoSearch(e.target.value); setSinglePoError(''); }} placeholder="PO-20260604-000006 or 123" className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-              <button disabled={singlePoBusy} onClick={() => printSinglePo()} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60">
-                <Printer className="w-4 h-4" /> {singlePoBusy ? 'Opening…' : 'Open Exact Report'}
+              <button disabled={singlePoBusy} onClick={() => downloadSinglePoPdf()} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60">
+                <Download className="w-4 h-4" /> {singlePoBusy ? 'Working…' : 'Download PDF'}
+              </button>
+              <button disabled={singlePoBusy} onClick={() => downloadSinglePoHtml()} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60">
+                <Download className="w-4 h-4" /> HTML
+              </button>
+              <button disabled={singlePoBusy} onClick={() => printSinglePo()} className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-700 text-white text-sm hover:bg-gray-800 disabled:opacity-60">
+                <Printer className="w-4 h-4" /> Open
               </button>
             </div>
             {singlePoError && <div className="mt-3 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm">{singlePoError}</div>}

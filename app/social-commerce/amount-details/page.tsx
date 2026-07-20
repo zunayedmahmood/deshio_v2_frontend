@@ -60,12 +60,14 @@ const parseNumber = (v: any): number => {
 
 
 const getFlowConfig = (orderData?: any) => {
-  const isPreorder = Boolean(orderData?.is_preorder);
+  const isPreorderRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/pre-order');
+  const isPreorder = Boolean(orderData?.is_preorder || orderData?.preorder_notes || isPreorderRoute);
   return {
     isPreorder,
     draftKey: isPreorder ? PREORDER_DRAFT_STORAGE_KEY : SC_DRAFT_STORAGE_KEY,
     editContextKey: isPreorder ? PREORDER_EDIT_CONTEXT_KEY : SC_EDIT_CONTEXT_KEY,
     cartPath: isPreorder ? '/pre-order' : '/social-commerce',
+    listPath: isPreorder ? '/preorders' : '/orders',
     sourceLabel: isPreorder ? 'Preorder' : 'Social Commerce',
   };
 };
@@ -1031,7 +1033,7 @@ export default function AmountDetailsPage() {
       if (isEditMode) sessionStorage.removeItem(flow.editContextKey);
 
       setTimeout(() => {
-        window.location.href = '/orders';
+        window.location.href = flow.listPath;
       }, 2000);
     } catch (error: any) {
       console.error('❌ Order placement failed:', error);

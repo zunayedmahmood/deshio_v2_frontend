@@ -18,7 +18,7 @@ import { productService, Product } from '@/services/productService';
 import categoryService, { CategoryTree } from '@/services/categoryService';
 import AccessControl from '@/components/AccessControl';
 import { useAuth } from '@/contexts/AuthContext';
-import { buildSinglePurchaseOrderPrintHtml, openPurchaseOrderPrintWindow } from '@/lib/purchaseOrderReportHtml';
+import { buildSinglePurchaseOrderPrintHtml, downloadSinglePurchaseOrderPdf, openPurchaseOrderPrintWindow } from '@/lib/purchaseOrderReportHtml';
 // --- Image helpers (same approach as Orders page) ---
 const getApiBaseUrl = () => {
   const raw = process.env.NEXT_PUBLIC_API_URL || '';
@@ -219,10 +219,25 @@ export default function PurchaseOrdersPage() {
   }, [selectedPO]);
 
   // ─────────────────────────────────────────────────────────
-  // Frontend PO report / print layout
+  // Frontend PO report/download layout
   // Do not open backend PDF URLs. We fetch the same PO detail API used by the page,
-  // then generate a browser print report so the displayed/report data stays exact.
+  // then generate the report in the browser and download it from the frontend.
   // ─────────────────────────────────────────────────────────
+  const downloadPoReport = async (poId: number) => {
+    if (!poId) return;
+    setLoading(true);
+    try {
+      const res = await purchaseOrderService.getById(poId);
+      const fullPO: PurchaseOrder = (res as any)?.data?.data ?? (res as any)?.data;
+      if (!fullPO) throw new Error('Purchase order details not found');
+      downloadSinglePurchaseOrderPdf(fullPO);
+    } catch (error: any) {
+      showAlert('error', error?.response?.data?.message || error?.message || 'Failed to download purchase order report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openPoReport = async (poId: number) => {
     if (!poId) return;
     setLoading(true);
@@ -1155,12 +1170,20 @@ export default function PurchaseOrdersPage() {
                           View
                         </button>
                         <button
-                          onClick={() => openPoReport(po.id)}
-                          className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg transition-colors"
-                          title="Open frontend PO report / print layout"
+                          onClick={() => downloadPoReport(po.id)}
+                          className="flex items-center gap-1 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                          title="Download frontend-generated PO PDF report"
                         >
                           <FileText className="w-4 h-4" />
-                          Report
+                          Download Report
+                        </button>
+                        <button
+                          onClick={() => openPoReport(po.id)}
+                          className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded-lg transition-colors"
+                          title="Open printable frontend PO report"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Open
                         </button>
                         {po.status === 'draft' && (
                           <button
