@@ -21,6 +21,7 @@ interface DefectItem {
   costPrice?: number;
   costPriceSource?: string;
   vendorReturnValue?: number;
+  vendor?: string;
   vendorId?: number;
   vendorName?: string;
   vendorPhone?: string;
@@ -53,16 +54,58 @@ export default function ReturnToVendorModal({
   const [loadingVendors, setLoadingVendors] = useState(false);
 
   const selectedDefectItems = allDefects.filter(d => selectedDefects.includes(d.id));
+
+  const normalizeVendorName = (value?: string | null) =>
+    String(value || '').trim().toLowerCase();
+
+  const resolveItemVendor = (item: DefectItem): { id?: number; name?: string; phone?: string; email?: string } => {
+    const directId = Number(item.vendorId);
+    const vendorName = item.vendorName || item.vendor;
+
+    if (Number.isFinite(directId) && directId > 0) {
+      const matched = vendors.find(vendor => Number(vendor.id) === directId);
+      return {
+        id: directId,
+        name: item.vendorName || matched?.name || item.vendor,
+        phone: item.vendorPhone || matched?.phone,
+        email: item.vendorEmail || matched?.email,
+      };
+    }
+
+    if (vendorName) {
+      const normalizedName = normalizeVendorName(vendorName);
+      const matched = vendors.find(vendor => normalizeVendorName(vendor.name) === normalizedName);
+      if (matched) {
+        return {
+          id: matched.id,
+          name: matched.name,
+          phone: item.vendorPhone || matched.phone,
+          email: item.vendorEmail || matched.email,
+        };
+      }
+
+      return { name: vendorName, phone: item.vendorPhone, email: item.vendorEmail };
+    }
+
+    return {};
+  };
+
+  const selectedVendorInfos = selectedDefectItems.map(resolveItemVendor);
   const selectedVendorIds = Array.from(new Set(
-    selectedDefectItems
-      .map(item => item.vendorId)
-      .filter((vendorId): vendorId is number => Number.isFinite(Number(vendorId)))
+    selectedVendorInfos
+      .map(info => Number(info.id))
+      .filter((vendorId): vendorId is number => Number.isFinite(vendorId) && vendorId > 0)
   ));
-  const hasMixedVendors = selectedVendorIds.length > 1;
-  const hasMissingVendor = selectedDefectItems.some(item => !item.vendorId);
-  const inferredVendorId = selectedVendorIds.length === 1 ? selectedVendorIds[0] : null;
-  const inferredVendorFromItem = inferredVendorId
-    ? selectedDefectItems.find(item => item.vendorId === inferredVendorId)
+  const selectedVendorNamesWithoutId = Array.from(new Set(
+    selectedVendorInfos
+      .filter(info => !info.id && info.name)
+      .map(info => normalizeVendorName(info.name))
+  ));
+  const hasMixedVendors = selectedVendorIds.length > 1 || (selectedVendorIds.length === 1 && selectedVendorNamesWithoutId.length > 0) || selectedVendorNamesWithoutId.length > 1;
+  const hasMissingVendor = selectedDefectItems.some((item, index) => !selectedVendorInfos[index]?.id);
+  const inferredVendorId = selectedVendorIds.length === 1 && !hasMixedVendors ? selectedVendorIds[0] : null;
+  const inferredVendorInfo = inferredVendorId
+    ? selectedVendorInfos.find(info => Number(info.id) === inferredVendorId)
     : null;
 
   useEffect(() => {
@@ -99,7 +142,7 @@ export default function ReturnToVendorModal({
     }
 
     setSelectedVendor('');
-  }, [isOpen, hasMixedVendors, inferredVendorId, selectedDefects.join(',')]);
+  }, [isOpen, hasMixedVendors, inferredVendorId, selectedDefects.join(','), vendors.length]);
 
   const handleSubmit = async () => {
     if (hasMixedVendors) {
@@ -215,7 +258,7 @@ export default function ReturnToVendorModal({
                   {hasMixedVendors
                     ? 'Multiple vendors selected'
                     : inferredVendorId
-                      ? `Vendor preselected: ${inferredVendorFromItem?.vendorName || vendors.find(v => v.id === inferredVendorId)?.name || `Vendor #${inferredVendorId}`}`
+                      ? `Vendor preselected: ${inferredVendorInfo?.name || vendors.find(v => v.id === inferredVendorId)?.name || `Vendor #${inferredVendorId}`}`
                       : 'Vendor could not be detected from selected product'}
                 </p>
                 <p className={`mt-1 text-xs ${
@@ -256,12 +299,15 @@ export default function ReturnToVendorModal({
                         <span className="font-mono">{item.barcode}</span>
                         <span>•</span>
                         <span>{item.store}</span>
-                        {item.vendorName && (
-                          <>
-                            <span>•</span>
-                            <span className="text-purple-700 dark:text-purple-300">Vendor: {item.vendorName}</span>
-                          </>
-                        )}
+                        {(() => {
+                          const vendorInfo = resolveItemVendor(item);
+                          return vendorInfo.name ? (
+                            <>
+                              <span>•</span>
+                              <span className="text-purple-700 dark:text-purple-300">Vendor: {vendorInfo.name}</span>
+                            </>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
                     <div className="text-right">
@@ -308,7 +354,7 @@ export default function ReturnToVendorModal({
                 <option value="">{hasMixedVendors ? 'Select one vendor group first' : 'Choose vendor...'}</option>
                 {inferredVendorId && !vendors.some(vendor => vendor.id === inferredVendorId) && (
                   <option value={inferredVendorId}>
-                    {inferredVendorFromItem?.vendorName || `Vendor #${inferredVendorId}`}
+                    {inferredVendorInfo?.name || `Vendor #${inferredVendorId}`}
                   </option>
                 )}
                 {vendors.map(vendor => (
@@ -330,21 +376,33 @@ export default function ReturnToVendorModal({
             )}
             {selectedVendor && (
               <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                {vendors.find(v => v.id.toString() === selectedVendor) && (
-                  <div className="text-sm">
-                    <p className="font-medium text-blue-900 dark:text-blue-300">
-                      {vendors.find(v => v.id.toString() === selectedVendor)?.name}
-                    </p>
-                    <div className="mt-1 space-y-0.5 text-xs text-blue-700 dark:text-blue-400">
-                      {vendors.find(v => v.id.toString() === selectedVendor)?.email && (
-                        <p>Email: {vendors.find(v => v.id.toString() === selectedVendor)?.email}</p>
-                      )}
-                      {vendors.find(v => v.id.toString() === selectedVendor)?.phone && (
-                        <p>Phone: {vendors.find(v => v.id.toString() === selectedVendor)?.phone}</p>
-                      )}
+                {(() => {
+                  const selectedVendorRecord = vendors.find(v => v.id.toString() === selectedVendor);
+                  const selectedVendorInfo = selectedVendorRecord || (inferredVendorId && Number(selectedVendor) === inferredVendorId
+                    ? {
+                        id: inferredVendorId,
+                        name: inferredVendorInfo?.name || `Vendor #${inferredVendorId}`,
+                        email: inferredVendorInfo?.email,
+                        phone: inferredVendorInfo?.phone,
+                      }
+                    : null);
+
+                  return selectedVendorInfo ? (
+                    <div className="text-sm">
+                      <p className="font-medium text-blue-900 dark:text-blue-300">
+                        {selectedVendorInfo.name}
+                      </p>
+                      <div className="mt-1 space-y-0.5 text-xs text-blue-700 dark:text-blue-400">
+                        {selectedVendorInfo.email && (
+                          <p>Email: {selectedVendorInfo.email}</p>
+                        )}
+                        {selectedVendorInfo.phone && (
+                          <p>Phone: {selectedVendorInfo.phone}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : null;
+                })()}
               </div>
             )}
           </div>

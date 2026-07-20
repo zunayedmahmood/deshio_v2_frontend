@@ -35,6 +35,10 @@ interface DefectItem {
   store?: string;
   storeId?: number;
   vendor?: string;
+  vendorId?: number;
+  vendorName?: string;
+  vendorPhone?: string;
+  vendorEmail?: string;
   image?: string;
   batchId?: number;
   barcodeStatus?: string;
@@ -217,7 +221,25 @@ export default function DefectsPage() {
           returnReason: d.defect_description,
           store: d.store?.name,
           storeId: d.store_id,
-          vendor: d.product?.vendor?.name || d.vendor?.name,
+          vendor: d.product?.vendor?.name || d.product?.vendor_name || d.vendor?.name,
+          vendorId: (() => {
+            const rawVendorId =
+              d.product?.vendor_id ??
+              d.product?.vendor?.id ??
+              d.metadata?.product_vendor_id ??
+              d.metadata?.vendor_id ??
+              d.vendor?.id;
+            const parsedVendorId = Number(rawVendorId);
+            return Number.isFinite(parsedVendorId) && parsedVendorId > 0 ? parsedVendorId : undefined;
+          })(),
+          vendorName:
+            d.product?.vendor?.name ||
+            d.product?.vendor?.business_name ||
+            d.product?.vendor_name ||
+            d.metadata?.product_vendor_name ||
+            d.vendor?.name,
+          vendorPhone: d.product?.vendor?.phone || d.vendor?.phone,
+          vendorEmail: d.product?.vendor?.email || d.vendor?.email,
           image: imageUrl,
           sellingPrice: parsePrice(d.suggested_selling_price),
           batchId: d.product_batch_id,
@@ -540,19 +562,43 @@ export default function DefectsPage() {
   };
 
   const handleRemove = async (defectId: string) => {
-    if (!confirm('Are you sure you want to remove this item?')) return;
+    const defect = defects.find((item) => item.id === defectId);
+    const confirmed = confirm(
+      `Delete the defect/extra marking${defect ? ` for ${defect.productName} (${defect.barcode})` : ''}?\n\n` +
+      'This will restore the barcode to regular sellable inventory. It will not dispose or destroy the physical product.'
+    );
+
+    if (!confirmed) return;
+
+    setLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
 
     try {
-      await defectiveProductService.dispose(parseInt(defectId), {
-        disposal_notes: 'Removed by employee',
+      await defectiveProductService.restoreToInventory(parseInt(defectId), {
+        restore_notes: 'Defect marking deleted/reverted from Extra Items panel',
       });
       
-      fetchDefects();
-      setSuccessMessage('Item removed successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      await fetchDefects();
+      setSelectedDefectsForVendor(prev => prev.filter(id => id !== defectId));
+      setSuccessMessage('Defect marking deleted. Product is now available for normal sale.');
+      setToast({
+        show: true,
+        message: 'Defect marking deleted and product restored to stock',
+        type: 'success',
+      });
+      setTimeout(() => setSuccessMessage(''), 4000);
     } catch (error: any) {
-      console.error('Error removing item:', error);
-      alert(error.message || 'Error removing item');
+      console.error('Error deleting defect marking:', error);
+      const message = error.response?.data?.message || error.message || 'Error deleting defect marking';
+      setErrorMessage(message);
+      setToast({
+        show: true,
+        message,
+        type: 'error',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1158,7 +1204,7 @@ export default function DefectsPage() {
                                     <button
                                       onClick={() => handleRemove(defect.id)}
                                       className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                      title="Remove"
+                                      title="Delete defect marking and restore to stock"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
