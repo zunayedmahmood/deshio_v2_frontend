@@ -2554,17 +2554,21 @@ export default function PreOrderPage() {
       const cartServiceItems = cart.filter((item) => item.isService);
       const isServiceOnlyCart = cartProductItems.length === 0 && cartServiceItems.length > 0;
       const shouldKeepSelectedStoreForServiceOnly = false;
-      const effectiveStoreAssignmentMode = 'auto';
+      const effectiveStoreAssignmentMode = 'preorder_office';
 
       const preorderNoteText = orderNotes?.trim() || 'Preorder created from preorder panel';
 
       const orderData = {
-        order_type: 'social_commerce',
+        // Preorders are a dedicated order channel. They must never be created as
+        // social-commerce orders or enter the normal Orders/assignment queues.
+        order_type: 'preorder',
         is_preorder: true,
         preorder_notes: preorderNoteText,
         ...(!effectiveEditOrderId
           ? {
               store_assignment_mode: effectiveStoreAssignmentMode,
+              // Office is shown in the UI, but the dedicated backend endpoint
+              // resolves and enforces the active Office store itself.
               store_id: selectedStore ? Number(selectedStore) : undefined,
               selected_store_name: selectedStoreName || 'Office',
             }

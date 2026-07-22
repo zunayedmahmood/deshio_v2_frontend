@@ -61,7 +61,12 @@ const parseNumber = (v: any): number => {
 
 const getFlowConfig = (orderData?: any) => {
   const isPreorderRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/pre-order');
-  const isPreorder = Boolean(orderData?.is_preorder || orderData?.preorder_notes || isPreorderRoute);
+  const isPreorder = Boolean(
+    orderData?.order_type === 'preorder'
+    || orderData?.is_preorder
+    || orderData?.preorder_notes
+    || isPreorderRoute
+  );
   return {
     isPreorder,
     draftKey: isPreorder ? PREORDER_DRAFT_STORAGE_KEY : SC_DRAFT_STORAGE_KEY,
@@ -165,6 +170,7 @@ export default function AmountDetailsPage() {
   const [storeAvailabilityRows, setStoreAvailabilityRows] = useState<StoreAvailabilityRow[]>([]);
   const [isLoadingStoreAvailability, setIsLoadingStoreAvailability] = useState(false);
   const [storeAvailabilityError, setStoreAvailabilityError] = useState('');
+  const isPreorderFlow = getFlowConfig(orderData).isPreorder;
 
   const displayToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
     setToastMessage(message);
@@ -207,7 +213,8 @@ export default function AmountDetailsPage() {
   useEffect(() => {
     const storedOrder = sessionStorage.getItem('pendingOrder');
     if (!storedOrder) {
-      window.location.href = '/social-commerce';
+      // This component is shared, but each flow must return to its own cart page.
+      window.location.href = getFlowConfig().cartPath;
       return;
     }
 
@@ -272,13 +279,11 @@ export default function AmountDetailsPage() {
     parsedOrder.subtotal = itemSubtotal + serviceSubtotal;
 
     setOrderData(parsedOrder);
-    if (parsedOrder.is_preorder && parsedOrder.store_id) {
-      // Preorder flow is Office-only. Keep the selected store visible here,
-      // but do not allow the social-commerce auto/manual logic to clear it
-      // just because stock may not be available yet. Backend also enforces
-      // Office-only when saving.
-      setStoreAssignmentMode('manual');
-      setSelectedStoreId(String(parsedOrder.store_id));
+    if (getFlowConfig(parsedOrder).isPreorder) {
+      // Preorders do not participate in social-commerce store assignment or
+      // stock-availability validation. Office is enforced by the backend.
+      setStoreAssignmentMode('auto');
+      setSelectedStoreId(parsedOrder.store_id ? String(parsedOrder.store_id) : '');
     } else if (parsedOrder.store_assignment_mode === 'manual' && parsedOrder.store_id) {
       setStoreAssignmentMode('manual');
       setSelectedStoreId(String(parsedOrder.store_id));
@@ -588,7 +593,7 @@ export default function AmountDetailsPage() {
       return;
     }
 
-    if (!isEditingExistingOrder && productItemsForStoreAssignment.length > 0 && storeAssignmentMode === 'manual') {
+    if (!isPreorderFlow && !isEditingExistingOrder && productItemsForStoreAssignment.length > 0 && storeAssignmentMode === 'manual') {
       if (!selectedStoreId) {
         displayToast('Please select a store for manual assignment or use Auto-assign.', 'error');
         return;
@@ -740,36 +745,43 @@ export default function AmountDetailsPage() {
         }
       } else {
         // 1) Create order (sanitize payload)
-        const isPreorderOrder = Boolean(orderData.is_preorder);
-        const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' || isPreorderOrder ? 'manual' : 'auto';
+        const isPreorderOrder = Boolean(
+          orderData.is_preorder
+          || orderData.order_type === 'preorder'
+          || getFlowConfig(orderData).isPreorder
+        );
+        const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' ? 'manual' : 'auto';
         const requestedStoreId = Number(orderData.store_id || selectedStoreId || 0) || null;
-        const canUseManualStoreAssignment = !isEditingExistingOrder
+        const canUseManualStoreAssignment = !isPreorderOrder
+          && !isEditingExistingOrder
           && requestedAssignmentMode === 'manual'
           && requestedStoreId
           && (
-            isPreorderOrder
-            || selectedStoreAvailability?.can_fulfill_entire_order
+            selectedStoreAvailability?.can_fulfill_entire_order
             // Service-only social-commerce orders have no product stock to reserve,
             // but Pathao still needs a pickup store. Keep the selected store on the
             // order so service-only orders can be sent to Pathao later.
             || isServiceOnlyOrder
           );
-        const manualStoreAssignmentPayload = canUseManualStoreAssignment
-          ? {
-              store_id: Number(requestedStoreId),
-              store_assignment_mode: 'manual',
-            }
-          : {
-              store_assignment_mode: 'auto',
-            };
+        const storeAssignmentPayload = isPreorderOrder
+          ? { store_assignment_mode: 'preorder_office' }
+          : canUseManualStoreAssignment
+            ? {
+                store_id: Number(requestedStoreId),
+                store_assignment_mode: 'manual',
+              }
+            : {
+                store_assignment_mode: 'auto',
+              };
 
         const orderPayload: any = {
-          order_type: orderData.order_type || 'social_commerce',
-          ...(orderData.is_preorder ? { is_preorder: true } : {}),
+          // The preorder route is a separate channel, not social commerce.
+          order_type: isPreorderOrder ? 'preorder' : (orderData.order_type || 'social_commerce'),
+          ...(isPreorderOrder ? { is_preorder: true } : {}),
           ...(String(orderData.preorder_notes || '').trim()
             ? { preorder_notes: String(orderData.preorder_notes).trim() }
             : {}),
-          ...manualStoreAssignmentPayload,
+          ...storeAssignmentPayload,
           ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
           customer: {
             name: orderData.customer?.name,
@@ -826,7 +838,8 @@ export default function AmountDetailsPage() {
         };
 
         console.log('📦 Creating order:', orderPayload);
-        const createOrderResponse = await axios.post('/orders', orderPayload);
+        const createEndpoint = isPreorderOrder ? '/pre-orders' : '/orders';
+        const createOrderResponse = await axios.post(createEndpoint, orderPayload);
         const createBody: any = createOrderResponse.data;
         if (createBody?.success === false) {
           throw new Error(createBody?.message || 'Failed to create order');
@@ -843,7 +856,7 @@ export default function AmountDetailsPage() {
       }
 
       // 2) Set intended courier marker (optional)
-      if (intendedCourier && intendedCourier.trim()) {
+      if (!isPreorderFlow && intendedCourier && intendedCourier.trim()) {
         try {
           await axios.patch(`/orders/${createdOrder.id}/set-courier`, {
             intended_courier: intendedCourier.trim(),
@@ -857,7 +870,7 @@ export default function AmountDetailsPage() {
 
       // 3) Defective items
       const defectiveItems = orderData.defectiveItems || [];
-      if (defectiveItems.length > 0) {
+      if (!isPreorderFlow && defectiveItems.length > 0) {
         console.log('🏷️ Processing defective items:', defectiveItems.length);
         for (const defectItem of defectiveItems) {
           try {
@@ -1014,14 +1027,15 @@ export default function AmountDetailsPage() {
       // paymentOption === 'none' => no payment now
 
       const actionWord = isEditMode ? 'updated' : 'placed';
+      const recordLabel = isPreorderFlow ? 'Preorder' : 'Order';
       const msg =
         paymentOption === 'full'
-          ? `Order ${createdOrder.order_number} ${actionWord} with full payment.`
+          ? `${recordLabel} ${createdOrder.order_number} ${actionWord} with full payment.`
           : paymentOption === 'partial'
-            ? `Order ${createdOrder.order_number} ${actionWord}. Advance ৳${advance.toFixed(2)}, COD ৳${codAmount.toFixed(2)}.`
+            ? `${recordLabel} ${createdOrder.order_number} ${actionWord}. Advance ৳${advance.toFixed(2)}, COD ৳${codAmount.toFixed(2)}.`
             : paymentOption === 'installment'
-              ? `Order ${createdOrder.order_number} ${actionWord} on EMI. ${installmentCount} installments × ৳${suggestedInstallmentAmount.toFixed(2)} suggested (1st paid ৳${advance.toFixed(2)}).`
-              : `Order ${createdOrder.order_number} ${actionWord}. Cash on delivery ৳${codAmount.toFixed(2)}.`;
+              ? `${recordLabel} ${createdOrder.order_number} ${actionWord} on EMI. ${installmentCount} installments × ৳${suggestedInstallmentAmount.toFixed(2)} suggested (1st paid ৳${advance.toFixed(2)}).`
+              : `${recordLabel} ${createdOrder.order_number} ${actionWord}. Cash on delivery ৳${codAmount.toFixed(2)}.`;
 
       displayToast(msg, 'success');
       const flow = getFlowConfig(orderData);
@@ -1074,13 +1088,15 @@ export default function AmountDetailsPage() {
                     <p className="mt-2 text-[11px] text-gray-600 dark:text-gray-300">
                       Store Assignment:{' '}
                       <span className="font-semibold">
-                        {isEditingExistingOrder
-                          ? 'Existing order'
-                          : productItemsForStoreAssignment.length === 0
-                            ? 'Not required for service-only order'
-                            : storeAssignmentMode === 'manual'
-                              ? `Manual — ${selectedStoreAvailability?.store_name || orderData.selected_store_name || `Store #${selectedStoreId || orderData.store_id}`}`
-                              : 'Auto-assign / Store assignment queue'}
+                        {isPreorderFlow
+                          ? `Office — preorder record only (no stock reserved)`
+                          : isEditingExistingOrder
+                            ? 'Existing order'
+                            : productItemsForStoreAssignment.length === 0
+                              ? 'Not required for service-only order'
+                              : storeAssignmentMode === 'manual'
+                                ? `Manual — ${selectedStoreAvailability?.store_name || orderData.selected_store_name || `Store #${selectedStoreId || orderData.store_id}`}`
+                                : 'Auto-assign / Store assignment queue'}
                       </span>
                     </p>
                   </div>
@@ -1128,7 +1144,7 @@ export default function AmountDetailsPage() {
                   </div>
 
                   {/* Store Assignment */}
-                  {!isEditingExistingOrder && productItemsForStoreAssignment.length > 0 && (
+                  {!isPreorderFlow && !isEditingExistingOrder && productItemsForStoreAssignment.length > 0 && (
                     <div className={`mb-4 p-3 rounded border ${storeAssignmentMode === 'manual'
                       ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
                       : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`}

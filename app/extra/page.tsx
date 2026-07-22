@@ -35,10 +35,6 @@ interface DefectItem {
   store?: string;
   storeId?: number;
   vendor?: string;
-  vendorId?: number;
-  vendorName?: string;
-  vendorPhone?: string;
-  vendorEmail?: string;
   image?: string;
   batchId?: number;
   barcodeStatus?: string;
@@ -221,25 +217,7 @@ export default function DefectsPage() {
           returnReason: d.defect_description,
           store: d.store?.name,
           storeId: d.store_id,
-          vendor: d.product?.vendor?.name || d.product?.vendor_name || d.vendor?.name,
-          vendorId: (() => {
-            const rawVendorId =
-              d.product?.vendor_id ??
-              d.product?.vendor?.id ??
-              d.metadata?.product_vendor_id ??
-              d.metadata?.vendor_id ??
-              d.vendor?.id;
-            const parsedVendorId = Number(rawVendorId);
-            return Number.isFinite(parsedVendorId) && parsedVendorId > 0 ? parsedVendorId : undefined;
-          })(),
-          vendorName:
-            d.product?.vendor?.name ||
-            d.product?.vendor?.business_name ||
-            d.product?.vendor_name ||
-            d.metadata?.product_vendor_name ||
-            d.vendor?.name,
-          vendorPhone: d.product?.vendor?.phone || d.vendor?.phone,
-          vendorEmail: d.product?.vendor?.email || d.vendor?.email,
+          vendor: d.product?.vendor?.name || d.vendor?.name,
           image: imageUrl,
           sellingPrice: parsePrice(d.suggested_selling_price),
           batchId: d.product_batch_id,

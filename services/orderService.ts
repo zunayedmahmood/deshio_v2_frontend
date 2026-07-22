@@ -1,7 +1,7 @@
 import axiosInstance from '@/lib/axios';
 
 export interface CreateOrderPayload {
-  order_type: 'counter' | 'social_commerce' | 'ecommerce';
+  order_type: 'counter' | 'social_commerce' | 'ecommerce' | 'preorder';
   customer_id?: number;
   customer?: {
     name: string;
@@ -9,11 +9,11 @@ export interface CreateOrderPayload {
     email?: string;
     address?: string;
   };
-  store_id: number;
+  store_id?: number;
   salesman_id?: number;
   items: Array<{
     product_id: number;
-    batch_id: number;
+    batch_id?: number;
     quantity: number;
     unit_price: number;
     discount_amount?: number;
@@ -25,6 +25,9 @@ export interface CreateOrderPayload {
   shipping_amount?: number;
   notes?: string;
   shipping_address?: any;
+  is_preorder?: boolean;
+  preorder_notes?: string;
+  store_assignment_mode?: 'auto' | 'manual' | 'preorder_office';
   payment?: {
     payment_method_id: number;
     amount: number;
@@ -191,6 +194,9 @@ export interface OrderFilters {
   reservation_holders?: boolean;
   reserved_product_orders?: boolean;
   live_reservations?: boolean;
+  include_preorders?: boolean;
+  only_preorders?: boolean;
+  exclude_preorders?: boolean;
 }
 
 export interface OrderStatistics {
@@ -222,8 +228,12 @@ export interface OrderStatistics {
 }
 
 const orderService = {
-  /** Create new order */
+  /** Create a normal sales order. Preorders have a dedicated endpoint. */
   async create(payload: CreateOrderPayload): Promise<Order> {
+    if (payload.order_type === 'preorder' || payload.is_preorder) {
+      throw new Error('Use orderService.createPreorder() for preorder records.');
+    }
+
     try {
       const response = await axiosInstance.post('/orders', payload);
       const result = response.data;
@@ -239,7 +249,29 @@ const orderService = {
     }
   },
 
-  /** Get all orders with filters and pagination */
+  /** Create a dedicated preorder that never enters the normal Orders channel. */
+  async createPreorder(payload: CreateOrderPayload): Promise<Order> {
+    try {
+      const response = await axiosInstance.post('/pre-orders', {
+        ...payload,
+        order_type: 'preorder',
+        is_preorder: true,
+        store_assignment_mode: 'preorder_office',
+      });
+      const result = response.data;
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to create preorder');
+      }
+
+      return result.data;
+    } catch (error: any) {
+      console.error('Create preorder error:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to create preorder');
+    }
+  },
+
+  /** Get all normal orders with filters and pagination. */
   async getAll(paramsObj?: OrderFilters): Promise<{
     data: Order[];
     total: number;
