@@ -88,14 +88,23 @@ export default function ProductListItem({
   };
 
   const filteredVariants = useMemo(() => {
-    if (!stockFilter || stockFilter === 'all') return productGroup.variants;
-    return productGroup.variants.filter(v => {
-      const stock = Number(v.stockQuantity) || 0;
-      const online = Number(v.onlineStockQuantity) || 0;
-      if (stockFilter === 'in_stock') return stock > 0;
-      if (stockFilter === 'not_in_stock') return stock <= 0;
-      if (stockFilter === 'available_online') return online > 0;
-      return true;
+    let variants = productGroup.variants;
+    if (stockFilter && stockFilter !== 'all') {
+      variants = variants.filter(v => {
+        const stock = Number(v.stockQuantity) || 0;
+        const online = Number(v.onlineStockQuantity) || 0;
+        if (stockFilter === 'in_stock') return stock > 0;
+        if (stockFilter === 'not_in_stock') return stock <= 0;
+        if (stockFilter === 'available_online') return online > 0;
+        return true;
+      });
+    }
+    // Sort by variation_suffix using natural (numeric-aware) order,
+    // mirroring how files are named: "JU1-3" < "JU1-17" < "JU1-73"
+    return [...variants].sort((a, b) => {
+      const sa = (a.variation_suffix ?? a.name ?? '').toString();
+      const sb = (b.variation_suffix ?? b.name ?? '').toString();
+      return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [productGroup.variants, stockFilter]);
 

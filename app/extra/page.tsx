@@ -33,6 +33,7 @@ interface DefectItem {
   costPrice?: number;
   costPriceSource?: string;
   vendorReturnValue?: number;
+  batchSellingPrice?: number;
   returnReason?: string;
   store?: string;
   storeId?: number;
@@ -215,6 +216,10 @@ export default function DefectsPage() {
           ),
           costPriceSource: d.cost_price_source || d.metadata?.vendor_return_cost_source,
           vendorReturnValue: parsePrice(d.vendor_return_value),
+          batchSellingPrice: parsePrice(
+            d.batch?.sell_price ??
+            d.barcode?.batch?.sell_price
+          ),
           returnReason: d.defect_description,
           store: d.store?.name,
           storeId: d.store_id,
@@ -1160,10 +1165,17 @@ export default function DefectsPage() {
                                           <Calendar className="w-3 h-3" />
                                           {new Date(defect.addedAt).toLocaleDateString()}
                                         </span>
-                                        <span className="flex items-center gap-1 font-semibold text-gray-800 dark:text-gray-200">
-                                          <DollarSign className="w-3 h-3" />
-                                          Cost ৳{formatPrice(defect.costPrice)}
-                                        </span>
+                                        {defect.batchSellingPrice ? (
+                                          <span className="flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400">
+                                            <DollarSign className="w-3 h-3" />
+                                            Sell ৳{formatPrice(defect.batchSellingPrice)}
+                                          </span>
+                                        ) : defect.costPrice ? (
+                                          <span className="flex items-center gap-1 font-semibold text-gray-800 dark:text-gray-200">
+                                            <DollarSign className="w-3 h-3" />
+                                            Cost ৳{formatPrice(defect.costPrice)}
+                                          </span>
+                                        ) : null}
                                       </div>
                                     </div>
                                   </div>
@@ -1273,8 +1285,16 @@ export default function DefectsPage() {
                                         </div>
                                       )}
 
-                                      {(defect.costPrice || defect.originalSellingPrice) && (
+                                      {(defect.batchSellingPrice || defect.costPrice || defect.originalSellingPrice) && (
                                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                          {defect.batchSellingPrice && (
+                                            <div>
+                                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Batch Selling Price</p>
+                                              <p className="text-sm text-emerald-700 dark:text-emerald-400 font-semibold">
+                                                ৳{formatPrice(defect.batchSellingPrice)}
+                                              </p>
+                                            </div>
+                                          )}
                                           {defect.costPrice && (
                                             <div>
                                               <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Cost Price</p>

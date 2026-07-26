@@ -706,11 +706,18 @@ export default function ProductPage() {
     return Array.from(groups.values());
   }, [products, categories, vendorsById]);
 
-  // Search/category/vendor/price filters are all handled server-side now (Proposals 1 & 2).
+  // Search/category/vendor/price filters are all handled server-side now.
   const baseFilteredGroups = useMemo(() => productGroups, [productGroups]);
 
-  // Price filter is now applied server-side. filteredGroups = all groups on the current page.
-  const filteredGroups = baseFilteredGroups;
+  // Sort groups by variation_suffix of their first variant (natural / numeric-aware order).
+  // This mirrors the file-system ordering: "JU1-3" < "JU1-17" < "JU1-73".
+  const filteredGroups = useMemo(() => {
+    return [...baseFilteredGroups].sort((a, b) => {
+      const sa = (a.variants[0]?.variation_suffix ?? a.baseName ?? '').toString();
+      const sb = (b.variants[0]?.variation_suffix ?? b.baseName ?? '').toString();
+      return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [baseFilteredGroups]);
 
   const totalPages = Math.max(1, serverLastPage);
   const paginatedGroups = filteredGroups;
