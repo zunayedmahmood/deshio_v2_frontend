@@ -709,12 +709,12 @@ export default function ProductPage() {
   // Search/category/vendor/price filters are all handled server-side now.
   const baseFilteredGroups = useMemo(() => productGroups, [productGroups]);
 
-  // Sort groups by variation_suffix of their first variant (natural / numeric-aware order).
-  // This mirrors the file-system ordering: "JU1-3" < "JU1-17" < "JU1-73".
+  // Sort groups by full name / variation_suffix of their first variant (natural / numeric-aware order).
+  // This mirrors the file-system ordering: "MJ1-1" < "MJ1-66" < "MJ1-72" < "MJ1-152"
   const filteredGroups = useMemo(() => {
     return [...baseFilteredGroups].sort((a, b) => {
-      const sa = (a.variants[0]?.variation_suffix ?? a.baseName ?? '').toString();
-      const sb = (b.variants[0]?.variation_suffix ?? b.baseName ?? '').toString();
+      const sa = (a.variants[0]?.name ?? (a.baseName + (a.variants[0]?.variation_suffix ?? ''))).toString();
+      const sb = (b.variants[0]?.name ?? (b.baseName + (b.variants[0]?.variation_suffix ?? ''))).toString();
       return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [baseFilteredGroups]);

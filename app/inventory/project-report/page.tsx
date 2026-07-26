@@ -366,7 +366,7 @@ export default function ViewInventoryPage() {
     return q;
   };
   const getAuthHeader = (): HeadersInit => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') || '' : '';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('authToken') || localStorage.getItem('auth_token') || '') : '';
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
@@ -497,13 +497,7 @@ export default function ViewInventoryPage() {
   const parsePOId = (input: string): string | null => {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    // Plain numeric
-    if (/^\d+$/.test(trimmed)) return trimmed;
-    // PO-YYYYMMDD-NNNNNN or similar — grab last numeric segment
-    const parts = trimmed.split('-');
-    const lastNumeric = [...parts].reverse().find((p) => /^\d+$/.test(p));
-    if (lastNumeric) return String(parseInt(lastNumeric, 10)); // strip leading zeros
-    return null;
+    return trimmed;
   };
 
   const doDownloadPODetail = async () => {

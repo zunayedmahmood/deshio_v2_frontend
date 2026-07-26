@@ -27,11 +27,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ poId: st
 
   const resolvedParams = await params;
   const { poId } = resolvedParams;
-  if (!poId || !/^\d+$/.test(poId)) {
+  if (!poId || !/^[A-Za-z0-9_-]+$/.test(poId)) {
     return new NextResponse('Invalid Purchase Order ID', { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 
-  const target = `${apiBase}/purchase-orders/${poId}/barcodes/csv`;
+  const target = `${apiBase}/purchase-orders/${encodeURIComponent(poId)}/barcodes/csv`;
 
   const auth = req.headers.get('authorization') || '';
   const res = await fetch(target, {

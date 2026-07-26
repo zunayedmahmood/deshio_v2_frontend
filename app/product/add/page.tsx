@@ -1182,7 +1182,30 @@ export default function AddEditProductPage({
           updatePayload.name = baseName;
         }
 
-        await productService.update(parseInt(productId!), updatePayload);
+        const currentId = parseInt(productId!);
+        await productService.update(currentId, updatePayload);
+
+        // Upload any pending/unuploaded image files attached during edit mode
+        if (productImages.length > 0 && currentId) {
+          for (let i = 0; i < productImages.length; i++) {
+            const imageItem = productImages[i];
+            if (imageItem.file && !imageItem.uploaded) {
+              try {
+                await productImageService.uploadImage(
+                  currentId,
+                  imageItem.file,
+                  {
+                    alt_text: imageItem.alt_text || '',
+                    is_primary: imageItem.is_primary || (i === 0),
+                    sort_order: imageItem.sort_order || i,
+                  }
+                );
+              } catch (error) {
+                console.error(`Failed to upload image ${i + 1} during update:`, error);
+              }
+            }
+          }
+        }
 
         setToast({ message: 'Product updated successfully!', type: 'success' });
         setTimeout(() => {

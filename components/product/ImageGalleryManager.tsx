@@ -118,8 +118,12 @@ export default function ImageGalleryManager({
         });
       
       console.log('ImageGalleryManager - Final mapped images:', mappedImages);
-      setImages(mappedImages);
-      onImagesChange?.(mappedImages);
+      setImages(prev => {
+        const unuploadedLocal = prev.filter(img => !img.uploaded && img.file);
+        const combined = [...mappedImages, ...unuploadedLocal];
+        onImagesChange?.(combined);
+        return combined;
+      });
     } catch (err: any) {
       console.error('Failed to load existing images:', err);
       setError('Failed to load existing images');

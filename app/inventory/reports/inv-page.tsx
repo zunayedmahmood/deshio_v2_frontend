@@ -366,7 +366,7 @@ export default function InventoryReportsPage() {
     return q;
   };
   const getAuthHeader = (): HeadersInit => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') || '' : '';
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('authToken') || localStorage.getItem('auth_token') || '') : '';
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
@@ -493,11 +493,7 @@ export default function InventoryReportsPage() {
   const parsePOId = (input: string): string | null => {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    if (/^\d+$/.test(trimmed)) return trimmed;
-    const parts = trimmed.split('-');
-    const lastNumeric = [...parts].reverse().find((p) => /^\d+$/.test(p));
-    if (lastNumeric) return String(parseInt(lastNumeric, 10));
-    return null;
+    return trimmed;
   };
 
   const doDownloadPODetail = async () => {
