@@ -13,6 +13,7 @@ import storeService from '@/services/storeService';
 import defectiveProductService from '@/services/defectiveProductService';
 import type { DefectiveProduct } from '@/services/defectiveProductService';
 import type { Store } from '@/services/storeService';
+import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
 
 interface DefectItem {
   id: string;
@@ -125,25 +126,20 @@ export default function DefectsPage() {
       const defectiveData = result.data?.data || result.data || [];
       
       const transformedDefects: DefectItem[] = defectiveData.map((d: DefectiveProduct) => {
-        let imageUrl: string | undefined = undefined;
-        
+        let rawImage: string | undefined = undefined;
         if (d.defect_images && Array.isArray(d.defect_images) && d.defect_images.length > 0) {
-          const imagePath = d.defect_images[0];
-          
-          if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-            imageUrl = imagePath;
-          } else {
-            const cleanPath = imagePath.replace(/^\/+/, '');
-            let apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-            apiUrl = apiUrl.replace(/\/api\/?$/, '');
-            
-            if (apiUrl) {
-              imageUrl = `${apiUrl}/storage/${cleanPath}`;
-            } else {
-              imageUrl = `/storage/${cleanPath}`;
-            }
-          }
+          rawImage = d.defect_images[0];
+        } else if (d.product?.primary_image_url) {
+          rawImage = d.product.primary_image_url;
+        } else if (d.product?.images && d.product.images.length > 0) {
+          rawImage = d.product.images[0].image_url;
+        } else if (d.barcode?.product?.primary_image_url) {
+          rawImage = d.barcode.product.primary_image_url;
+        } else if (d.barcode?.product?.images && d.barcode.product.images.length > 0) {
+          rawImage = d.barcode.product.images[0].image_url;
         }
+
+        const imageUrl = rawImage ? toAbsoluteAssetUrl(rawImage) : undefined;
 
         const parsePrice = (value: any): number | undefined => {
           if (value === null || value === undefined) return undefined;
@@ -841,9 +837,9 @@ export default function DefectsPage() {
                                       </h5>
                                       <div className="relative aspect-video bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
                                         <img
-                                          src={defect.image}
+                                          src={toAbsoluteAssetUrl(defect.image)}
                                           alt="Defect"
-                                          className="w-full h-full object-cover"
+                                          className="w-full h-full object-contain"
                                         />
                                       </div>
                                     </div>
