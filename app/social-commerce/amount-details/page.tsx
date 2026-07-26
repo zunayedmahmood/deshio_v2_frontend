@@ -746,8 +746,8 @@ export default function AmountDetailsPage() {
       } else {
         // 1) Create order (sanitize payload)
         const isPreorderOrder = Boolean(
-          orderData.is_preorder
-          || orderData.order_type === 'preorder'
+          orderData?.is_preorder
+          || orderData?.order_type === 'preorder'
           || getFlowConfig(orderData).isPreorder
         );
         const requestedAssignmentMode = orderData.store_assignment_mode === 'manual' ? 'manual' : 'auto';

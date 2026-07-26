@@ -2617,38 +2617,51 @@ export default function PreOrderPage() {
         notes: `[PREORDER] ${preorderNoteText}`.trim(),
       };
 
-      sessionStorage.setItem(
-        'pendingOrder',
-        JSON.stringify({
-          ...orderData,
-          salesBy: employees.find((emp) => emp.id === selectedEmployee)?.name || salesBy,
-          selectedEmployee,
-          salesman_id: parseInt(selectedEmployee),
-          date,
-          isInternational,
-          subtotal,
-          deliveryAddress: deliveryAddressForUi,
+      setIsLoadingStoreAvailability(true);
+      try {
+        console.log('📦 Submitting preorder directly to /pre-orders:', orderData);
+        let createdOrder: any = null;
 
-          defectiveItems: cart
-            .filter((item) => item.isDefective)
-            .map((item) => ({
-              defectId: item.defectId,
-              price: item.unit_price,
-              productName: item.productName,
-            })),
-          paid_amount: paidAmount,
-          outstanding_amount: outstandingAmount,
-          total_amount: totalAmountState,
-          original_discount_amount: discountAmountState,
-          original_shipping_amount: shippingAmountState,
-        })
-      );
+        if (effectiveEditOrderId) {
+          const updateResponse = await axios.patch(`/orders/${effectiveEditOrderId}`, {
+            customer_name: orderData.customer.name,
+            customer_phone: orderData.customer.phone,
+            customer_email: orderData.customer.email,
+            customer_address: orderData.customer.address,
+            shipping_address: orderData.shipping_address,
+            salesman_id: orderData.salesman_id,
+            discount_amount: orderData.discount_amount,
+            shipping_amount: orderData.shipping_amount,
+            notes: orderData.notes,
+            preorder_notes: preorderNoteText,
+          });
+          if (updateResponse.data?.success === false) {
+            throw new Error(updateResponse.data?.message || 'Failed to update preorder');
+          }
+          createdOrder = updateResponse.data?.data ?? updateResponse.data;
+          alert(`Preorder ${createdOrder?.order_number || ''} updated successfully!`);
+        } else {
+          const createResponse = await axios.post('/pre-orders', orderData);
+          if (createResponse.data?.success === false) {
+            throw new Error(createResponse.data?.message || 'Failed to create preorder');
+          }
+          createdOrder = createResponse.data?.data ?? createResponse.data;
+          alert(`Preorder ${createdOrder?.order_number || ''} created successfully!`);
+        }
 
-      console.log('✅ Order data prepared, redirecting...');
-      window.location.href = '/pre-order/amount-details';
+        sessionStorage.removeItem('pendingOrder');
+        sessionStorage.removeItem(SC_DRAFT_STORAGE_KEY);
+        sessionStorage.removeItem(SC_EDIT_CONTEXT_KEY);
+        window.location.href = '/preorders';
+      } catch (error: any) {
+        console.error('❌ Error processing preorder:', error);
+        alert(error?.response?.data?.message || error?.message || 'Failed to process preorder');
+      } finally {
+        setIsLoadingStoreAvailability(false);
+      }
     } catch (error) {
-      console.error('❌ Error:', error);
-      alert('Failed to process order');
+      console.error('❌ Error preparing preorder:', error);
+      alert('Failed to process preorder');
     }
   };
 
@@ -3700,10 +3713,10 @@ export default function PreOrderPage() {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                               </svg>
-                              Verifying Store Availability...
+                              Saving Preorder...
                             </>
                           ) : (
-                            'Confirm Order'
+                            editOrderId ? 'Update Preorder' : 'Submit Preorder'
                           )}
                         </button>
                       </div>
