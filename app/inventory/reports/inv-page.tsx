@@ -490,13 +490,23 @@ export default function InventoryReportsPage() {
     window.URL.revokeObjectURL(objUrl);
   };
 
+  const parsePOId = (input: string): string | null => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) return trimmed;
+    const parts = trimmed.split('-');
+    const lastNumeric = [...parts].reverse().find((p) => /^\d+$/.test(p));
+    if (lastNumeric) return String(parseInt(lastNumeric, 10));
+    return null;
+  };
+
   const doDownloadPODetail = async () => {
-    if (!csvPoId.trim()) { setPreviewError('Please enter a Purchase Order ID.'); return; }
+    const poId = parsePOId(csvPoId);
+    if (!poId) { setPreviewError('Please enter a valid Purchase Order ID (e.g. 123 or PO-20260310-000012).'); return; }
     setCsvPoBusy(true);
     setPreviewError('');
     try {
-      const api = getApiBase();
-      await downloadExternalCsv(`${api}/purchase-orders/${csvPoId.trim()}/csv`, `PO-${csvPoId.trim()}-detail.csv`);
+      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/detail`, new URLSearchParams());
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO CSV');
     } finally {
@@ -505,12 +515,12 @@ export default function InventoryReportsPage() {
   };
 
   const doDownloadPOBarcodes = async () => {
-    if (!csvPoId.trim()) { setPreviewError('Please enter a Purchase Order ID.'); return; }
+    const poId = parsePOId(csvPoId);
+    if (!poId) { setPreviewError('Please enter a valid Purchase Order ID (e.g. 123 or PO-20260310-000012).'); return; }
     setCsvPoBarcodeBusy(true);
     setPreviewError('');
     try {
-      const api = getApiBase();
-      await downloadExternalCsv(`${api}/purchase-orders/${csvPoId.trim()}/barcodes/csv`, `PO-${csvPoId.trim()}-barcodes.csv`);
+      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/barcodes`, new URLSearchParams());
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO Barcodes CSV');
     } finally {

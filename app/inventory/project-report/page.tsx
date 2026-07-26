@@ -512,8 +512,7 @@ export default function ViewInventoryPage() {
     setCsvPoBusy(true);
     setPreviewError('');
     try {
-      const api = getApiBase();
-      await downloadExternalCsv(`${api}/purchase-orders/${poId}/csv`, `PO-${csvPoId.trim()}-detail.csv`);
+      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/detail`, new URLSearchParams());
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO CSV');
     } finally {
@@ -527,8 +526,7 @@ export default function ViewInventoryPage() {
     setCsvPoBarcodeBusy(true);
     setPreviewError('');
     try {
-      const api = getApiBase();
-      await downloadExternalCsv(`${api}/purchase-orders/${poId}/barcodes/csv`, `PO-${csvPoId.trim()}-barcodes.csv`);
+      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/barcodes`, new URLSearchParams());
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO Barcodes CSV');
     } finally {

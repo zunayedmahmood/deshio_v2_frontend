@@ -1224,6 +1224,9 @@ export default function DefectsPage() {
                                       <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
+                                </div>
+                              </div>
+
                               {expandedDefect === defect.id && (
                                 <div className="px-4 pb-4 pt-2 bg-gray-50 dark:bg-gray-900/50">
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
