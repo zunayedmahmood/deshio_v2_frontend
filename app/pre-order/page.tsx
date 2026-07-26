@@ -2634,6 +2634,7 @@ export default function PreOrderPage() {
             shipping_amount: orderData.shipping_amount,
             notes: orderData.notes,
             preorder_notes: preorderNoteText,
+            items: orderData.items,
           });
           if (updateResponse.data?.success === false) {
             throw new Error(updateResponse.data?.message || 'Failed to update preorder');

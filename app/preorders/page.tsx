@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import Link from 'next/link';
-import { AlertCircle, Eye, Loader2, RefreshCw, Search, Plus, X, Ban, CalendarDays } from 'lucide-react';
+import { AlertCircle, Eye, Loader2, RefreshCw, Search, Plus, X, Ban, CalendarDays, ImageIcon, Pencil, Trash2, Save, Minus } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import type { Order as BackendOrder } from '@/services/orderService';
 import axios from '@/lib/axios';
+import ImageLightboxModal from '@/components/ImageLightboxModal';
+import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
 
 type AlertType = 'success' | 'error';
 
@@ -111,7 +113,141 @@ export default function PreordersPage() {
 
   const [selected, setSelected] = useState<BackendOrder | null>(null);
 
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxTitle, setLightboxTitle] = useState<string>('');
+
+  const [editingOrder, setEditingOrder] = useState<BackendOrder | null>(null);
+  const [editItems, setEditItems] = useState<any[]>([]);
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [editCustomerName, setEditCustomerName] = useState<string>('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState<string>('');
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
+  const [productSearchQuery, setProductSearchQuery] = useState<string>('');
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [isSearchingProducts, setIsSearchingProducts] = useState<boolean>(false);
+
   const [alert, setAlert] = useState<{ type: AlertType; message: string } | null>(null);
+
+  const handleOpenEditModal = (order: BackendOrder) => {
+    setEditingOrder(order);
+    setEditNotes(order.preorder_notes || (order as any).notes || '');
+    setEditCustomerName(order.customer?.name || '');
+    setEditCustomerPhone(order.customer?.phone || '');
+    setEditItems(
+      (order.items || []).map((it: any) => ({
+        id: it.id,
+        product_id: it.product_id,
+        product_name: it.product_name || it.name || 'Product',
+        product_sku: it.product_sku || it.sku || '',
+        quantity: Number(it.quantity) || 1,
+        unit_price: Number(it.unit_price) || 0,
+        discount_amount: Number(it.discount_amount) || 0,
+        image_url: it.image_url || it.product_image || (it.images && it.images[0]?.image_url),
+      }))
+    );
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+  };
+
+  const handleSearchProducts = async (q: string) => {
+    setProductSearchQuery(q);
+    if (!q.trim()) {
+      setProductSearchResults([]);
+      return;
+    }
+    setIsSearchingProducts(true);
+    try {
+      const res = await axios.get('/products', { params: { search: q.trim(), per_page: 10 } });
+      const payload = res.data?.data;
+      const list = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
+      setProductSearchResults(list);
+    } catch {
+      setProductSearchResults([]);
+    } finally {
+      setIsSearchingProducts(false);
+    }
+  };
+
+  const handleAddProductToEdit = (prod: any) => {
+    const primaryImg = prod.primary_image_url || (prod.images && prod.images[0]?.image_url) || null;
+    const existingIdx = editItems.findIndex((it) => Number(it.product_id) === Number(prod.id));
+
+    if (existingIdx >= 0) {
+      setEditItems((prev) =>
+        prev.map((it, idx) => (idx === existingIdx ? { ...it, quantity: it.quantity + 1 } : it))
+      );
+    } else {
+      setEditItems((prev) => [
+        ...prev,
+        {
+          id: null,
+          product_id: prod.id,
+          product_name: prod.name,
+          product_sku: prod.sku,
+          quantity: 1,
+          unit_price: Number(prod.base_price || prod.sell_price || 0),
+          discount_amount: 0,
+          image_url: primaryImg,
+        },
+      ]);
+    }
+
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+  };
+
+  const handleUpdateItemQuantity = (index: number, newQty: number) => {
+    const qty = Math.max(1, newQty);
+    setEditItems((prev) => prev.map((it, idx) => (idx === index ? { ...it, quantity: qty } : it)));
+  };
+
+  const handleUpdateItemUnitPrice = (index: number, newPrice: number) => {
+    const price = Math.max(0, newPrice);
+    setEditItems((prev) => prev.map((it, idx) => (idx === index ? { ...it, unit_price: price } : it)));
+  };
+
+  const handleRemoveItemFromEdit = (index: number) => {
+    setEditItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSaveEditPreorder = async () => {
+    if (!editingOrder) return;
+    if (editItems.length === 0) {
+      setAlert({ type: 'error', message: 'Preorder must contain at least one item.' });
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const response = await axios.patch(`/orders/${editingOrder.id}`, {
+        customer_name: editCustomerName,
+        customer_phone: editCustomerPhone,
+        preorder_notes: editNotes,
+        notes: `[PREORDER] ${editNotes}`.trim(),
+        items: editItems.map((it) => ({
+          ...(it.id ? { id: it.id } : {}),
+          product_id: it.product_id,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          discount_amount: it.discount_amount || 0,
+        })),
+      });
+
+      if (response.data?.success === false) {
+        throw new Error(response.data?.message || 'Failed to update preorder');
+      }
+
+      setAlert({ type: 'success', message: 'Preorder updated successfully!' });
+      setEditingOrder(null);
+      setSelected(null);
+      await fetchPreorders();
+    } catch (e: any) {
+      setAlert({ type: 'error', message: e?.response?.data?.message || e?.message || 'Failed to update preorder' });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   const hasDateRangeError = !!dateFrom && !!dateTo && dateFrom > dateTo;
 
@@ -417,6 +553,9 @@ export default function PreordersPage() {
                       Order
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                      Products
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                       Customer
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
@@ -440,7 +579,7 @@ export default function PreordersPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {!loading && filtered.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-sm text-gray-600 dark:text-gray-300" colSpan={7}>
+                      <td className="px-4 py-10 text-center text-sm text-gray-600 dark:text-gray-300" colSpan={8}>
                         No preorders found.
                       </td>
                     </tr>
@@ -451,6 +590,46 @@ export default function PreordersPage() {
                           <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{o.order_number}</div>
                           <div className="text-xs text-gray-600 dark:text-gray-300">
                             Items: {o.items?.length ?? 0} • Total: {o.total_amount}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 max-w-xs overflow-x-auto py-1">
+                            {o.items && o.items.length > 0 ? (
+                              o.items.map((it: any, idx: number) => {
+                                const rawUrl = it.image_url || it.product_image || it.product?.primary_image_url || (it.images && it.images[0]?.image_url);
+                                const imgSrc = toAbsoluteAssetUrl(rawUrl);
+                                const pName = it.product_name || it.name || 'Product';
+
+                                return (
+                                  <div key={it.id || idx} className="flex-shrink-0">
+                                    {imgSrc ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setLightboxSrc(imgSrc);
+                                          setLightboxTitle(`${pName} (Preorder #${o.order_number})`);
+                                        }}
+                                        className="relative w-10 h-10 rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 hover:ring-2 hover:ring-blue-500 transition-all flex items-center justify-center group"
+                                        title={`${pName} - Click to enlarge`}
+                                      >
+                                        <img
+                                          src={imgSrc}
+                                          alt={pName}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </button>
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-400" title={pName}>
+                                        <ImageIcon className="w-5 h-5" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
                           </div>
                         </td>
 
@@ -477,6 +656,14 @@ export default function PreordersPage() {
                               <Eye className="w-4 h-4" />
                               View
                             </button>
+                            <button
+                              onClick={() => handleOpenEditModal(o)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm"
+                              type="button"
+                            >
+                              <Pencil className="w-4 h-4" />
+                              Edit
+                            </button>
                             {canCancelPreorder(o) && (
                               <button
                                 onClick={() => handleCancelPreorder(o)}
@@ -500,6 +687,7 @@ export default function PreordersPage() {
         </main>
       </div>
 
+      {/* View Preorder Modal */}
       <Modal
         isOpen={!!selected}
         title={selected ? `Preorder ${selected.order_number}` : 'Preorder'}
@@ -542,40 +730,304 @@ export default function PreordersPage() {
             </div>
 
             <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Items</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Preorder Items</div>
               {selected.items?.length ? (
-                <div className="space-y-2">
-                  {selected.items.map((it: any) => (
-                    <div key={it.id || `${it.product_id}-${it.batch_id}-${it.product_sku}`} className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{it.product_name || it.name || 'Item'}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300">SKU: {it.product_sku || it.sku || '-'}</div>
+                <div className="space-y-3">
+                  {selected.items.map((it: any, idx: number) => {
+                    const rawUrl = it.image_url || it.product_image || it.product?.primary_image_url || (it.images && it.images[0]?.image_url);
+                    const imgSrc = toAbsoluteAssetUrl(rawUrl);
+                    const pName = it.product_name || it.name || 'Item';
+
+                    return (
+                      <div key={it.id || `${it.product_id}-${idx}`} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          {imgSrc ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLightboxSrc(imgSrc);
+                                setLightboxTitle(pName);
+                              }}
+                              className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 hover:opacity-90 hover:ring-2 hover:ring-blue-500 transition-all flex-shrink-0"
+                              title="Click to view full image"
+                            >
+                              <img src={imgSrc} alt={pName} className="w-full h-full object-cover" />
+                            </button>
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 flex items-center justify-center text-gray-400 flex-shrink-0">
+                              <ImageIcon className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{pName}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">SKU: {it.product_sku || it.sku || '-'}</div>
+                            {it.unit_price ? (
+                              <div className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">Price: ৳{it.unit_price}</div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">Qty: {it.quantity}</div>
+                          {it.total_amount ? (
+                            <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-0.5">Total: ৳{it.total_amount}</div>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-800 dark:text-gray-100">Qty: {it.quantity}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-sm text-gray-700 dark:text-gray-200">No items returned by API for this order.</div>
               )}
             </div>
 
-            {selected && canCancelPreorder(selected) && (
-              <div className="flex justify-end">
+            <div className="flex justify-between items-center gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  const orderToEdit = selected;
+                  setSelected(null);
+                  handleOpenEditModal(orderToEdit);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+                type="button"
+              >
+                <Pencil className="w-4 h-4" />
+                Edit Preorder Items
+              </button>
+
+              {selected && canCancelPreorder(selected) && (
                 <button
                   onClick={() => handleCancelPreorder(selected)}
                   disabled={cancellingId === selected.id}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400 transition-colors text-sm font-medium"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors text-sm disabled:opacity-60"
                   type="button"
                 >
                   {cancellingId === selected.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
                   Cancel preorder
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ) : null}
       </Modal>
+
+      {/* Edit Preorder Modal */}
+      <Modal
+        isOpen={!!editingOrder}
+        title={editingOrder ? `Edit Preorder ${editingOrder.order_number}` : 'Edit Preorder'}
+        onClose={() => setEditingOrder(null)}
+      >
+        {editingOrder ? (
+          <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  value={editCustomerName}
+                  onChange={(e) => setEditCustomerName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Customer Phone</label>
+                <input
+                  type="text"
+                  value={editCustomerPhone}
+                  onChange={(e) => setEditCustomerPhone(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Preorder Notes</label>
+              <textarea
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                placeholder="Optional notes for this preorder..."
+              />
+            </div>
+
+            {/* Product Search and Add Section */}
+            <div className="p-3 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+              <label className="block text-xs font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                Add Product to Preorder
+              </label>
+              <div className="relative">
+                <div className="relative flex items-center">
+                  <Search className="w-4 h-4 absolute left-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={productSearchQuery}
+                    onChange={(e) => handleSearchProducts(e.target.value)}
+                    placeholder="Search product by name or SKU to add..."
+                    className="w-full pl-9 pr-8 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {isSearchingProducts && (
+                    <Loader2 className="w-4 h-4 absolute right-3 animate-spin text-gray-400" />
+                  )}
+                </div>
+
+                {/* Search Results Dropdown */}
+                {productSearchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50 divide-y divide-gray-100 dark:divide-gray-700">
+                    {productSearchResults.map((prod) => {
+                      const img = toAbsoluteAssetUrl(prod.primary_image_url || (prod.images && prod.images[0]?.image_url));
+                      return (
+                        <button
+                          key={prod.id}
+                          type="button"
+                          onClick={() => handleAddProductToEdit(prod)}
+                          className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          {img ? (
+                            <img src={img} alt={prod.name} className="w-9 h-9 rounded object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />
+                          ) : (
+                            <div className="w-9 h-9 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400 flex-shrink-0">
+                              <ImageIcon className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{prod.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">SKU: {prod.sku || '-'}</div>
+                          </div>
+                          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                            ৳{prod.base_price || prod.sell_price || 0}
+                          </div>
+                          <Plus className="w-4 h-4 text-blue-600 dark:text-blue-400 ml-1" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Items Management List */}
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 space-y-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-gray-600 dark:text-gray-300 mb-2">
+                <span>Preorder Items ({editItems.length})</span>
+                <span>Total: ৳{editItems.reduce((acc, it) => acc + (it.quantity * it.unit_price - (it.discount_amount || 0)), 0)}</span>
+              </div>
+
+              {editItems.length === 0 ? (
+                <div className="text-center py-6 text-sm text-gray-500 dark:text-gray-400">
+                  No items in this preorder. Search above to add products.
+                </div>
+              ) : (
+                editItems.map((it, idx) => {
+                  const imgSrc = toAbsoluteAssetUrl(it.image_url);
+                  const itemSubtotal = (it.quantity * it.unit_price) - (it.discount_amount || 0);
+
+                  return (
+                    <div key={it.id || `new-${it.product_id}-${idx}`} className="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {imgSrc ? (
+                          <img src={imgSrc} alt={it.product_name} className="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-gray-700 flex-shrink-0" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 flex items-center justify-center text-gray-400 flex-shrink-0">
+                            <ImageIcon className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{it.product_name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">SKU: {it.product_sku || '-'}</div>
+                        </div>
+                      </div>
+
+                      {/* Editable Price */}
+                      <div className="w-24">
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">Unit Price</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={it.unit_price}
+                          onChange={(e) => handleUpdateItemUnitPrice(idx, Number(e.target.value))}
+                          className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 text-right"
+                        />
+                      </div>
+
+                      {/* Editable Quantity */}
+                      <div>
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 mb-0.5 text-center">Qty</label>
+                        <div className="flex items-center gap-1 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateItemQuantity(idx, it.quantity - 1)}
+                            className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={it.quantity}
+                            onChange={(e) => handleUpdateItemQuantity(idx, Number(e.target.value))}
+                            className="w-10 text-center text-xs bg-transparent text-gray-900 dark:text-gray-100 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateItemQuantity(idx, it.quantity + 1)}
+                            className="p-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Item Total & Remove */}
+                      <div className="text-right flex items-center gap-3">
+                        <div className="w-20 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                          ৳{itemSubtotal}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemFromEdit(idx)}
+                          className="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
+                          title="Remove item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setEditingOrder(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditPreorder}
+                disabled={isSavingEdit || editItems.length === 0}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+              >
+                {isSavingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <ImageLightboxModal
+        open={!!lightboxSrc}
+        src={lightboxSrc || ''}
+        title={lightboxTitle}
+        onClose={() => setLightboxSrc(null)}
+      />
 
       {alert ? <Alert type={alert.type} message={alert.message} onClose={() => setAlert(null)} /> : null}
     </div>
