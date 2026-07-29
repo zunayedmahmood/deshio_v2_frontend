@@ -182,10 +182,13 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
 
             const filteredBatch = {
               ...batch,
-              quantity: activeBarcodes.length, // Update to active count
-              original_quantity: batch.quantity, // Keep original
+              // batch.quantity is the relabel-aware physical stock returned by
+              // the backend. Barcode identities can legitimately be higher (for
+              // example 2 physical units represented by 3 active barcodes), so
+              // never replace physical quantity with activeBarcodes.length.
+              original_quantity: batch.quantity,
               active_barcodes_count: activeBarcodes.length,
-              barcodes: activeBarcodes, // Only active barcodes
+              barcodes: activeBarcodes,
             };
 
             setBatchData(filteredBatch);
@@ -809,11 +812,12 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
                     <div>
                       <strong className="text-blue-900 dark:text-blue-300">Available (Active):</strong>{' '}
                       <span className="text-green-600 dark:text-green-400 font-semibold">{batchData.quantity} units</span>
-                      {batchData.original_quantity && batchData.original_quantity !== batchData.quantity && (
-                        <span className="text-gray-500 dark:text-gray-500 ml-1">
-                          (Total: {batchData.original_quantity})
-                        </span>
-                      )}
+                      {typeof batchData.active_barcodes_count === 'number' &&
+                        batchData.active_barcodes_count !== batchData.quantity && (
+                          <span className="text-gray-500 dark:text-gray-500 ml-1">
+                            ({batchData.active_barcodes_count} active barcode identities)
+                          </span>
+                        )}
                     </div>
                     <div>
                       <strong className="text-blue-900 dark:text-blue-300">Cost Price:</strong>{' '}

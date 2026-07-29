@@ -30,6 +30,9 @@ export interface Batch {
   product: Product;
   store: Store;
   quantity: number;
+  store_sellable_quantity?: number | null;
+  store_available_quantity?: number | null;
+  store_sellable_barcode_count?: number | null;
   cost_price: string;
   sell_price: string;
   profit_margin: string;
