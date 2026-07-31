@@ -72,6 +72,13 @@ export interface CommandCenterResponse {
   success: boolean;
   data: {
     period: { from: string; to: string };
+    freshness?: {
+      generated_at: string;
+      latest_order_updated_at?: string | null;
+      latest_batch_updated_at?: string | null;
+      latest_return_updated_at?: string | null;
+      latest_reservation_updated_at?: string | null;
+    };
     kpis: KPIBlock;
     sales_trend: TrendPoint[];
     order_type_mix: NamedValue[];

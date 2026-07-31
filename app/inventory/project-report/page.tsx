@@ -18,6 +18,8 @@ import inventoryService, { type GlobalInventoryItem } from '@/services/inventory
 import productService, { type Product } from '@/services/productService';
 import categoryService, { type Category } from '@/services/groupInventory';
 
+const PROJECT_REPORT_REFRESH_MS = 20_000;
+
 type Metric = 'units' | 'net_sales';
 
 type ProductAgg = {
@@ -217,14 +219,20 @@ export default function ViewInventoryPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [inventory, setInventory] = useState<GlobalInventoryItem[]>([]);
   const [orders, setOrders] = useState<ApiOrder[]>([]);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadAll(true);
+      }
+    }, PROJECT_REPORT_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [dateFrom, dateTo, types, statuses]);
 
-  const loadAll = async () => {
-    setLoading(true);
+  const loadAll = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError('');
     setIsTruncated(false);
     try {
@@ -256,11 +264,12 @@ export default function ViewInventoryPage() {
       const fetched = await fetchOrders();
       setOrders(fetched.orders);
       setIsTruncated(fetched.isTruncated);
+      setLastUpdatedAt(new Date());
     } catch (e: any) {
       console.error(e);
       setError(e?.message || 'Failed to load reports');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -918,6 +927,7 @@ export default function ViewInventoryPage() {
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-1">
                   High/low selling, discount share, sell-through, and weekly movement.
+                  {lastUpdatedAt ? ` Live refresh: ${lastUpdatedAt.toLocaleTimeString('en-BD')}.` : ''}
                 </p>
                 {isTruncated && (
                   <div className="mt-2 inline-flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded-lg">

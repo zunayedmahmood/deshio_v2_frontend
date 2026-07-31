@@ -25,6 +25,8 @@ import ProductSelectModal from './components/ProductSelectModal';
 import CategoryPerformanceCard from './components/CategoryPerformanceCard';
 import StoreSalesOverviewCard from './components/StoreSalesOverviewCard';
 
+const REPORT_REFRESH_MS = 15_000;
+
 function currency(value: number) {
   return new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(Number(value || 0));
 }
@@ -51,14 +53,24 @@ export default function InventoryReportsPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [filters, setFilters] = useState<ReportingFilters>({ from: todayStr(-29), to: todayStr() });
   const [showProductModal, setShowProductModal] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const loadData = async (silent = false) => loadDataWith(filters, silent);
 
   useEffect(() => {
     loadData();
     loadStores();
+
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        loadDataWith(filters, true);
+      }
+    }, REPORT_REFRESH_MS);
+
+    return () => window.clearInterval(timer);
+    // Filters are intentionally captured per render; manual filter changes load immediately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filters.from, filters.to, filters.store_id, filters.sku]);
 
   const loadStores = async () => {
     try {
@@ -82,6 +94,7 @@ export default function InventoryReportsPage() {
       setError('');
       const res = await businessAnalyticsService.getCommandCenter(nextFilters);
       setData(res.data);
+      setLastUpdatedAt(new Date());
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to load reports');
     } finally {
@@ -91,9 +104,7 @@ export default function InventoryReportsPage() {
   };
 
   const applyFilters = (patch: Partial<ReportingFilters>) => {
-    const nextFilters = { ...filters, ...patch };
-    setFilters(nextFilters);
-    loadDataWith(nextFilters);
+    setFilters((current) => ({ ...current, ...patch }));
   };
 
   const exportCsv = async () => {
@@ -197,6 +208,7 @@ export default function InventoryReportsPage() {
                     {data ? (
                       <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">
                         Viewing {selectedStoreName} • {formatDateLabel(data.period.from)} to {formatDateLabel(data.period.to)}
+                        {lastUpdatedAt ? ` • Live refresh ${lastUpdatedAt.toLocaleTimeString('en-BD')}` : ''}
                       </p>
                     ) : null}
                   </div>
