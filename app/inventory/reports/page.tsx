@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,6 +11,7 @@ import {
   AlertTriangle,
   CalendarDays,
   Download,
+  ExternalLink,
   Layers,
   Package,
   RefreshCw,
@@ -269,6 +271,13 @@ export default function InventoryReportsPage() {
                       >
                         <Download className="h-4 w-4" /> Export
                       </button>
+                      <Link
+                        href="/inventory/project-report"
+                        data-testid="inventory-project-report-link"
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60"
+                      >
+                        <ExternalLink className="h-4 w-4" /> Project Report
+                      </Link>
                     </div>
                   </div>
                 </div>
