@@ -2484,8 +2484,14 @@ export default function SocialCommercePage() {
       const cartProductItems = cart.filter((item) => !item.isService);
       const cartServiceItems = cart.filter((item) => item.isService);
       const isServiceOnlyCart = cartProductItems.length === 0 && cartServiceItems.length > 0;
+      const hasDefectiveResaleItem = cartProductItems.some((item) => item.isDefective);
       const shouldKeepSelectedStoreForServiceOnly = !effectiveEditOrderId && isServiceOnlyCart && !!selectedStore;
-      const effectiveStoreAssignmentMode = shouldKeepSelectedStoreForServiceOnly ? 'manual' : storeAssignmentMode;
+      // Design A requires the selected sale store to match the quarantined
+      // Extra record and barcode location exactly. Never submit an Extra sale
+      // through the assign-later path.
+      const effectiveStoreAssignmentMode = (shouldKeepSelectedStoreForServiceOnly || hasDefectiveResaleItem)
+        ? 'manual'
+        : storeAssignmentMode;
 
       const orderData = {
         order_type: 'social_commerce',
@@ -2521,6 +2527,12 @@ export default function SocialCommercePage() {
                 is_defective: true,
                 defective_product_id: item.defectId,
                 source: 'defective_resale',
+                // Design A: the backend validates the exact Extra record,
+                // barcode, store and batch before allowing the inactive
+                // quarantined identity to pass the normal sellability gate.
+                ...((item as any).defective_barcode || item.barcode
+                  ? { defective_barcode: (item as any).defective_barcode || item.barcode }
+                  : {}),
               }
               : {}),
           })),
