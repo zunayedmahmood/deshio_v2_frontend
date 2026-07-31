@@ -1,7 +1,7 @@
 import axiosInstance from '@/lib/axios';
 
 export interface CreateOrderPayload {
-  order_type: 'counter' | 'social_commerce' | 'ecommerce' | 'preorder';
+  order_type: 'counter' | 'social_commerce' | 'ecommerce';
   customer_id?: number;
   customer?: {
     name: string;
@@ -25,9 +25,7 @@ export interface CreateOrderPayload {
   shipping_amount?: number;
   notes?: string;
   shipping_address?: any;
-  is_preorder?: boolean;
-  preorder_notes?: string;
-  store_assignment_mode?: 'auto' | 'manual' | 'preorder_office';
+  store_assignment_mode?: 'auto' | 'manual';
   payment?: {
     payment_method_id: number;
     amount: number;
@@ -38,6 +36,35 @@ export interface CreateOrderPayload {
     installment_amount: number;
     start_date?: string;
   };
+}
+
+
+export interface CreatePreorderPayload {
+  customer_id?: number;
+  customer?: {
+    name: string;
+    phone: string;
+    email?: string;
+    address?: string;
+  };
+  salesman_id?: number;
+  items?: Array<{
+    product_id: number;
+    quantity: number;
+    unit_price: number;
+    discount_amount?: number;
+  }>;
+  services?: Array<{
+    service_id: number;
+    quantity: number;
+    unit_price: number;
+    discount_amount?: number;
+  }>;
+  discount_amount?: number;
+  shipping_amount?: number;
+  preorder_notes?: string;
+  notes?: string;
+  shipping_address?: any;
 }
 
 export interface FulfillmentPayload {
@@ -230,10 +257,6 @@ export interface OrderStatistics {
 const orderService = {
   /** Create a normal sales order. Preorders have a dedicated endpoint. */
   async create(payload: CreateOrderPayload): Promise<Order> {
-    if (payload.order_type === 'preorder' || payload.is_preorder) {
-      throw new Error('Use orderService.createPreorder() for preorder records.');
-    }
-
     try {
       const response = await axiosInstance.post('/orders', payload);
       const result = response.data;
@@ -250,14 +273,11 @@ const orderService = {
   },
 
   /** Create a dedicated preorder that never enters the normal Orders channel. */
-  async createPreorder(payload: CreateOrderPayload): Promise<Order> {
+  async createPreorder(payload: CreatePreorderPayload): Promise<Order> {
     try {
-      const response = await axiosInstance.post('/pre-orders', {
-        ...payload,
-        order_type: 'preorder',
-        is_preorder: true,
-        store_assignment_mode: 'preorder_office',
-      });
+      // The standalone endpoint receives demand-note data only. It never receives
+      // sales-channel, store-assignment, payment, loyalty, or installment fields.
+      const response = await axiosInstance.post('/pre-orders', payload);
       const result = response.data;
 
       if (!result.success) {

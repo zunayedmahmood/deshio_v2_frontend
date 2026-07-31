@@ -633,7 +633,34 @@ export default function AmountDetailsPage() {
 
       let createdOrder: any = null;
 
-      if (isEditMode) {
+      if (isEditMode && isPreorderFlow) {
+        const targetOrderId = Number(effectiveEditOrderId);
+        if (!targetOrderId) {
+          throw new Error('Edit preorder id missing');
+        }
+
+        const updatePayload: any = {
+          customer_name: orderData.customer?.name,
+          customer_phone: orderData.customer?.phone,
+          customer_email: orderData.customer?.email || undefined,
+          customer_address: orderData.customer?.address || undefined,
+          shipping_address: shippingPayload,
+          ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
+          discount_amount: orderDiscount,
+          shipping_amount: transport,
+          items: itemPayloads,
+          services: orderData.services || [],
+          preorder_notes: String(orderData.preorder_notes || orderData.notes || '').replace(/^\[PREORDER\]\s*/i, '').trim() || 'Preorder demand recorded',
+        };
+
+        console.log('✏️ Updating standalone preorder:', targetOrderId, updatePayload);
+        const updateResponse = await axios.patch(`/pre-orders/${targetOrderId}`, updatePayload);
+        const updateBody: any = updateResponse.data;
+        if (updateBody?.success === false) {
+          throw new Error(updateBody?.message || 'Failed to update preorder');
+        }
+        createdOrder = updateBody?.data ?? updateBody;
+      } else if (isEditMode) {
         const targetOrderId = Number(effectiveEditOrderId);
         if (!targetOrderId) {
           throw new Error('Edit order id missing');
@@ -763,16 +790,14 @@ export default function AmountDetailsPage() {
             // order so service-only orders can be sent to Pathao later.
             || isServiceOnlyOrder
           );
-        const storeAssignmentPayload = isPreorderOrder
-          ? { store_assignment_mode: 'preorder_office' }
-          : canUseManualStoreAssignment
-            ? {
-                store_id: Number(requestedStoreId),
-                store_assignment_mode: 'manual',
-              }
-            : {
-                store_assignment_mode: 'auto',
-              };
+        const storeAssignmentPayload = canUseManualStoreAssignment
+          ? {
+              store_id: Number(requestedStoreId),
+              store_assignment_mode: 'manual',
+            }
+          : {
+              store_assignment_mode: 'auto',
+            };
 
         const orderPayload: any = {
           // The preorder route is a separate channel, not social commerce.
@@ -837,7 +862,16 @@ export default function AmountDetailsPage() {
           ...(String(orderData.notes || '').trim() ? { notes: String(orderData.notes).trim() } : {}),
         };
 
-        console.log('📦 Creating order:', orderPayload);
+        if (isPreorderOrder) {
+          delete orderPayload.order_type;
+          delete orderPayload.is_preorder;
+          delete orderPayload.store_assignment_mode;
+          delete orderPayload.store_id;
+          delete orderPayload.loyalty_redemption_code;
+          delete orderPayload.installment_plan;
+        }
+
+        console.log(isPreorderOrder ? '📝 Recording standalone preorder:' : '📦 Creating order:', orderPayload);
         const createEndpoint = isPreorderOrder ? '/pre-orders' : '/orders';
         const createOrderResponse = await axios.post(createEndpoint, orderPayload);
         const createBody: any = createOrderResponse.data;
@@ -887,7 +921,7 @@ export default function AmountDetailsPage() {
       }
 
       // 4) Payments
-      if (paymentOption === 'full' && remainingBeforeNewPayment > 0) {
+      if (!isPreorderFlow && paymentOption === 'full' && remainingBeforeNewPayment > 0) {
         const paymentData: any = {
           payment_method_id: parseInt(selectedPaymentMethod, 10),
           amount: remainingBeforeNewPayment,
@@ -930,7 +964,7 @@ export default function AmountDetailsPage() {
         }
       }
 
-      if (paymentOption === 'partial' && advance > 0) {
+      if (!isPreorderFlow && paymentOption === 'partial' && advance > 0) {
         const advancePaymentData: any = {
           payment_method_id: parseInt(selectedPaymentMethod, 10),
           amount: advance,
@@ -978,7 +1012,7 @@ export default function AmountDetailsPage() {
       }
 
 
-      if (paymentOption === 'installment' && advance > 0) {
+      if (!isPreorderFlow && paymentOption === 'installment' && advance > 0) {
         const firstPayment: any = {
           payment_method_id: parseInt(selectedPaymentMethod, 10),
           amount: advance,
@@ -1028,8 +1062,9 @@ export default function AmountDetailsPage() {
 
       const actionWord = isEditMode ? 'updated' : 'placed';
       const recordLabel = isPreorderFlow ? 'Preorder' : 'Order';
-      const msg =
-        paymentOption === 'full'
+      const msg = isPreorderFlow
+        ? `Preorder ${createdOrder.order_number} recorded as a standalone demand note. No payment, stock reservation, or order was created.`
+        : paymentOption === 'full'
           ? `${recordLabel} ${createdOrder.order_number} ${actionWord} with full payment.`
           : paymentOption === 'partial'
             ? `${recordLabel} ${createdOrder.order_number} ${actionWord}. Advance ৳${advance.toFixed(2)}, COD ৳${codAmount.toFixed(2)}.`
@@ -1089,7 +1124,7 @@ export default function AmountDetailsPage() {
                       Store Assignment:{' '}
                       <span className="font-semibold">
                         {isPreorderFlow
-                          ? `Office — preorder record only (no stock reserved)`
+                          ? `Standalone preorder — no store assigned (no stock reserved)`
                           : isEditingExistingOrder
                             ? 'Existing order'
                             : productItemsForStoreAssignment.length === 0

@@ -64,9 +64,14 @@ export default function ProductPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Social Commerce Queue State
-  const [isSocialCommerceMode, setIsSocialCommerceMode] = useState(false);
+  // Queue selection can return to either Social Commerce or the standalone
+  // preorder demand-note screen. Each flow uses isolated storage.
+  const queueMode = searchParams.get('mode');
+  const isSocialCommerceMode = queueMode === 'social_commerce';
+  const isPreorderMode = queueMode === 'preorder';
+  const isQueueMode = isSocialCommerceMode || isPreorderMode;
   const [queueItems, setQueueItems] = useState<QueuedProduct[]>([]);
+  const suppressNextQueueSaveRef = useRef(false);
   const SERVER_PAGE_SIZE = 60;
   const SEARCH_DEBOUNCE_MS = 1000;
 
@@ -113,27 +118,43 @@ export default function ProductPage() {
     [updateQueryParams]
   );
 
+  const queueStorageKey = isPreorderMode ? 'preOrderSelectionQueueV2' : 'social_commerce_queue';
+
   // Hydration fix
   useEffect(() => {
     setIsMounted(true);
-    
-    // Load queue from localStorage
-    const savedQueue = localStorage.getItem('social_commerce_queue');
+  }, []);
+
+  // Load the queue for the active workflow. Preorders use sessionStorage so
+  // they never consume or overwrite a Social Commerce selection queue.
+  useEffect(() => {
+    if (!isMounted || !isQueueMode) return;
+
+    const storage = isPreorderMode ? sessionStorage : localStorage;
+    const savedQueue = storage.getItem(queueStorageKey);
+    suppressNextQueueSaveRef.current = true;
     if (savedQueue) {
       try {
         setQueueItems(JSON.parse(savedQueue));
       } catch (e) {
         console.error('Failed to parse queue', e);
+        setQueueItems([]);
       }
+    } else {
+      setQueueItems([]);
     }
-  }, []);
+  }, [isMounted, isQueueMode, isPreorderMode, queueStorageKey]);
 
   // Save queue to localStorage
   useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem('social_commerce_queue', JSON.stringify(queueItems));
+    if (!isMounted || !isQueueMode) return;
+    if (suppressNextQueueSaveRef.current) {
+      suppressNextQueueSaveRef.current = false;
+      return;
     }
-  }, [queueItems, isMounted]);
+    const storage = isPreorderMode ? sessionStorage : localStorage;
+    storage.setItem(queueStorageKey, JSON.stringify(queueItems));
+  }, [queueItems, isMounted, isQueueMode, isPreorderMode, queueStorageKey]);
 
   // Keep state in sync with URL params (supports refresh + back/forward)
   useEffect(() => {
@@ -177,12 +198,8 @@ export default function ProductPage() {
     const rp = searchParams.get('redirect') || '';
     if (rp !== redirectPath) setRedirectPath(rp);
 
-    const scm = searchParams.get('mode') === 'social_commerce';
-    if (scm !== isSocialCommerceMode) {
-      setIsSocialCommerceMode(scm);
-      if (scm) setSelectMode(true);
-    }
-  }, [searchParams, searchQuery, selectedCategory, selectedVendor, minPrice, maxPrice, sortBy, stockStatus, currentPage, selectMode, redirectPath, isSocialCommerceMode]);
+    if (isQueueMode && !selectMode) setSelectMode(true);
+  }, [searchParams, searchQuery, selectedCategory, selectedVendor, minPrice, maxPrice, sortBy, stockStatus, currentPage, selectMode, redirectPath, isQueueMode]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -885,7 +902,7 @@ export default function ProductPage() {
   };
 
   const handleSelect = async (variant: ProductVariant) => {
-    if (isSocialCommerceMode) {
+    if (isQueueMode) {
       // Add to queue logic
       const existing = queueItems.find(item => item.id === variant.id);
       if (existing) {
@@ -922,7 +939,7 @@ export default function ProductPage() {
             discount_amount: 0,
             amount: price,
             image: variant.image,
-            store_id: getSocialCommerceStoreId()
+            store_id: isPreorderMode ? null : getSocialCommerceStoreId()
           };
           
           setQueueItems(prev => [...prev, newItem]);
@@ -967,9 +984,8 @@ export default function ProductPage() {
     }
   };
 
-  const handleReturnToSocialCommerce = () => {
-    // Other data preserved logic: the Social Commerce page should read from its own localStorage state
-    router.push(redirectPath || '/social-commerce');
+  const handleReturnToSource = () => {
+    router.push(redirectPath || (isPreorderMode ? '/pre-order' : '/social-commerce'));
   };
 
   // Flatten categories for filter dropdown
@@ -1023,7 +1039,7 @@ export default function ProductPage() {
             toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           />
 
-          <main className={`flex-1 overflow-y-auto p-6 ${isSocialCommerceMode ? 'pb-[440px]' : ''}`}>
+          <main className={`flex-1 overflow-y-auto p-6 ${isQueueMode ? 'pb-[440px]' : ''}`}>
             <div className="max-w-7xl mx-auto">
               {/* Header */}
               <div className="mb-6">
@@ -1033,7 +1049,9 @@ export default function ProductPage() {
                       {selectMode ? 'Select a Product' : 'Products'}
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                      {isSocialCommerceMode
+                      {isPreorderMode
+                        ? 'Select any product—including currently unavailable items—to record preorder demand'
+                        : isSocialCommerceMode
                         ? 'Click a variant to add it to the Social Commerce queue, then use the queue drawer to return'
                         : selectMode
                         ? 'Choose a product variant to add to your operation'
@@ -1090,18 +1108,20 @@ export default function ProductPage() {
                   </div>
                 </div>
 
-                {/* Social Commerce Mode Banner */}
-                {isSocialCommerceMode && (
+                {/* Workflow queue mode banner */}
+                {isQueueMode && (
                   <div className="mb-4 flex items-center gap-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/40 px-4 py-3">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-base">🛒</div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Social Commerce – Queue Mode</p>
+                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                        {isPreorderMode ? 'Preorder – Demand Queue' : 'Social Commerce – Queue Mode'}
+                      </p>
                       <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-0.5">
-                        Click <span className="font-semibold">Select</span> on any product variant to add it to the queue. Adjust quantities in the drawer (bottom-right), then click <span className="font-semibold">Back to Social Commerce</span>.
+                        Click <span className="font-semibold">Select</span> on any product variant to add it to the queue. Adjust quantities in the drawer, then return to {isPreorderMode ? 'Preorder' : 'Social Commerce'}.
                       </p>
                     </div>
                     <button
-                      onClick={handleReturnToSocialCommerce}
+                      onClick={handleReturnToSource}
                       className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
                     >
                       ← Back ({queueItems.length})
@@ -1487,13 +1507,15 @@ export default function ProductPage() {
         </div>
       </div>
 
-      {isSocialCommerceMode && isMounted && (
+      {isQueueMode && isMounted && (
         <SocialCommerceQueue
           items={queueItems}
           onUpdateQuantity={handleUpdateQueueQuantity}
           onRemove={handleRemoveFromQueue}
           onClear={handleClearQueue}
-          onBack={handleReturnToSocialCommerce}
+          onBack={handleReturnToSource}
+          title={isPreorderMode ? 'Preorder Demand Queue' : 'Social Commerce Queue'}
+          backLabel={isPreorderMode ? 'Back to Preorder' : 'Back to Social Commerce'}
         />
       )}
 

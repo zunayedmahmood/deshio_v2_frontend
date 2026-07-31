@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
-import { Search, X, Globe, AlertCircle, Eye, FileText, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Truck, Store as StoreIcon } from 'lucide-react';
+import { Search, X, Globe, AlertCircle, Eye, FileText, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, ClipboardList } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import CustomerTagManager from '@/components/customers/CustomerTagManager';
@@ -124,7 +124,7 @@ export default function PreOrderPage() {
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [stores, setStores] = useState<any[]>([]);
 
-  // Edit-order mode (navigated from orders page for preorders)
+  // Edit mode for a standalone preorder record
   const [editOrderId, setEditOrderId] = useState<number | null>(null);
   const [editOrderNumber, setEditOrderNumber] = useState<string | null>(null);
 
@@ -396,16 +396,9 @@ export default function PreOrderPage() {
     if (typeof window === 'undefined') return [];
     try {
       const rawSession = sessionStorage.getItem(SC_SELECTION_QUEUE_KEY);
-      const rawLegacyLocal = localStorage.getItem('social_commerce_queue');
-      
       const parsedSession = rawSession ? JSON.parse(rawSession) : [];
-      const parsedLegacy = rawLegacyLocal ? JSON.parse(rawLegacyLocal) : [];
-      
       const listSession = Array.isArray(parsedSession) ? parsedSession : [];
-      const listLegacy = Array.isArray(parsedLegacy) ? parsedLegacy : [];
-      
-      // Merge them
-      const list = [...listSession, ...listLegacy];
+      const list = listSession;
 
       const byId = new Map<number, any>();
       for (const item of list) {
@@ -451,27 +444,19 @@ export default function PreOrderPage() {
   const clearQueuedSelections = () => {
     if (typeof window === 'undefined') return;
     sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
-    localStorage.removeItem('social_commerce_queue');
   };
 
   const getSavedSelectedStore = (): string => {
     if (typeof window === 'undefined') return '';
     try {
-      return String(localStorage.getItem(SC_SELECTED_STORE_STORAGE_KEY) || localStorage.getItem('preOrderSelectedStore') || '').trim();
+      return String(
+        localStorage.getItem(SC_SELECTED_STORE_STORAGE_KEY)
+        || localStorage.getItem('preOrderSelectedStore')
+        || ''
+      ).trim();
     } catch {
       return '';
     }
-  };
-
-  const getQueuedSelectionStore = (queued: any[]): string => {
-    const storeIds = Array.from(
-      new Set(
-        (queued || [])
-          .map((item) => String(item?.store_id || '').trim())
-          .filter(Boolean)
-      )
-    );
-    return storeIds.length === 1 ? storeIds[0] : getSavedSelectedStore();
   };
 
   const persistSelectedStore = (storeId: string | number | null | undefined) => {
@@ -497,7 +482,6 @@ export default function PreOrderPage() {
     sessionStorage.removeItem(SC_SELECTION_QUEUE_KEY);
     sessionStorage.removeItem(SC_EDIT_PREFILL_KEY);
     sessionStorage.removeItem(SC_EDIT_CONTEXT_KEY);
-    localStorage.removeItem('social_commerce_queue'); 
     sessionStorage.removeItem('pendingOrder');
 
     // Reset local states
@@ -985,9 +969,7 @@ export default function PreOrderPage() {
         return next;
       });
 
-      if (!officeStore) {
-        showToast('No active Office store found. Preorders can only be created for the Office store.', 'error');
-      }
+      // Office is only an optional search fallback. It is never saved or assigned.
     } catch (error) {
       console.error('Error fetching stores:', error);
       setStores([]);
@@ -1321,7 +1303,6 @@ export default function PreOrderPage() {
 
   const handleAutoStageProduct = (product: any) => {
     if (!product) return;
-    if (!product?.isDefective && Number(product?.available ?? 0) <= 0) return;
 
     setStagingQueue((prev) => {
       const existingIndex = prev.findIndex(
@@ -1543,10 +1524,8 @@ export default function PreOrderPage() {
           if (incomingEditOrderNumber) setEditOrderNumber(incomingEditOrderNumber);
           if (ep.salesmanId !== undefined && ep.salesmanId !== null) setSelectedEmployee(String(ep.salesmanId));
           if (typeof ep.salesBy === 'string') setSalesBy(ep.salesBy);
-          // Store is intentionally not restored from edit prefill for preorders.
-          // Preorders are locked to the active Office store only; fetchStores() and
-          // the office-lock effect above enforce the correct store even if older
-          // saved preorder data contains another store_id.
+          // Store is intentionally not restored into the preorder record.
+          // Any selected store on this screen is only a catalog-search reference.
           setStoreAssignmentMode('auto');
           if (typeof ep.userName === 'string') setUserName(ep.userName);
           if (typeof ep.userPhone === 'string') setUserPhone(ep.userPhone);
@@ -1616,8 +1595,8 @@ export default function PreOrderPage() {
         if (typeof d.internationalCity === 'string') setInternationalCity(d.internationalCity);
         if (typeof d.internationalPostalCode === 'string') setInternationalPostalCode(d.internationalPostalCode);
         if (typeof d.deliveryAddress === 'string') setDeliveryAddress(d.deliveryAddress);
-        // Never restore a non-Office store from a saved preorder draft.
-        // The active Office store is loaded from the store API and enforced globally.
+        // A saved store is only a catalog-search reference; it is never
+        // included in the standalone preorder payload.
         const savedStoreId = getSavedSelectedStore();
         if (savedStoreId) setSelectedStore(savedStoreId);
         setStoreAssignmentMode('auto');
@@ -1687,128 +1666,114 @@ export default function PreOrderPage() {
   }, [selectedStore]);
 
   useEffect(() => {
-    if (!selectedStore || queueImportingRef.current) return;
+    if (queueImportingRef.current) return;
 
     const queued = readQueuedSelections();
     if (!queued.length) return;
 
-    const queuedStoreId = getQueuedSelectionStore(queued);
-    if (queuedStoreId && String(queuedStoreId) !== String(selectedStore)) {
-      setSelectedStore(queuedStoreId);
-      persistSelectedStore(queuedStoreId);
-      return;
-    }
-
     const run = async () => {
       queueImportingRef.current = true;
       try {
-        const storeId = Number(selectedStore);
-        if (!Number.isFinite(storeId) || storeId <= 0) return;
-
-        const ids = queued.map((q: any) => Number(q?.id || 0)).filter((id: number) => id > 0);
-        if (!ids.length) {
-          clearQueuedSelections();
-          return;
-        }
-
-        const batches = await batchService.getBatchesAll({
-          store_id: storeId,
-          status: 'available',
-          product_ids: ids.join(',')
-        });
-
-        const idSet = new Set(ids);
-        const matchedBatches = (batches || []).filter((b: any) => {
-          const pid = Number(b?.product?.id ?? b?.product_id ?? 0);
-          return idSet.has(pid);
-        });
-        const productResults = buildProductResultsFromBatches(matchedBatches, { defaultStage: 'queue', defaultScore: 0 });
-        const byId = new Map<number, any>(productResults.map((p: any) => [Number(p.id), p]));
-
         const missingNames: string[] = [];
-        const selectedProducts: any[] = [];
-        for (const q of queued) {
-          const pid = Number(q?.id || 0);
-          const qty = Math.max(1, Math.floor(Number(q?.qty) || 1));
-          const p = byId.get(pid);
-          if (!p || Number(p?.available ?? 0) <= 0) {
-            missingNames.push(String(q?.name || `#${pid}`));
-            continue;
-          }
+        const selectedProducts = (
+          await Promise.all(
+            queued.map(async (q: any) => {
+              const pid = Number(q?.id || 0);
+              if (!Number.isFinite(pid) || pid <= 0) return null;
 
-          const queuedPrice = Number(q?.unit_price ?? q?.price ?? q?.selling_price ?? 0);
-          const batchPrice = Number(String(p?.attributes?.Price ?? '0').replace(/[^0-9.-]/g, '')) || 0;
-          const effectivePrice = Number.isFinite(queuedPrice) && queuedPrice > 0 && (batchPrice <= 0 || (batchPrice === 1 && queuedPrice !== 1))
-            ? queuedPrice
-            : batchPrice;
-          const productForCart = effectivePrice > 0
-            ? {
-                ...p,
-                attributes: {
-                  ...(p.attributes || {}),
-                  Price: effectivePrice,
-                },
-                minPrice: effectivePrice,
-                maxPrice: Math.max(Number(p?.maxPrice ?? 0) || 0, effectivePrice),
+              const queuedPrice = Number(q?.unit_price ?? q?.price ?? q?.selling_price ?? 0);
+              const qty = Math.max(1, Math.floor(Number(q?.qty ?? q?.quantity) || 1));
+
+              try {
+                const rawProduct = await productService.getById(pid);
+                const normalized = buildPreorderProductResultsFromCatalog([rawProduct])[0];
+                if (!normalized) throw new Error('Product response could not be normalized');
+
+                const apiPrice = getProductUnitPrice(normalized);
+                const effectivePrice = Number.isFinite(queuedPrice) && queuedPrice > 0
+                  ? queuedPrice
+                  : apiPrice;
+
+                return {
+                  product: {
+                    ...normalized,
+                    name: String(q?.name || q?.productName || normalized.name),
+                    sku: String(q?.sku || normalized.sku || ''),
+                    attributes: {
+                      ...(normalized.attributes || {}),
+                      Price: effectivePrice,
+                      mainImage: q?.image || normalized?.attributes?.mainImage,
+                    },
+                    minPrice: effectivePrice,
+                    maxPrice: effectivePrice,
+                    selected_store_id: '',
+                    isPreorderProduct: true,
+                  },
+                  quantity: qty,
+                };
+              } catch (error) {
+                // The queue contains a sufficient immutable snapshot to keep
+                // recording demand even if the detail request temporarily fails.
+                if (!q?.name && !q?.productName) {
+                  missingNames.push(`#${pid}`);
+                  return null;
+                }
+
+                const fallbackPrice = Number.isFinite(queuedPrice) && queuedPrice > 0 ? queuedPrice : 0;
+                return {
+                  product: {
+                    id: pid,
+                    name: String(q?.name || q?.productName),
+                    sku: String(q?.sku || ''),
+                    attributes: {
+                      Price: fallbackPrice,
+                      mainImage: q?.image || null,
+                    },
+                    available: 0,
+                    selected_store_id: '',
+                    minPrice: fallbackPrice,
+                    maxPrice: fallbackPrice,
+                    batchesCount: 0,
+                    expiryDate: null,
+                    daysUntilExpiry: null,
+                    relevance_score: 0,
+                    search_stage: 'preorder_queue_snapshot',
+                    isPreorderProduct: true,
+                  },
+                  quantity: qty,
+                };
               }
-            : p;
-
-          for (let i = 0; i < qty; i += 1) {
-            selectedProducts.push(productForCart);
-          }
-        }
+            })
+          )
+        ).filter(Boolean) as Array<{ product: any; quantity: number }>;
 
         let addedCount = 0;
-        const stockLimitedNames: string[] = [];
-
         if (selectedProducts.length) {
           setStagingQueue((prev) => {
             const next = [...prev];
-            const queuedCountByPid = new Map<number, number>();
-
-            for (const p of selectedProducts) {
+            for (const selection of selectedProducts) {
+              const p = selection.product;
+              const qty = selection.quantity;
               const pid = Number(p.id);
-              const name = String(p?.name || `#${pid}`);
-              const price = Number(String(p?.attributes?.Price ?? '0').replace(/[^0-9.-]/g, '')) || 0;
-              const available = Math.max(0, Number(p?.available ?? 0) || 0);
-
-              const alreadyInCartQty = cart
-                .filter((item) => !item.isService && !item.isDefective && Number(item.product_id) === pid)
-                .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-
-              const alreadyInStagingQty = next
-                .filter((item) => Number(item.product?.id || 0) === pid)
-                .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
-
-              const queuedUsed = queuedCountByPid.get(pid) || 0;
-              if (alreadyInCartQty + alreadyInStagingQty + queuedUsed + 1 > available) {
-                stockLimitedNames.push(name);
-                continue;
-              }
-
+              const price = getProductUnitPrice(p);
               const existingIndex = next.findIndex((item) => Number(item.product?.id || 0) === pid);
               if (existingIndex >= 0) {
                 const ex = next[existingIndex];
-                const newQty = (Number(ex.quantity) || 0) + 1;
-                const dTk = Number(ex.discountTk) || 0;
+                const newQty = (Number(ex.quantity) || 0) + qty;
                 next[existingIndex] = {
                   ...ex,
                   quantity: newQty,
-                  amount: Math.max(0, (price * newQty) - dTk).toFixed(2),
+                  amount: calculateAmount(
+                    price,
+                    newQty,
+                    Number(ex.discountPercent) || 0,
+                    Number(ex.discountTk) || 0
+                  ).toFixed(2),
                 };
               } else {
-                next.push({
-                  id: `queued-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                  product: p,
-                  quantity: 1,
-                  discountPercent: '',
-                  discountTk: '',
-                  amount: price.toFixed(2),
-                });
+                next.push(buildStagingItem(p, { quantity: qty }));
               }
-
-              queuedCountByPid.set(pid, queuedUsed + 1);
-              addedCount += 1;
+              addedCount += qty;
             }
 
             return next;
@@ -1818,16 +1783,16 @@ export default function PreOrderPage() {
         clearQueuedSelections();
 
         if (addedCount > 0) {
-          if (missingNames.length || stockLimitedNames.length) {
+          if (missingNames.length) {
             showToast(
-              `Added ${addedCount} queued product(s). ${missingNames.length + stockLimitedNames.length} could not be added for this store/stock.`,
+              `Added ${addedCount} queued item(s). ${missingNames.length} product snapshot(s) could not be restored.`,
               'success'
             );
           } else {
-            showToast(`Added ${addedCount} product(s) from Product List`, 'success');
+            showToast(`Added ${addedCount} preorder item(s) from Product List`, 'success');
           }
-        } else if (missingNames.length || stockLimitedNames.length) {
-          showToast('Queued products are not available in the selected store', 'error');
+        } else if (missingNames.length) {
+          showToast('Queued preorder products could not be restored', 'error');
         }
       } catch (e) {
         console.error('Failed to import queued products', e);
@@ -1837,7 +1802,7 @@ export default function PreOrderPage() {
     };
 
     run();
-  }, [selectedStore]);
+  }, []);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1993,11 +1958,6 @@ export default function PreOrderPage() {
   useEffect(() => {
     const hasPriceFilter = Boolean(minPrice.trim() || maxPrice.trim() || exactPrice.trim());
 
-    if (!selectedStore) {
-      setSearchResults([]);
-      return;
-    }
-
     if (!searchQuery.trim() && !hasPriceFilter) {
       setSearchResults([]);
       return;
@@ -2006,10 +1966,7 @@ export default function PreOrderPage() {
     const delayDebounce = setTimeout(async () => {
       const searchReqId = ++productSearchReqRef.current;
       const storeId = Number(selectedStore);
-      if (!Number.isFinite(storeId) || storeId <= 0) {
-        setSearchResults([]);
-        return;
-      }
+      const hasReferenceStore = Number.isFinite(storeId) && storeId > 0;
 
       const min = minPrice.trim() !== '' && Number.isFinite(Number(minPrice)) ? Number(minPrice) : undefined;
       const max = maxPrice.trim() !== '' && Number.isFinite(Number(maxPrice)) ? Number(maxPrice) : undefined;
@@ -2052,8 +2009,8 @@ export default function PreOrderPage() {
           return true;
         });
 
-        // Last-resort fallback: if catalog search is unavailable, use the Office batch search.
-        if (finalResults.length === 0) {
+        // Last-resort fallback only. A reference store is never saved or assigned.
+        if (finalResults.length === 0 && hasReferenceStore) {
           const batches = await batchService.getBatchesAll({
             store_id: storeId,
             status: 'available',
@@ -2064,7 +2021,7 @@ export default function PreOrderPage() {
           }, { max_items: 500 });
 
           finalResults = buildProductResultsFromBatches(batches, {
-            defaultStage: q ? 'office_batch_fallback' : 'office_price_fallback',
+            defaultStage: q ? 'reference_batch_fallback' : 'reference_price_fallback',
             defaultScore: 0,
           });
         }
@@ -2152,22 +2109,9 @@ export default function PreOrderPage() {
     setAmount(clampedFinalAmount.toFixed(2));
   };
 
-  const selectedProductMatchesCurrentStore = (product: any): boolean => {
-    if (!product || product.isDefective) return true;
-    const productStoreId = String(product.selected_store_id ?? product.store_id ?? '').trim();
-    const currentStoreId = String(selectedStore || '').trim();
-    return !productStoreId || !currentStoreId || productStoreId === currentStoreId;
-  };
-
   const addToCart = () => {
     if (!selectedProduct || !quantity || parseInt(quantity) <= 0) {
       alert('Please select a product and enter quantity');
-      return;
-    }
-
-    if (!selectedProductMatchesCurrentStore(selectedProduct)) {
-      alert('Selected product was loaded for a different store. Please search again after the selected store finishes loading.');
-      setSelectedProduct(null);
       return;
     }
 
@@ -2175,11 +2119,6 @@ export default function PreOrderPage() {
     const qty = parseInt(quantity);
     const discPer = parseFloat(discountPercent) || 0;
     const discTk = parseFloat(discountTk) || 0;
-
-    if (qty > selectedProduct.available && !selectedProduct.isDefective && !selectedProduct.isPreorderProduct) {
-      alert(`Only ${selectedProduct.available} units available in this store`);
-      return;
-    }
 
     const baseAmount = price * qty;
     const discountValue = discPer > 0 ? (baseAmount * discPer) / 100 : discTk;
@@ -2223,20 +2162,10 @@ export default function PreOrderPage() {
       return;
     }
 
-    if (!selectedProductMatchesCurrentStore(selectedProduct)) {
-      alert('Selected product was loaded for a different store. Please search again after the selected store finishes loading.');
-      setSelectedProduct(null);
-      return;
-    }
-
     const price = Number(String(selectedProduct.attributes?.Price ?? '0').replace(/[^0-9.-]/g, ''));
     const qty = parseInt(quantity);
     const discPer = parseFloat(discountPercent) || 0;
     const discTk = parseFloat(discountTk) || 0;
-    if (qty > selectedProduct.available && !selectedProduct.isDefective && !selectedProduct.isPreorderProduct) {
-      alert(`Only ${selectedProduct.available} units available in this store`);
-      return;
-    }
     const finalAmount = calculateAmount(price, qty, discPer, discTk);
     setStagingQueue((prev) => [
       ...prev,
@@ -2377,10 +2306,6 @@ export default function PreOrderPage() {
       alert('Please add products to cart');
       return;
     }
-    if (!selectedStore || !selectedStoreName || !isOfficeStore({ name: selectedStoreName })) {
-      alert('Preorders can only be created for the Office store. Please make sure an active Office store exists.');
-      return;
-    }
     if (!selectedEmployee) {
       alert('Please select an employee');
       return;
@@ -2457,7 +2382,7 @@ export default function PreOrderPage() {
     }
 
     try {
-      console.log(editOrderId ? '✏️ EDITING SOCIAL COMMERCE ORDER' : '📦 CREATING SOCIAL COMMERCE ORDER');
+      console.log(editOrderId ? '✏️ EDITING PREORDER NOTE' : '📝 CREATING PREORDER NOTE');
 
       const isDomesticAuto = !isInternational && usePathaoAutoLocation;
 
@@ -2553,26 +2478,11 @@ export default function PreOrderPage() {
       const cartProductItems = cart.filter((item) => !item.isService);
       const cartServiceItems = cart.filter((item) => item.isService);
       const isServiceOnlyCart = cartProductItems.length === 0 && cartServiceItems.length > 0;
-      const shouldKeepSelectedStoreForServiceOnly = false;
-      const effectiveStoreAssignmentMode = 'preorder_office';
-
-      const preorderNoteText = orderNotes?.trim() || 'Preorder created from preorder panel';
+      const preorderNoteText = orderNotes?.trim() || 'Preorder demand recorded';
 
       const orderData = {
-        // Preorders are a dedicated order channel. They must never be created as
-        // social-commerce orders or enter the normal Orders/assignment queues.
-        order_type: 'preorder',
-        is_preorder: true,
+        // Standalone demand note: this payload never enters orders/order_items.
         preorder_notes: preorderNoteText,
-        ...(!effectiveEditOrderId
-          ? {
-              store_assignment_mode: effectiveStoreAssignmentMode,
-              // Office is shown in the UI, but the dedicated backend endpoint
-              // resolves and enforces the active Office store itself.
-              store_id: selectedStore ? Number(selectedStore) : undefined,
-              selected_store_name: selectedStoreName || 'Office',
-            }
-          : {}),
         ...(effectiveEditOrderId ? { editOrderId: effectiveEditOrderId } : {}),
         ...(effectiveEditOrderNumber ? { editOrderNumber: effectiveEditOrderNumber } : {}),
         salesman_id: parseInt(selectedEmployee),
@@ -2623,7 +2533,7 @@ export default function PreOrderPage() {
         let createdOrder: any = null;
 
         if (effectiveEditOrderId) {
-          const updateResponse = await axios.patch(`/orders/${effectiveEditOrderId}`, {
+          const updateResponse = await axios.patch(`/pre-orders/${effectiveEditOrderId}`, {
             customer_name: orderData.customer.name,
             customer_phone: orderData.customer.phone,
             customer_email: orderData.customer.email,
@@ -2635,6 +2545,7 @@ export default function PreOrderPage() {
             notes: orderData.notes,
             preorder_notes: preorderNoteText,
             items: orderData.items,
+            services: orderData.services,
           });
           if (updateResponse.data?.success === false) {
             throw new Error(updateResponse.data?.message || 'Failed to update preorder');
@@ -2718,7 +2629,7 @@ export default function PreOrderPage() {
               <div className="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
                 <div className="w-full sm:w-64">
                   <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Employee <span className="text-red-500">*</span>
+                    Recorded by <span className="text-red-500">*</span>
                   </label>
                   <div className="relative" ref={employeeDropdownRef}>
                     <div
@@ -2806,61 +2717,9 @@ export default function PreOrderPage() {
                     className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div className="w-full sm:w-72">
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Preorder store
-                  </label>
-                  <select
-                    value={selectedStore}
-                    onChange={(e) => { const nextStore = e.target.value; setSelectedStore(nextStore); persistSelectedStore(nextStore); }}
-                    disabled
-                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white disabled:opacity-100"
-                  >
-                    <option value="">Office store not found</option>
-                    {stores.map((store) => (
-                      <option key={store.id} value={store.id}>
-                        {store.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">Preorders are locked to Office. Other stores are not allowed here.</p>
-                  {selectedStore && isLoadingData && <p className="mt-1 text-xs text-blue-600">Loading store info...</p>}
-                  {selectedStore && !isLoadingData && typeof availableBatchCount === 'number' && (
-                    <p className="mt-1 text-xs text-green-600">{availableBatchCount} batches available in selected store</p>
-                  )}
-                </div>
-
-                <div className="w-full sm:w-80">
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    Fulfillment mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setStoreAssignmentMode('auto')}
-                      disabled
-                      className={`px-3 py-1.5 rounded border text-xs font-semibold flex items-center justify-center gap-1.5 ${storeAssignmentMode === 'auto'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'} disabled:opacity-50`}
-                    >
-                      <Truck className="w-3.5 h-3.5" /> Auto-assign
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStoreAssignmentMode('manual')}
-                      disabled
-                      className={`px-3 py-1.5 rounded border text-xs font-semibold flex items-center justify-center gap-1.5 ${storeAssignmentMode === 'manual'
-                        ? 'bg-emerald-600 text-white border-emerald-600'
-                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600'} disabled:opacity-50`}
-                    >
-                      <StoreIcon className="w-3.5 h-3.5" /> Manual
-                    </button>
-                  </div>
-                  <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                    {editOrderId
-                      ? 'Existing preorder store is preserved while editing.'
-                      : 'Preorders stay in the dedicated preorder page and are always saved against Office.'}
-                  </p>
+                <div className="w-full sm:w-[28rem] rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-xs text-teal-900 dark:border-teal-800 dark:bg-teal-900/20 dark:text-teal-200">
+                  <div className="font-semibold">Standalone preorder note</div>
+                  <div className="mt-1">No store is assigned, no stock is reserved, and this record is excluded from orders, sales, profit, and fulfillment queues.</div>
                 </div>
               </div>
 
@@ -3279,7 +3138,7 @@ export default function PreOrderPage() {
                     )}
 
                     <div className="mt-4">
-                      <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Order Notes</label>
+                      <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">Preorder Notes</label>
                       <textarea
                         placeholder="Special instructions, landmark, preferred delivery note, packaging note, etc."
                         value={orderNotes}
@@ -3313,16 +3172,10 @@ export default function PreOrderPage() {
                     <div className="flex flex-col sm:flex-row gap-2 mb-4">
                       <input
                         type="text"
-                        placeholder={
-                          !selectedStore
-                            ? 'Select a store first...'
-                            : isSearching
-                            ? 'Searching...'
-                            : 'Type to search product...'
-                        }
+                        placeholder={isSearching ? 'Searching...' : 'Type to search product...'}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        disabled={!selectedStore}
+                        
                         className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-2 sm:flex-shrink-0">
@@ -3332,7 +3185,7 @@ export default function PreOrderPage() {
                           placeholder="Min ৳"
                           value={minPrice}
                           onChange={(e) => setMinPrice(e.target.value)}
-                          disabled={!selectedStore || !!exactPrice}
+                          disabled={!!exactPrice}
                           className="w-full sm:w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <input
@@ -3341,7 +3194,7 @@ export default function PreOrderPage() {
                           placeholder="Max ৳"
                           value={maxPrice}
                           onChange={(e) => setMaxPrice(e.target.value)}
-                          disabled={!selectedStore || !!exactPrice}
+                          disabled={!!exactPrice}
                           className="w-full sm:w-20 px-2 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
                         />
                         <input
@@ -3356,14 +3209,14 @@ export default function PreOrderPage() {
                               setMaxPrice('');
                             }
                           }}
-                          disabled={!selectedStore}
+                          
                           title="Search for a specific exact price. Disables Min/Max."
                           className="w-full sm:w-24 px-2 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded bg-blue-50 dark:bg-blue-900/30 text-gray-900 dark:text-white placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
                       <button
-                        disabled={!selectedStore}
+                        
                         className="w-full sm:w-auto px-4 py-2 bg-black hover:bg-gray-800 text-white rounded transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Search size={18} />
@@ -3381,33 +3234,25 @@ export default function PreOrderPage() {
                           if (selectedStore) persistSelectedStore(selectedStore);
                           const params = new URLSearchParams({
                             selectMode: 'true',
-                            mode: 'social_commerce',
-                            redirect: '/social-commerce',
+                            mode: 'preorder',
+                            redirect: '/pre-order',
                           });
-                          if (selectedStore) params.set('store_id', String(selectedStore));
                           window.location.href = `/product/list?${params.toString()}`;
                         }}
-                        disabled={!selectedStore}
+                        
                         className="px-3 py-1.5 text-xs font-semibold rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Browse Product List
                       </button>
                     </div>
 
-                    {!selectedStore && (
-                      <div className="text-center py-8 text-sm text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
-                        Please select a store to search products
-                      </div>
-                    )}
-
-                    
-                    {selectedStore && isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && (
+                    {isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && (
                       <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
                         Searching...
                       </div>
                     )}
 
-                    {selectedStore && !isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && searchResults.length === 0 && (
+                    {!isSearching && (searchQuery || minPrice || maxPrice || exactPrice) && searchResults.length === 0 && (
                       <div className="text-center py-8 text-sm text-gray-500 dark:text-gray-400">
                         {searchQuery ? (
                         <>No products found matching "{searchQuery}"</>
@@ -3680,24 +3525,12 @@ export default function PreOrderPage() {
                         )}
 
                         {productItemsForStoreAssignment.length > 0 && !editOrderId && (
-                          <div className={`mb-3 rounded border p-3 text-xs ${
-                            storeAssignmentMode === 'manual'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300'
-                              : 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300'}`}
-                          >
+                          <div className="mb-3 rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-800 dark:border-teal-800 dark:bg-teal-900/20 dark:text-teal-300">
                             <div className="flex items-start gap-2">
-                              {storeAssignmentMode === 'manual' ? <StoreIcon className="mt-0.5 h-4 w-4 shrink-0" /> : <Truck className="mt-0.5 h-4 w-4 shrink-0" />}
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold">
-                                  {storeAssignmentMode === 'manual'
-                                    ? `Manual assignment${selectedStoreName ? ` — ${selectedStoreName}` : ''}`
-                                    : 'Auto-assignment'}
-                                </p>
-                                <p className="mt-1">
-                                  {storeAssignmentMode === 'manual'
-                                    ? 'Office will be saved with this preorder.'
-                                    : 'This preorder will stay in the preorder list, not the normal Orders page.'}
-                                </p>
+                              <ClipboardList className="mt-0.5 h-4 w-4 shrink-0" />
+                              <div>
+                                <p className="font-semibold">Demand note only</p>
+                                <p className="mt-1">Submitting this preorder will not reserve inventory, assign a store, create revenue, or appear in the Orders page.</p>
                               </div>
                             </div>
                           </div>

@@ -106,7 +106,6 @@ export default function PreordersPage() {
 
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<string>('');
-  const [paymentStatus, setPaymentStatus] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [cancellingId, setCancellingId] = useState<number | null>(null);
@@ -135,7 +134,7 @@ export default function PreordersPage() {
     setEditCustomerName(order.customer?.name || '');
     setEditCustomerPhone(order.customer?.phone || '');
     setEditItems(
-      (order.items || []).map((it: any) => ({
+      (order.items || []).filter((it: any) => it.item_type !== 'service').map((it: any) => ({
         id: it.id,
         product_id: it.product_id,
         product_name: it.product_name || it.name || 'Product',
@@ -213,14 +212,15 @@ export default function PreordersPage() {
 
   const handleSaveEditPreorder = async () => {
     if (!editingOrder) return;
-    if (editItems.length === 0) {
-      setAlert({ type: 'error', message: 'Preorder must contain at least one item.' });
+    const hasServiceMention = Boolean((editingOrder.items || []).some((it: any) => it.item_type === 'service'));
+    if (editItems.length === 0 && !hasServiceMention) {
+      setAlert({ type: 'error', message: 'Preorder must contain at least one product or service mention.' });
       return;
     }
 
     setIsSavingEdit(true);
     try {
-      const response = await axios.patch(`/orders/${editingOrder.id}`, {
+      const response = await axios.patch(`/pre-orders/${editingOrder.id}`, {
         customer_name: editCustomerName,
         customer_phone: editCustomerPhone,
         preorder_notes: editNotes,
@@ -277,7 +277,6 @@ export default function PreordersPage() {
             page,
             search: query.trim() || undefined,
             status: status || undefined,
-            payment_status: paymentStatus || undefined,
             date_from: dateFrom || undefined,
             date_to: dateTo || undefined,
             date_field: 'order_date',
@@ -337,7 +336,6 @@ export default function PreordersPage() {
   const handleClearFilters = () => {
     setQuery('');
     setStatus('');
-    setPaymentStatus('');
     setDateFrom('');
     setDateTo('');
   };
@@ -360,7 +358,7 @@ export default function PreordersPage() {
 
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, status, paymentStatus, dateFrom, dateTo]);
+  }, [query, status, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
     const q = normalize(query);
@@ -370,22 +368,20 @@ export default function PreordersPage() {
       const orderNo = normalize(o.order_number);
       const customerName = normalize(o.customer?.name);
       const phone = normalize(o.customer?.phone);
-      const storeName = normalize(o.store?.name);
       const notes = normalize(anyO.notes);
 
       const matchesQuery =
-        !q || orderNo.includes(q) || customerName.includes(q) || phone.includes(q) || storeName.includes(q) || notes.includes(q);
+        !q || orderNo.includes(q) || customerName.includes(q) || phone.includes(q) || notes.includes(q);
 
       const matchesStatus = !status || normalize(o.status) === normalize(status);
-      const matchesPay = !paymentStatus || normalize(o.payment_status) === normalize(paymentStatus);
       const rawDate = o.created_at || o.order_date || '';
       const dateKey = rawDate ? String(rawDate).slice(0, 10) : '';
       const matchesDateFrom = !dateFrom || (dateKey && dateKey >= dateFrom);
       const matchesDateTo = !dateTo || (dateKey && dateKey <= dateTo);
 
-      return matchesQuery && matchesStatus && matchesPay && matchesDateFrom && matchesDateTo;
+      return matchesQuery && matchesStatus && matchesDateFrom && matchesDateTo;
     });
-  }, [orders, query, status, paymentStatus, dateFrom, dateTo]);
+  }, [orders, query, status, dateFrom, dateTo]);
 
   return (
     <div className={`${darkMode ? 'dark' : ''} flex min-h-screen`}>
@@ -399,7 +395,7 @@ export default function PreordersPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Preorders</h1>
               <p className="text-sm text-gray-600 dark:text-gray-300">
-                View, date-search, and cancel preorder requests from the dedicated preorder queue.
+                Standalone demand notes only. They do not create orders, reserve stock, assign stores, or affect sales and profit reports.
               </p>
             </div>
 
@@ -425,7 +421,7 @@ export default function PreordersPage() {
 
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search</label>
                 <div className="relative">
@@ -433,14 +429,14 @@ export default function PreordersPage() {
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Order no, customer, phone, store, notes..."
+                    placeholder="Preorder no, customer, phone, product, notes..."
                     className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Order status</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Preorder status</label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
@@ -448,27 +444,8 @@ export default function PreordersPage() {
                 >
                   <option value="">All</option>
                   <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="processing">Processing</option>
-                  <option value="completed">Completed</option>
+                  <option value="stock_available">Stock currently available</option>
                   <option value="cancelled">Cancelled</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment status</label>
-                <select
-                  value={paymentStatus}
-                  onChange={(e) => setPaymentStatus(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">All</option>
-                  <option value="unpaid">Unpaid</option>
-                  <option value="paid">Paid</option>
-                  <option value="partially_paid">Partially paid</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="failed">Failed</option>
-                  <option value="refunded">Refunded</option>
                 </select>
               </div>
 
@@ -499,12 +476,12 @@ export default function PreordersPage() {
               </div>
 
               {hasDateRangeError && (
-                <div className="md:col-span-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <div className="md:col-span-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
                   From date cannot be after To date. Please fix the date range before searching.
                 </div>
               )}
 
-              <div className="md:col-span-5 flex flex-wrap gap-2 justify-end">
+              <div className="md:col-span-4 flex flex-wrap gap-2 justify-end">
                 <button
                   onClick={fetchPreorders}
                   disabled={hasDateRangeError}
@@ -550,7 +527,7 @@ export default function PreordersPage() {
                 <thead className="bg-gray-50 dark:bg-gray-900/40">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                      Order
+                      Preorder
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                       Products
@@ -559,13 +536,10 @@ export default function PreordersPage() {
                       Customer
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                      Store
+                      Record Type
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                       Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
-                      Payment
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
                       Created
@@ -579,7 +553,7 @@ export default function PreordersPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {!loading && filtered.length === 0 ? (
                     <tr>
-                      <td className="px-4 py-10 text-center text-sm text-gray-600 dark:text-gray-300" colSpan={8}>
+                      <td className="px-4 py-10 text-center text-sm text-gray-600 dark:text-gray-300" colSpan={7}>
                         No preorders found.
                       </td>
                     </tr>
@@ -587,9 +561,12 @@ export default function PreordersPage() {
                     filtered.map((o) => (
                       <tr key={o.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
                         <td className="px-4 py-3">
-                          <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{o.order_number}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{o.order_number}</div>
+                            <span className="rounded bg-teal-600 px-1.5 py-0.5 text-[10px] font-bold text-white">PREORDER</span>
+                          </div>
                           <div className="text-xs text-gray-600 dark:text-gray-300">
-                            Items: {o.items?.length ?? 0} • Total: {o.total_amount}
+                            Items: {o.items?.length ?? 0} • Informational total: {o.total_amount}
                           </div>
                         </td>
 
@@ -638,11 +615,12 @@ export default function PreordersPage() {
                           <div className="text-xs text-gray-600 dark:text-gray-300">{o.customer?.phone || '-'}</div>
                         </td>
 
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{o.store?.name || '-'}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className="inline-flex rounded-full bg-teal-100 px-2 py-1 text-xs font-semibold text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">PREORDER NOTE</span>
+                          <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">No order / no reservation</div>
+                        </td>
 
                         <td className="px-4 py-3 text-sm">{statusBadge(o.status)}</td>
-
-                        <td className="px-4 py-3 text-sm">{statusBadge(o.payment_status)}</td>
 
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{formatDateTime(o.created_at || o.order_date)}</td>
 
@@ -703,9 +681,9 @@ export default function PreordersPage() {
               </div>
 
               <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
-                <div className="text-xs text-gray-500 dark:text-gray-400">Store</div>
-                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{selected.store?.name || '-'}</div>
-                <div className="text-sm text-gray-700 dark:text-gray-200">Order type: {selected.order_type_label || selected.order_type}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Record type</div>
+                <div className="text-sm font-semibold text-teal-700 dark:text-teal-300">PREORDER NOTE</div>
+                <div className="text-sm text-gray-700 dark:text-gray-200">Standalone from all order workflows</div>
               </div>
             </div>
 
@@ -715,8 +693,8 @@ export default function PreordersPage() {
                 <div className="mt-1">{statusBadge(selected.status)}</div>
               </div>
               <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
-                <div className="text-xs text-gray-500 dark:text-gray-400">Payment</div>
-                <div className="mt-1">{statusBadge(selected.payment_status)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Financial impact</div>
+                <div className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">Not counted in sales or profit</div>
               </div>
               <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700">
                 <div className="text-xs text-gray-500 dark:text-gray-400">Created</div>

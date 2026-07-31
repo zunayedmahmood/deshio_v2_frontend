@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Plus, Minus, Maximize2, Minimize2, ArrowLeft } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 export interface QueuedProduct {
   id: number | string;
@@ -22,6 +21,8 @@ interface SocialCommerceQueueProps {
   onRemove: (id: number | string) => void;
   onClear: () => void;
   items: QueuedProduct[];
+  title?: string;
+  backLabel?: string;
 }
 
 export default function SocialCommerceQueue({
@@ -29,10 +30,11 @@ export default function SocialCommerceQueue({
   onUpdateQuantity,
   onRemove,
   onClear,
-  items
+  items,
+  title = 'Social Commerce Queue',
+  backLabel = 'Back to Social Commerce',
 }: SocialCommerceQueueProps) {
   const [isMinimized, setIsMinimized] = useState(false);
-  const router = useRouter();
 
 
 
@@ -63,7 +65,7 @@ export default function SocialCommerceQueue({
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Social Commerce Queue</h3>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">{title}</h3>
           <p className="text-[10px] text-gray-500 dark:text-gray-400">
             {totalProducts} product{totalProducts !== 1 ? 's' : ''} • {totalItems} total item{totalItems !== 1 ? 's' : ''}
           </p>
@@ -162,7 +164,7 @@ export default function SocialCommerceQueue({
           disabled={items.length === 0}
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Social Commerce ({totalItems})
+          {backLabel} ({totalItems})
         </button>
       </div>
     </div>
