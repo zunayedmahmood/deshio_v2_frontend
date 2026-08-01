@@ -13,6 +13,17 @@ const axiosInstance = axios.create({
   },
 });
 
+
+export const createIdempotencyKey = (prefix = 'deshio'): string => {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${random}`;
+};
+
+const isMutationMethod = (method?: string): boolean =>
+  ['post', 'put', 'patch', 'delete'].includes(String(method || '').toLowerCase());
+
 // Public routes that don't require authentication (NO trailing slashes)
 const PUBLIC_ROUTES = [
   '/catalog',        // Matches /catalog, /catalog/products, etc.
@@ -52,6 +63,16 @@ const isCustomerRoute = (url?: string): boolean => {
 // Request interceptor to add auth token (skip for public routes)
 axiosInstance.interceptors.request.use(
   (config) => {
+    // Preserve one operation key across Axios retries (for example, token
+    // refresh) so a mutation cannot be applied twice after an ambiguous retry.
+    // Explicit workflow keys supplied by a service are never overwritten.
+    if (isMutationMethod(config.method)) {
+      const headers = config.headers as any;
+      if (!headers['Idempotency-Key'] && !headers['idempotency-key']) {
+        headers['Idempotency-Key'] = createIdempotencyKey('web');
+      }
+    }
+
     // Let the browser set multipart/form-data boundaries for FormData uploads.
     if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
       delete (config.headers as any)['Content-Type'];

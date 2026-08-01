@@ -1,4 +1,4 @@
-import axiosInstance from '@/lib/axios';
+import axiosInstance, { createIdempotencyKey } from '@/lib/axios';
 
 export type GuestPaymentMethod = 'cod' | 'sslcommerz' | 'cash';
 
@@ -107,47 +107,31 @@ type ApiResponse<T> = {
 
 class GuestCheckoutService {
   async checkout(payload: GuestCheckoutRequest): Promise<GuestCheckoutResponse> {
-    const basePayload: GuestCheckoutRequest = {
+    // One checkout operation uses one immutable payload and one stable key.
+    // The previous fallback loop changed the payload between attempts, which
+    // could create a second order after an ambiguous timeout.
+    const body: GuestCheckoutRequest = {
       ...payload,
       store_id: null,
       assigned_store_id: null,
+      status: payload.status || 'pending',
+      order_status: payload.order_status || 'pending',
+      assignment_status: payload.assignment_status || 'unassigned',
+      auto_assign_store: false,
+      requires_store_assignment: true,
     };
+    const idempotencyKey = createIdempotencyKey('guest-checkout');
 
-    const payloadVariants: GuestCheckoutRequest[] = [
-      {
-        ...basePayload,
-        status: 'pending',
-        order_status: 'pending',
-        assignment_status: 'unassigned',
-        auto_assign_store: false,
-        requires_store_assignment: true,
-      },
-      {
-        ...basePayload,
-        status: 'pending',
-      },
-      {
-        ...basePayload,
-      },
-    ];
-
-    let lastError: any = null;
-
-    for (const body of payloadVariants) {
-      try {
-        const response = await axiosInstance.post<ApiResponse<any>>('/guest-checkout', body);
-        return response.data as any;
-      } catch (error: any) {
-        lastError = error;
-        console.warn('⚠️ guest-checkout attempt failed, trying fallback payload...', {
-          status: error?.response?.status,
-          message: error?.response?.data?.message || error?.message,
-          errors: error?.response?.data?.errors,
-        });
-      }
+    try {
+      const response = await axiosInstance.post<ApiResponse<any>>(
+        '/guest-checkout',
+        body,
+        { headers: { 'Idempotency-Key': idempotencyKey } },
+      );
+      return response.data as any;
+    } catch (error: any) {
+      throw new Error(error?.response?.data?.message || 'Failed to place guest order');
     }
-
-    throw new Error(lastError?.response?.data?.message || 'Failed to place guest order');
   }
 
   async ordersByPhone(phoneOrPayload: string | { phone: string }): Promise<GuestOrdersByPhoneResponse> {
