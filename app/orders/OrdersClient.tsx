@@ -528,6 +528,12 @@ export default function OrdersDashboard() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
+  // Credential-protected recovery confirmation for fully scanned online orders.
+  const [confirmOrderTarget, setConfirmOrderTarget] = useState<Order | null>(null);
+  const [confirmOrderEmail, setConfirmOrderEmail] = useState('');
+  const [confirmOrderPassword, setConfirmOrderPassword] = useState('');
+  const [isConfirmingOrder, setIsConfirmingOrder] = useState(false);
+
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
 
@@ -690,10 +696,10 @@ export default function OrdersDashboard() {
   // ✅ Single action loading (per-order)
   const [singleActionLoading, setSingleActionLoading] = useState<{
     orderId: number;
-    action: 'print' | 'pathao' | 'revert' | 'deliver' | 'pending-assignment' | 'reopen-confirmed' | 'assign-service-store';
+    action: 'print' | 'pathao' | 'revert' | 'deliver' | 'pending-assignment' | 'reopen-confirmed' | 'confirm-order' | 'assign-service-store';
   } | null>(null);
 
-  const isSingleLoading = (orderId: number, action: 'print' | 'pathao' | 'revert' | 'deliver' | 'pending-assignment' | 'reopen-confirmed' | 'assign-service-store') =>
+  const isSingleLoading = (orderId: number, action: 'print' | 'pathao' | 'revert' | 'deliver' | 'pending-assignment' | 'reopen-confirmed' | 'confirm-order' | 'assign-service-store') =>
     singleActionLoading?.orderId === orderId && singleActionLoading?.action === action;
 
   useEffect(() => {
@@ -1827,70 +1833,26 @@ export default function OrdersDashboard() {
 
   const handleEditOrder = async (order: Order) => {
     setActiveMenu(null);
-
-    if (order.status === 'confirmed') {
-      alert('Confirmed orders are locked. Use "Reopen for Edit" first, then edit and confirm again after barcode scan is complete.');
-      return;
-    }
-
     setIsLoadingDetails(true);
 
     try {
       const fullOrder = await orderService.getById(order.id);
-      
-      const shippingAddress = (fullOrder as any).shipping_address || (fullOrder as any).delivery_address || {};
-      const isIntl = !!(shippingAddress.country && shippingAddress.country.toLowerCase() !== 'bangladesh');
-      const usePathaoAuto = !shippingAddress.city_id && !shippingAddress.zone_id && !shippingAddress.area_id;
+      const transformed = transformOrder(fullOrder);
 
-      const prefillPayload = {
-        editOrderId: fullOrder.id,
-        editOrderNumber: fullOrder.order_number,
-        storeId: String(fullOrder.store?.id || ''),
-        salesmanId: fullOrder.salesman?.id || null,
-        salesBy: fullOrder.salesman?.name || '',
-        userName: fullOrder.customer?.name || '',
-        userPhone: fullOrder.customer?.phone || '',
-        userEmail: fullOrder.customer?.email || '',
-        socialId: (fullOrder.customer as any)?.social_id || '',
-        orderNotes: fullOrder.notes || '',
-        isInternational: isIntl,
-        usePathaoAutoLocation: usePathaoAuto,
-        pathaoCityId: String(shippingAddress.city_id || ''),
-        pathaoZoneId: String(shippingAddress.zone_id || ''),
-        pathaoAreaId: String(shippingAddress.area_id || ''),
-        streetAddress: shippingAddress.address || shippingAddress.street || '',
-        postalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
-        country: shippingAddress.country || '',
-        state: shippingAddress.state || '',
-        internationalCity: shippingAddress.city || '',
-        internationalPostalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
-        deliveryAddress: shippingAddress.address || shippingAddress.street || '',
-        cart: [
-          ...(fullOrder.items || []),
-          ...(fullOrder.services || []).map((s: any) => ({
-            ...s,
-            isService: true,
-            serviceId: s.service_id,
-            serviceCategory: s.category,
-            productName: s.service_name,
-            amount: s.total_price,
-            unit_price: s.unit_price,
-            discount_amount: s.discount_amount,
-            quantity: s.quantity,
-          }))
-        ],
-        paidAmount: parseMoney(fullOrder.paid_amount),
-        totalAmount: parseMoney(fullOrder.total_amount),
-        outstandingAmount: parseMoney(fullOrder.outstanding_amount),
-        discountAmount: parseMoney(fullOrder.discount_amount),
-        shippingAmount: parseMoney(fullOrder.shipping_amount),
-      };
-
-      sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));
-      window.location.href = '/social-commerce';
+      setSelectedOrder(transformed);
+      setEditableOrder(transformed);
+      setPickerStoreId(transformed.storeId ? Number(transformed.storeId) : null);
+      setServicesTouched(false);
+      setItemsTouched(false);
+      setShowProductPicker(false);
+      setShowServicePicker(false);
+      setBarcodeReleaseTarget(null);
+      setScannedBarcodeOptions([]);
+      ensureProductThumbs((fullOrder.items ?? []).map((it: any) => it?.product_id));
+      setShowEditModal(true);
     } catch (error: any) {
       console.error('Failed to load order details:', error);
-      alert('Failed to load order details: ' + error.message);
+      alert('Failed to load order details: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsLoadingDetails(false);
     }
@@ -3175,24 +3137,36 @@ When the courier brings back the original product, open this order/lookup and cl
     }
   };
 
-  const handleReopenConfirmedForEdit = async (orderId: number) => {
-    const confirmed = window.confirm(
-      'Reopen this confirmed order for editing?\n\n' +
-      'This will move it back to Assigned to Store, preserve scanned barcodes/store assignment, and lock confirmation until all product barcodes are scanned again/verified.'
-    );
-    if (!confirmed) return;
-
-    setSingleActionLoading({ orderId, action: 'reopen-confirmed' });
+  const openConfirmOrderModal = (order: Order) => {
     setActiveMenu(null);
+    setConfirmOrderTarget(order);
+    setConfirmOrderEmail(localStorage.getItem('userEmail') || '');
+    setConfirmOrderPassword('');
+  };
 
+  const handleConfirmOrder = async () => {
+    if (!confirmOrderTarget) return;
+    if (!confirmOrderEmail.trim() || !confirmOrderPassword) {
+      alert('Enter the current user email and password.');
+      return;
+    }
+
+    setIsConfirmingOrder(true);
+    setSingleActionLoading({ orderId: confirmOrderTarget.id, action: 'confirm-order' });
     try {
-      await orderManagementService.reopenConfirmedForEdit(orderId);
-      alert('✅ Order reopened for edit. Scanned barcodes were preserved. Edit it, then confirm again from Store Fulfillment.');
+      await orderManagementService.confirmOrder(confirmOrderTarget.id, {
+        email: confirmOrderEmail.trim(),
+        password: confirmOrderPassword,
+      });
+      alert('✅ Order confirmed. All product quantities have scanned barcodes.');
+      setConfirmOrderTarget(null);
+      setConfirmOrderPassword('');
       await loadOrders();
     } catch (error: any) {
-      console.error('Reopen confirmed order error:', error);
-      alert(`Failed to reopen confirmed order: ${error.message || 'Unknown error'}`);
+      console.error('Confirm order error:', error);
+      alert(error?.message || 'Failed to confirm order.');
     } finally {
+      setIsConfirmingOrder(false);
       setSingleActionLoading(null);
     }
   };
@@ -5059,6 +5033,87 @@ When the courier brings back the original product, open this order/lookup and cl
         </div>
       )}
 
+      {/* Credential Confirmation Modal */}
+      {confirmOrderTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[90] p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl max-w-md w-full border border-gray-200 dark:border-gray-800 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+              <div>
+                <h3 className="text-base font-semibold text-black dark:text-white">Confirm Order</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {confirmOrderTarget.orderNumber} will be overwritten to Confirmed only when every product quantity has its own scanned barcode.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isConfirmingOrder) return;
+                  setConfirmOrderTarget(null);
+                  setConfirmOrderPassword('');
+                }}
+                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-300">
+                Use the email and password of the user currently logged in. Any role may confirm after credential verification.
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Current user email</label>
+                <input
+                  type="email"
+                  autoComplete="username"
+                  value={confirmOrderEmail}
+                  onChange={(e) => setConfirmOrderEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-black dark:text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={confirmOrderPassword}
+                  onChange={(e) => setConfirmOrderPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isConfirmingOrder) handleConfirmOrder();
+                  }}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-black dark:text-white text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-800">
+              <button
+                type="button"
+                disabled={isConfirmingOrder}
+                onClick={() => {
+                  setConfirmOrderTarget(null);
+                  setConfirmOrderPassword('');
+                }}
+                className="px-4 py-2 text-sm font-medium border border-gray-300 dark:border-gray-700 rounded-lg text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isConfirmingOrder || !confirmOrderEmail.trim() || !confirmOrderPassword}
+                onClick={handleConfirmOrder}
+                className="px-4 py-2 text-sm font-medium bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg flex items-center gap-2"
+              >
+                {isConfirmingOrder ? <Loader className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                {isConfirmingOrder ? 'Confirming...' : 'Confirm Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Click outside to close menu */}
       {activeMenu !== null && (
         <div
@@ -5091,33 +5146,49 @@ When the courier brings back the original product, open this order/lookup and cl
             const order = filteredOrders.find((o) => o.id === activeMenu);
             if (!order) return null;
 
-            if (order.status === 'confirmed') {
-              return (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReopenConfirmedForEdit(order.id);
-                  }}
-                  disabled={isSingleLoading(order.id, 'reopen-confirmed')}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
-                >
-                  <RotateCcw className="h-5 w-5 flex-shrink-0" />
-                  <span>{isSingleLoading(order.id, 'reopen-confirmed') ? 'Reopening...' : 'Reopen for Edit'}</span>
-                </button>
-              );
-            }
+            const editableStatuses = [
+              'pending',
+              'pending_assignment',
+              'assigned_to_store',
+              'picking',
+              'ready_for_shipment',
+              'confirmed',
+              'service_only',
+            ];
+            const canEdit = editableStatuses.includes(normalize(order.status));
+            const canForceConfirm =
+              ['social_commerce', 'ecommerce'].includes(normalize(order.orderType)) &&
+              ['pending', 'pending_assignment', 'assigned_to_store', 'picking', 'ready_for_shipment'].includes(normalize(order.status));
 
             return (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEditOrder(order);
-                }}
-                className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
-              >
-                <Edit className="h-5 w-5 flex-shrink-0" />
-                <span>Edit Order</span>
-              </button>
+              <>
+                {canEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditOrder(order);
+                    }}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
+                  >
+                    <Edit className="h-5 w-5 flex-shrink-0" />
+                    <span>Edit Order</span>
+                  </button>
+                )}
+
+                {canForceConfirm && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openConfirmOrderModal(order);
+                    }}
+                    disabled={isSingleLoading(order.id, 'confirm-order')}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                  >
+                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                    <span>{isSingleLoading(order.id, 'confirm-order') ? 'Confirming...' : 'Confirm Order'}</span>
+                  </button>
+                )}
+              </>
             );
           })()}
 

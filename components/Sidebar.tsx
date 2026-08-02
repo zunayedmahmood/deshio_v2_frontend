@@ -11,7 +11,6 @@ import {
   Wrench,
   CreditCard,
   ShoppingCart,
-  Image,
   X,
   AlertTriangle,
   Truck,
@@ -24,7 +23,7 @@ import {
   FileText,
   Settings,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { PAGE_ACCESS } from '@/lib/accessMap';
 // ──────────────────────────────
@@ -46,14 +45,41 @@ type MenuItem =
 // Props
 // ──────────────────────────────
 interface SidebarProps {
-  isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
+  onClose?: () => void;
+  darkMode?: boolean;
 }
 
-export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+const SIDEBAR_OPEN_MENU_KEY = 'deshio.admin.sidebar.openMenu';
+const SIDEBAR_SCROLL_TOP_KEY = 'deshio.admin.sidebar.scrollTop';
+
+const hrefPath = (href: string) => href.split('?')[0];
+
+const pathMatches = (pathname: string, href: string) => {
+  const target = hrefPath(href);
+
+  return pathname === target || pathname.startsWith(`${target}/`);
+};
+
+const getBestMatchingHref = (pathname: string, hrefs: string[]) => {
+  return (
+    hrefs
+      .map(hrefPath)
+      .filter((href) => pathMatches(pathname, href))
+      .sort((left, right) => right.length - left.length)[0] ?? null
+  );
+};
+
+export default function Sidebar({
+  isOpen = false,
+  setIsOpen,
+  onClose,
+}: SidebarProps) {
   const pathname = usePathname();
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { isRole, isSuperAdmin, isLoading } = useAuth();
+  const navRef = useRef<HTMLElement | null>(null);
+  const scrollFrameRef = useRef<number | null>(null);
 
   const canAccessHref = (href: string) => {
     return true; // For now, literally always allow access to show all pages
@@ -69,7 +95,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       label: 'Dashboard',
       subMenu: [
         { label: 'Overview', href: '/dashboard' },
-        { label: 'Stores Summary', href: '/dashboard/stores-summary' },
       ],
     },
     {
@@ -85,7 +110,6 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     { icon: ClipboardList, label: 'Bulk Store Assignment', href: '/bulk-store-assignment' },
     { icon: FolderTree, label: 'Category', href: '/category' },
     { icon: Tag, label: 'Collections', href: '/collections' },
-    { icon: Image, label: 'Gallery', href: '/gallery' },
     {
       icon: Package,
       label: 'Product',
@@ -180,6 +204,106 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   ];
 
+  const activeMenuLabel =
+    menuItems.find(
+      (item) =>
+        'subMenu' in item &&
+        item.subMenu.some((sub) => pathMatches(pathname, sub.href)),
+    )?.label ?? null;
+
+  // Start with the active group open so there is no collapsed-menu flash on
+  // direct page loads. The previously opened group is restored below.
+  const [openMenu, setOpenMenu] = useState<string | null>(activeMenuLabel);
+  const initialActiveMenuLabelRef = useRef(activeMenuLabel);
+
+  const closeSidebar = () => {
+    if (setIsOpen) {
+      setIsOpen(false);
+      return;
+    }
+
+    onClose?.();
+  };
+
+  // Each admin page currently mounts its own Sidebar. Preserve UI state in
+  // sessionStorage so route navigation does not reset the menu or jump to top.
+  useLayoutEffect(() => {
+    const storedOpenMenu = window.sessionStorage.getItem(SIDEBAR_OPEN_MENU_KEY);
+    const nextOpenMenu =
+      initialActiveMenuLabelRef.current || storedOpenMenu || null;
+
+    setOpenMenu(nextOpenMenu);
+
+    const storedScrollTop = Number(
+      window.sessionStorage.getItem(SIDEBAR_SCROLL_TOP_KEY) || 0,
+    );
+
+    const frame = window.requestAnimationFrame(() => {
+      if (navRef.current && Number.isFinite(storedScrollTop)) {
+        navRef.current.scrollTop = storedScrollTop;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  // Also support layouts where the Sidebar remains mounted while pathname
+  // changes. The destination's parent group should always remain visible.
+  useEffect(() => {
+    if (activeMenuLabel) {
+      setOpenMenu(activeMenuLabel);
+    }
+  }, [activeMenuLabel]);
+
+  useEffect(() => {
+    if (openMenu) {
+      window.sessionStorage.setItem(SIDEBAR_OPEN_MENU_KEY, openMenu);
+    } else {
+      window.sessionStorage.removeItem(SIDEBAR_OPEN_MENU_KEY);
+    }
+  }, [openMenu]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+
+      if (navRef.current) {
+        window.sessionStorage.setItem(
+          SIDEBAR_SCROLL_TOP_KEY,
+          String(navRef.current.scrollTop),
+        );
+      }
+    };
+  }, []);
+
+  const persistScrollTop = () => {
+    if (navRef.current) {
+      window.sessionStorage.setItem(
+        SIDEBAR_SCROLL_TOP_KEY,
+        String(navRef.current.scrollTop),
+      );
+    }
+  };
+
+  const handleMenuScroll = () => {
+    if (scrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+    }
+
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      if (navRef.current) {
+        window.sessionStorage.setItem(
+          SIDEBAR_SCROLL_TOP_KEY,
+          String(navRef.current.scrollTop),
+        );
+      }
+
+      scrollFrameRef.current = null;
+    });
+  };
+
   // Filter menu items based on permissions
   const filteredMenuItems: MenuItem[] = menuItems
     .map((item) => {
@@ -199,7 +323,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsOpen(false)}
+          onClick={closeSidebar}
         />
       )}
 
@@ -224,7 +348,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
           {/* Close button (mobile only) */}
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={closeSidebar}
             className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
@@ -232,7 +356,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         </div>
 
         {/* Scrollable Menu */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
+        <nav
+          ref={navRef}
+          onScroll={handleMenuScroll}
+          className="flex-1 overflow-y-auto py-4 px-3"
+        >
           <p className="px-3 mb-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             Main Menu
           </p>
@@ -241,12 +369,16 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             {filteredMenuItems.map((item) => {
               const Icon = item.icon;
               const hasSubMenu = 'subMenu' in item;
-
-              const hrefPath = (href: string) => href.split('?')[0];
+              const activeSubMenuHref = hasSubMenu
+                ? getBestMatchingHref(
+                    pathname,
+                    item.subMenu.map((sub) => sub.href),
+                  )
+                : null;
 
               const isActive = hasSubMenu
-                ? item.subMenu.some((sub) => hrefPath(sub.href) === pathname)
-                : 'href' in item && hrefPath(item.href) === pathname;
+                ? activeSubMenuHref !== null
+                : 'href' in item && pathMatches(pathname, item.href);
 
               const isSubMenuOpen = openMenu === item.label;
 
@@ -278,6 +410,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                   ) : (
                     <Link
                       href={(item as { href: string }).href}
+                      onClick={persistScrollTop}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all
                         ${isActive
                           ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
@@ -296,8 +429,16 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                         <li key={sub.href}>
                           <Link
                             href={sub.href}
+                            onClick={() => {
+                              persistScrollTop();
+                              setOpenMenu(item.label);
+                              window.sessionStorage.setItem(
+                                SIDEBAR_OPEN_MENU_KEY,
+                                item.label,
+                              );
+                            }}
                             className={`block px-4 py-2 text-sm rounded-lg transition-all
-                              ${pathname === sub.href
+                              ${activeSubMenuHref === hrefPath(sub.href)
                                 ? 'text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20'
                                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                               }`}

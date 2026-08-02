@@ -326,6 +326,25 @@ class OrderManagementService {
 
 
   /**
+   * Confirm a fully scanned online order from the Orders page after verifying
+   * the current authenticated employee's credentials.
+   */
+  async confirmOrder(orderId: number, credentials: { email: string; password: string }): Promise<any> {
+    try {
+      const response = await axiosInstance.post(`/order-management/orders/${orderId}/confirm-order`, credentials);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Failed to confirm order:', error);
+      const data = error.response?.data;
+      const pendingItems = data?.data?.pending_items;
+      const detail = Array.isArray(pendingItems) && pendingItems.length > 0
+        ? `\n\nMissing barcode coverage:\n${pendingItems.map((item: any) => `• ${item.product_name || `Item ${item.order_item_id}`}: ${item.missing_quantity ?? item.required_quantity ?? 1}`).join('\n')}`
+        : '';
+      throw new Error((data?.message || 'Failed to confirm order') + detail);
+    }
+  }
+
+  /**
    * Reopen a confirmed order for safe edit without clearing scanned barcodes/store.
    */
   async reopenConfirmedForEdit(orderId: number, reason?: string): Promise<any> {

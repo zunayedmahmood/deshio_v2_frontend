@@ -7,7 +7,6 @@ import {
   ShoppingBag,
   Store,
   Globe2,
-  Bell,
   Clock,
   Package,
   Truck,
@@ -450,14 +449,6 @@ export default function FounderDashboard() {
                       <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
                     </button>
 
-                    <button className="relative flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/70">
-                      <Bell className="h-4 w-4 text-slate-700 dark:text-slate-200" />
-                      {Number(lowStock?.summary?.out_of_stock_count ?? 0) > 0 && (
-                        <span className="absolute -top-0.5 -right-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full bg-fuchsia-500 text-[9px] font-semibold text-white">
-                          {lowStock?.summary?.out_of_stock_count ?? 0}
-                        </span>
-                      )}
-                    </button>
                   </div>
                 </header>
 
