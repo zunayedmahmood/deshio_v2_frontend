@@ -19,8 +19,11 @@ import Sidebar from '@/components/Sidebar';
 import orderService from '@/services/orderService';
 import barcodeService from '@/services/barcodeService';
 import productService from '@/services/productService';
+import storeFulfillmentService from '@/services/storeFulfillmentService';
 import Toast from '@/components/Toast';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
+import OpenOrderLockRescueWidget, { readOpenOrderLockError } from '@/components/barcode/OpenOrderLockRescueWidget';
+import MobileCameraBarcodeScanner from '@/components/barcode/MobileCameraBarcodeScanner';
 
 interface ScannedItemTracking {
   required: number;
@@ -125,6 +128,11 @@ export default function WarehouseFulfillmentPage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error' | 'info' | 'warning'>('success');
+  const [openOrderLockHint, setOpenOrderLockHint] = useState<{
+    barcode: string;
+    message?: string;
+    signal: number;
+  } | null>(null);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -330,7 +338,7 @@ export default function WarehouseFulfillmentPage() {
     }
   };
 
-  const fetchOrderDetails = async (orderId: number) => {
+  const fetchOrderDetails = async (orderId: number, preserveHistory = false) => {
     setIsLoadingDetails(true);
     try {
       const order = await orderService.getById(orderId);
@@ -340,14 +348,17 @@ export default function WarehouseFulfillmentPage() {
       // Initialize scanned items tracking
       const initialScanned: Record<number, ScannedItemTracking> = {};
       order.items?.forEach((item: any) => {
+        const quantity = Number(item.quantity || 0);
+        const barcode = item.barcode || item.scanned_barcode?.barcode || item.barcode_number;
+        const hasBarcode = Boolean(barcode);
         initialScanned[item.id] = {
-          required: item.quantity,
-          scanned: [],
-          barcodes: [],
+          required: quantity,
+          scanned: hasBarcode ? Array(quantity).fill(item.product_name || 'Product') : [],
+          barcodes: hasBarcode ? Array(quantity).fill(barcode) : [],
         };
       });
       setScannedItems(initialScanned);
-      setScanHistory([]);
+      if (!preserveHistory) setScanHistory([]);
     } catch (error: any) {
       console.error('Error fetching order details:', error);
       displayToast('Error loading order: ' + error.message, 'error');
@@ -402,10 +413,9 @@ export default function WarehouseFulfillmentPage() {
       return;
     }
 
-    try {
-      console.log('🔍 Scanning barcode:', barcode);
+    if (isProcessing) return;
 
-      // Validate barcode format
+    try {
       if (barcode.length < 5) {
         displayToast('Invalid barcode format', 'error');
         addToScanHistory(barcode, 'error', 'Invalid format');
@@ -413,7 +423,8 @@ export default function WarehouseFulfillmentPage() {
         return;
       }
 
-      // Check if barcode already scanned in this order
+      // Reopened orders are hydrated from backend order-item barcode links, so
+      // this catches both scans made now and scans saved in an earlier session.
       const alreadyScanned = Object.values(scannedItems).some((item) => item.barcodes.includes(barcode));
       if (alreadyScanned) {
         displayToast('⚠️ Barcode already scanned for this order', 'warning');
@@ -422,186 +433,148 @@ export default function WarehouseFulfillmentPage() {
         return;
       }
 
-      // Scan barcode to get product info
-      const scanResult = await barcodeService.scanBarcode(barcode);
+      setIsProcessing(true);
+      console.log('🔍 Validating and saving barcode:', barcode);
+
+      const assignedStoreId =
+        orderDetails.store_id ||
+        orderDetails.assigned_store_id ||
+        orderDetails.store?.id ||
+        orderDetails.fulfillment_store_id ||
+        undefined;
+
+      // Lightweight lookup is retained for product/batch matching and friendly
+      // errors. The accepted scan is then committed immediately through the
+      // fulfillment endpoint instead of being kept only in React memory.
+      const scanResult = await barcodeService.scanBarcode(barcode, assignedStoreId);
 
       if (!scanResult.success || !scanResult.data || !scanResult.data.product) {
-        displayToast('❌ Barcode not found in system', 'error');
-        addToScanHistory(barcode, 'error', 'Barcode not found');
+        const lockDetection = readOpenOrderLockError(scanResult, barcode);
+        if (lockDetection) {
+          setOpenOrderLockHint({
+            barcode: lockDetection.barcode || barcode,
+            message: lockDetection.message || (scanResult as any)?.message,
+            signal: Date.now(),
+          });
+          displayToast('Open order lock detected. Use the floating rescue popup.', 'warning');
+          addToScanHistory(barcode, 'error', lockDetection.message || 'Open order lock detected');
+        } else {
+          displayToast((scanResult as any)?.message || '❌ Barcode not found in system', 'error');
+          addToScanHistory(barcode, 'error', (scanResult as any)?.message || 'Barcode not found');
+        }
         playErrorSound();
         return;
       }
 
       const scannedProduct = scanResult.data.product;
       const scannedBatch = scanResult.data.current_batch;
-      const isAvailable = scanResult.data.is_available;
 
-      console.log('✅ Barcode valid:', {
-        product: scannedProduct.name,
-        batch: scannedBatch?.batch_number,
-        available: isAvailable,
+      if (!scanResult.data.is_available) {
+        const reason =
+          scanResult.data.sale_block_reason ||
+          scanResult.data.unavailable_reason ||
+          (scanResult.data.deleted_batch
+            ? 'This barcode belongs to a deleted batch. It cannot be packed/sold. Use Lookup return/exchange first.'
+            : 'This barcode is not available. It may already be sold, reserved for another order, inactive, defective, or outside sellable stock.');
+        displayToast(`❌ ${reason}`, 'error');
+        addToScanHistory(barcode, 'error', `${scannedProduct.name} - ${reason}`);
+        playErrorSound();
+        return;
+      }
+
+      const getProductId = (item: any) =>
+        Number(item?.product_id ?? item?.productId ?? item?.product?.id ?? 0) || 0;
+      const getBatchId = (item: any) =>
+        Number(item?.batch_id ?? item?.batchId ?? item?.batch?.id ?? 0) || 0;
+
+      const scannedProductId = Number(scannedProduct?.id ?? 0) || 0;
+      const scannedBatchId = Number(scannedBatch?.id ?? 0) || 0;
+
+      const matchingItem = (orderDetails.items || []).find((item: any) => {
+        if (item?.barcode || item?.barcode_id || item?.product_barcode_id) return false;
+        if (getProductId(item) !== scannedProductId) return false;
+
+        const orderItemBatchId = getBatchId(item);
+        if (!orderItemBatchId) return true;
+        return Boolean(scannedBatchId) && orderItemBatchId === scannedBatchId;
       });
 
-      // Check if product is available (not sold/defective)
-      if (!isAvailable) {
-        displayToast('❌ This barcode is not available (already sold or inactive)', 'error');
-        addToScanHistory(barcode, 'error', `${scannedProduct.name} - Not available`);
+      if (!matchingItem) {
+        displayToast(`⚠️ "${scannedProduct.name}" is already complete, not in this order, or has a batch mismatch`, 'warning');
+        addToScanHistory(barcode, 'warning', `${scannedProduct.name} - No pending matching item`);
         playErrorSound();
         return;
       }
 
-      // Find matching order item
-      // Normalize ids (handles product_id vs product.id, string vs number)
-const getProductId = (item: any) =>
-  Number(item?.product_id ?? item?.productId ?? item?.product?.id ?? 0) || 0;
+      const saved = await storeFulfillmentService.scanBarcode(orderDetails.id, {
+        barcode,
+        order_item_id: matchingItem.id,
+      });
 
-const getBatchId = (item: any) =>
-  Number(item?.batch_id ?? item?.batchId ?? item?.batch?.id ?? 0) || 0;
+      // Reloading from the API is intentional: quantity>1 rows are split into
+      // one-barcode units by the backend, and this gives the UI the canonical
+      // persisted state that will still be present after closing/reopening.
+      await fetchOrderDetails(orderDetails.id, true);
 
-const scannedProductId = Number(scannedProduct?.id ?? 0) || 0;
-const scannedBatchId = Number(scannedBatch?.id ?? 0) || 0;
-
-// Find candidates by product first
-const candidates = (orderDetails.items || []).filter((item: any) => {
-  return getProductId(item) === scannedProductId;
-});
-
-if (candidates.length === 0) {
-  displayToast(`❌ "${scannedProduct.name}" not in this order`, 'error');
-  addToScanHistory(barcode, 'error', `${scannedProduct.name} - Not in order`);
-  playErrorSound();
-  return;
-}
-
-// If order item has batch assigned, enforce it. If not assigned, allow any batch.
-const candidateWithBatchRules = candidates.filter((item: any) => {
-  const orderItemBatchId = getBatchId(item);
-
-  // If order item has NO batch, accept any scanned batch
-  if (!orderItemBatchId) return true;
-
-  // If scanned batch missing, reject (order expects a batch)
-  if (!scannedBatchId) return false;
-
-  // Otherwise enforce match
-  return orderItemBatchId === scannedBatchId;
-});
-
-// Choose an item that still needs scanning (important when same product appears multiple times)
-const matchingItem = candidateWithBatchRules.find((item: any) => {
-  const track = scannedItems[item.id];
-  const required = Number(item.quantity || 0);
-  const already = track?.scanned.length || 0;
-  return already < required;
-});
-
-if (!matchingItem) {
-  displayToast(`⚠️ "${scannedProduct.name}" is already fully scanned (or batch mismatch)`, 'warning');
-  addToScanHistory(barcode, 'warning', `${scannedProduct.name} - Already complete / batch mismatch`);
-  playErrorSound();
-  return;
-}
-
-
-      // Check if item already fully scanned
-      const currentScanned = scannedItems[matchingItem.id];
-      if (currentScanned.scanned.length >= currentScanned.required) {
-        displayToast(`⚠️ Item already complete (${currentScanned.required}/${currentScanned.required})`, 'warning');
-        addToScanHistory(barcode, 'warning', `${scannedProduct.name} - Already complete`);
-        playErrorSound();
-        return;
-      }
-
-      // Add barcode to scanned list
-      const newScannedCount = currentScanned.scanned.length + 1;
-      setScannedItems((prev) => ({
-        ...prev,
-        [matchingItem.id]: {
-          ...prev[matchingItem.id],
-          scanned: [...prev[matchingItem.id].scanned, scannedProduct.name],
-          barcodes: [...prev[matchingItem.id].barcodes, barcode],
-        },
-      }));
-
-      displayToast(`✅ ${scannedProduct.name} (${newScannedCount}/${currentScanned.required})`, 'success');
-      addToScanHistory(barcode, 'success', `${scannedProduct.name} - ${newScannedCount}/${currentScanned.required}`);
+      const fulfilled = saved.fulfillment_progress?.fulfilled_items ?? 0;
+      const total = saved.fulfillment_progress?.total_items ?? 0;
+      displayToast(`✅ ${scannedProduct.name} saved (${fulfilled}/${total})`, 'success');
+      addToScanHistory(barcode, 'success', `${scannedProduct.name} - saved to order (${fulfilled}/${total})`);
       playSuccessSound();
 
-      // Auto-focus input for next scan
-      setTimeout(() => {
-        barcodeInputRef.current?.focus();
-      }, 100);
+      setTimeout(() => barcodeInputRef.current?.focus(), 100);
     } catch (error: any) {
       console.error('❌ Scan error:', error);
-      displayToast('Scan error: ' + error.message, 'error');
-      addToScanHistory(barcode, 'error', error.message);
+      const message = error?.response?.data?.message || error?.message || 'Failed to scan barcode';
+      const lockDetection = readOpenOrderLockError(error, barcode);
+      if (lockDetection) {
+        setOpenOrderLockHint({
+          barcode: lockDetection.barcode || barcode,
+          message: lockDetection.message || message,
+          signal: Date.now(),
+        });
+        displayToast('Open order lock detected. Use the floating rescue popup.', 'warning');
+      } else {
+        displayToast('Scan error: ' + message, 'error');
+      }
+      addToScanHistory(barcode, 'error', message);
       playErrorSound();
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const handleFulfillOrder = async () => {
     if (!orderDetails) return;
 
-    // Check if all items are fully scanned
-    const allItemsScanned = orderDetails.items?.every((item: any) => {
-      const scanned = scannedItems[item.id];
-      return scanned && scanned.scanned.length === scanned.required;
-    });
-
+    const allItemsScanned = orderDetails.items?.every((item: any) => Boolean(item?.barcode));
     if (!allItemsScanned) {
-      displayToast('⚠️ Please scan all required items before fulfilling', 'warning');
-
-      // Show which items are missing (debug)
-      const missingItems = orderDetails.items?.filter((item: any) => {
-        const scanned = scannedItems[item.id];
-        return !scanned || scanned.scanned.length < scanned.required;
-      });
-
-      console.log('❌ Missing items:', missingItems);
+      displayToast('⚠️ Please scan all required items before packing and confirming', 'warning');
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      // Prepare fulfillment payload
-      const fulfillments = orderDetails.items.map((item: any) => ({
-        order_item_id: item.id,
-        barcodes: scannedItems[item.id].barcodes,
-      }));
+      // Scans were already committed one-by-one. The backend completes
+      // fulfillment, inventory deduction, and reserved_for_order -> with_customer
+      // in one transaction so a failed second request cannot strand the order.
+      await orderService.complete(orderDetails.id);
 
-      console.log('📦 Fulfilling order:', orderDetails.order_number);
-      console.log('Fulfillments:', fulfillments);
-
-      // Call fulfill API
-      const fulfillResult = await orderService.fulfill(orderDetails.id, { fulfillments });
-
-      console.log('✅ Order fulfilled:', fulfillResult);
-      displayToast('✅ Order fulfilled successfully!', 'success');
-
-      // Immediately remove from the pending list so it doesn't linger in the packing queue UI.
+      displayToast('✅ Order packed and confirmed. Inventory and barcode statuses updated.', 'success');
       setPendingOrders((prev) => prev.filter((o) => o.id !== orderDetails.id));
-
-      // Auto-complete the order right after fulfillment to reduce inventory.
-      try {
-        console.log('🚀 Completing order...');
-        await orderService.complete(orderDetails.id);
-        console.log('✅ Order completed and inventory reduced');
-        displayToast('✅ Order completed! Inventory updated.', 'success');
-      } catch (completeError: any) {
-        console.error('❌ Complete error:', completeError);
-        displayToast('⚠️ Fulfilled but completion failed: ' + completeError.message, 'error');
-      } finally {
-        // Always reset the UI and refresh the pending queue.
-        setSelectedOrderId(null);
-        setOrderDetails(null);
-        setScannedItems({});
-        setScanHistory([]);
-        fetchPendingOrders();
-      }
+      setSelectedOrderId(null);
+      setOrderDetails(null);
+      setScannedItems({});
+      setScanHistory([]);
+      setIsScanning(false);
+      fetchPendingOrders();
     } catch (error: any) {
-      console.error('❌ Fulfill error:', error);
-      displayToast('❌ Fulfillment failed: ' + error.message, 'error');
+      console.error('❌ Pack/confirm error:', error);
+      displayToast('❌ Pack/confirm failed: ' + error.message, 'error');
+      // Refresh canonical state because confirmation may have succeeded before a
+      // later completion error. The order can then be recovered without rescans.
+      await fetchOrderDetails(orderDetails.id, true).catch(() => undefined);
     } finally {
       setIsProcessing(false);
     }
@@ -766,6 +739,15 @@ if (!matchingItem) {
           </div>
         </div>
 
+        <OpenOrderLockRescueWidget
+          contextLabel="Social Order Packing"
+          selectedStoreId={orderDetails?.store_id || orderDetails?.assigned_store_id || orderDetails?.store?.id || orderDetails?.fulfillment_store_id || null}
+          detectedBarcode={openOrderLockHint?.barcode || null}
+          detectedMessage={openOrderLockHint?.message || null}
+          triggerKey={openOrderLockHint?.signal || null}
+          onRevived={(barcode) => displayToast(`Barcode ${barcode} revived. Scan again now.`, 'success')}
+        />
+
         {showToast && <Toast message={toastMessage} type={toastType} onClose={() => setShowToast(false)} />}
 
         <ImageLightboxModal
@@ -846,7 +828,7 @@ if (!matchingItem) {
                 </div>
                 {progress.percentage === 100 && (
                   <p className="text-sm text-green-600 dark:text-green-400 mt-2 font-medium">
-                    ✅ All items scanned! Ready to fulfill order.
+                    ✅ All items scanned and saved! Ready to pack and confirm.
                   </p>
                 )}
               </div>
@@ -995,7 +977,7 @@ if (!matchingItem) {
                     ) : progress.percentage === 100 ? (
                       <>
                         <CheckCircle className="h-5 w-5" />
-                        Complete Fulfillment & Update Inventory
+                        Pack & Confirm Order
                       </>
                     ) : (
                       <>
@@ -1041,6 +1023,16 @@ if (!matchingItem) {
                         </div>
                       )}
                     </div>
+
+                    <MobileCameraBarcodeScanner
+                      enabled={isScanning}
+                      disabled={isProcessing || !orderDetails}
+                      scannerId="social-commerce-packing-camera-scanner"
+                      onScan={(barcode) => handleBarcodeScan(barcode)}
+                      buttonLabel="Scan with Mobile Camera"
+                      activeLabel="Social commerce packing camera active"
+                      helperText="Use this on mobile/tablet for packing scans. Keep manual/scanner input above for USB barcode scanners."
+                    />
                   </div>
 
                   {/* Quick Actions */}
@@ -1056,25 +1048,15 @@ if (!matchingItem) {
                       Clear History
                     </button>
                     <button
-                      onClick={() => {
-                        setScannedItems((prev) => {
-                          const reset: Record<number, ScannedItemTracking> = {};
-                          orderDetails?.items?.forEach((item: any) => {
-                            reset[item.id] = {
-                              required: item.quantity,
-                              scanned: [],
-                              barcodes: [],
-                            };
-                          });
-                          return reset;
-                        });
-                        setScanHistory([]);
-                        displayToast('All scans reset', 'info');
+                      onClick={async () => {
+                        if (!orderDetails?.id) return;
+                        await fetchOrderDetails(orderDetails.id, true);
+                        displayToast('Saved scans reloaded from the server', 'info');
                       }}
-                      disabled={progress.scanned === 0}
+                      disabled={!orderDetails?.id || isProcessing}
                       className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Reset All Scans
+                      Reload Saved Scans
                     </button>
                   </div>
 
@@ -1151,14 +1133,14 @@ if (!matchingItem) {
                         <AlertTriangle className="h-4 w-4 text-yellow-600" />
                         <span className="text-xs font-medium text-yellow-700 dark:text-yellow-400">Warning</span>
                       </div>
-                      <p className="text-xl font-bold text-yellow-700 dark:text-yellow-400">{scanHistory.filter((s) => s.status === 'warning').length}</p>
+                      <p className="text-xl font-bold text-yellow-700 dark:text-green-400">{scanHistory.filter((s) => s.status === 'warning').length}</p>
                     </div>
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                       <div className="flex items-center gap-2 mb-1">
                         <XCircle className="h-4 w-4 text-red-600" />
                         <span className="text-xs font-medium text-red-700 dark:text-red-400">Error</span>
                       </div>
-                      <p className="text-xl font-bold text-red-700 dark:text-red-400">{scanHistory.filter((s) => s.status === 'error').length}</p>
+                      <p className="text-xl font-bold text-red-700 dark:text-green-400">{scanHistory.filter((s) => s.status === 'error').length}</p>
                     </div>
                   </div>
                 </div>
@@ -1167,6 +1149,15 @@ if (!matchingItem) {
           </main>
         </div>
       </div>
+
+      <OpenOrderLockRescueWidget
+        contextLabel="Social Order Packing"
+        selectedStoreId={orderDetails?.store_id || orderDetails?.assigned_store_id || orderDetails?.store?.id || orderDetails?.fulfillment_store_id || null}
+        detectedBarcode={openOrderLockHint?.barcode || null}
+        detectedMessage={openOrderLockHint?.message || null}
+        triggerKey={openOrderLockHint?.signal || null}
+        onRevived={(barcode) => displayToast(`Barcode ${barcode} revived. Scan again now.`, 'success')}
+      />
 
       {/* Toast Notification */}
       {showToast && <Toast message={toastMessage} type={toastType} onClose={() => setShowToast(false)} />}

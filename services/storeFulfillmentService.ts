@@ -41,6 +41,9 @@ export interface OrderItem {
   tax_percentage?: string | number;   // Tax rate
   total_amount: string | number;      // Item subtotal
   product_barcode_id: number | null;
+  barcode_id?: number | null;
+  barcode_number?: string | null;
+  is_scanned?: boolean;
   scan_status: 'scanned' | 'pending';
   available_barcodes_count: number;
   product: {
@@ -55,11 +58,17 @@ export interface OrderItem {
       current_store_id: number;
     }>;
   };
-  barcode?: {
+  barcode?: string | {
     id: number;
     barcode: string;
-    status: string;
-  };
+    status?: string;
+    current_status?: string;
+  } | null;
+  scanned_barcode?: {
+    id: number;
+    barcode: string;
+    current_status?: string;
+  } | null;
 }
 
 export interface OrderDetails {

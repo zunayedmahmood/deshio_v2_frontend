@@ -1,0 +1,11 @@
+Deshio frontend online-order fulfillment patch validation
+Date: 2026-08-04
+
+PASS
+- Changed TS/TSX files passed TypeScript transpile/syntax diagnostics.
+- Packing hydration accepts string and nested barcode response shapes.
+- Pending-row selection excludes product_barcode_id, barcode_id, barcode text/object, barcode_number, scanned_barcode, is_scanned, and scan_status=scanned rows.
+- Immediate scan persistence and atomic completion routes remain unchanged.
+
+NOT EXECUTED
+- A complete Next.js build/browser run was not possible because the supplied frontend archive does not include its package manifest and installed dependencies.

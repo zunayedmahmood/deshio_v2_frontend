@@ -3565,7 +3565,7 @@ When the courier brings back the original product, open this order/lookup and cl
 
   const handleReleaseScannedBarcode = async (barcode: ScannedBarcodeOption) => {
     if (!editableOrder || !barcodeReleaseTarget) return;
-    if (!confirm(`Remove barcode ${barcode.barcode} from this order?`)) return;
+    if (!confirm(`Release barcode ${barcode.barcode}? For an unconfirmed order, the product quantity will remain pending for rescanning.`)) return;
 
     setReleasingBarcodeId(barcode.barcode_id);
     try {
@@ -6534,7 +6534,7 @@ When the courier brings back the original product, open this order/lookup and cl
           <div className="bg-white dark:bg-gray-900 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden border border-gray-200 dark:border-gray-800">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
               <div>
-                <h3 className="text-sm font-semibold text-black dark:text-white">Remove scanned barcode</h3>
+                <h3 className="text-sm font-semibold text-black dark:text-white">Release scanned barcode</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{barcodeReleaseTarget.productName}</p>
               </div>
               <button
@@ -6550,7 +6550,7 @@ When the courier brings back the original product, open this order/lookup and cl
 
             <div className="p-4">
               <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                This order already has physical barcodes scanned. Select the exact barcode to remove so that unit becomes available again and reservation totals stay correct.
+                Select the exact barcode to release. Before confirmation, the product stays in the order as pending and can be scanned again; after confirmation, normal confirmed-order removal rules apply.
               </p>
 
               <div className="border border-gray-200 dark:border-gray-800 rounded-lg max-h-72 overflow-auto divide-y divide-gray-200 dark:divide-gray-800">
@@ -6565,7 +6565,7 @@ When the courier brings back the original product, open this order/lookup and cl
                         <p className="text-sm font-mono font-semibold text-black dark:text-white truncate">{barcode.barcode}</p>
                         <p className="text-[11px] text-gray-500 dark:text-gray-400">
                           {barcode.batch_number ? `Batch: ${barcode.batch_number}` : 'Batch: Unassigned'}
-                          {barcode.is_inventory_deducted ? ' • stock already deducted' : ' • reserved only'}
+                          {barcode.is_inventory_deducted ? ' • completed unit' : ' • product remains pending'}
                         </p>
                       </div>
                       <button
@@ -6574,7 +6574,7 @@ When the courier brings back the original product, open this order/lookup and cl
                         onClick={() => handleReleaseScannedBarcode(barcode)}
                         className="px-3 py-1.5 text-xs rounded bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium"
                       >
-                        {releasingBarcodeId === barcode.barcode_id ? 'Removing...' : 'Remove'}
+                        {releasingBarcodeId === barcode.barcode_id ? 'Releasing...' : 'Release'}
                       </button>
                     </div>
                   ))

@@ -20,6 +20,7 @@ import {
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import storeFulfillmentService, { AssignedOrder, OrderItem } from '@/services/storeFulfillmentService';
+import orderService from '@/services/orderService';
 import Toast from '@/components/Toast';
 import ActivityLogPanel from '@/components/activity/ActivityLogPanel';
 import MobileCameraBarcodeScanner from '@/components/barcode/MobileCameraBarcodeScanner';
@@ -167,20 +168,18 @@ export default function StoreFulfillmentPage() {
     }
   };
 
-  const fetchOrderDetails = async (orderId: number) => {
+  const fetchOrderDetails = async (orderId: number, preserveHistory = false) => {
     setIsLoadingDetails(true);
     try {
       const data = await storeFulfillmentService.getOrderDetails(orderId);
       setOrderDetails(data);
-      setScanHistory([]);
+      if (!preserveHistory) setScanHistory([]);
       
       console.log('✅ Order details loaded:', data);
       
       // Auto-select first pending item
       const firstPendingItem = data.order.items.find(item => item.scan_status === 'pending');
-      if (firstPendingItem) {
-        setSelectedItemId(firstPendingItem.id);
-      }
+      setSelectedItemId(firstPendingItem ? firstPendingItem.id : null);
       
     } catch (error: any) {
       console.error('Error fetching order details:', error);
@@ -259,7 +258,7 @@ export default function StoreFulfillmentPage() {
       console.log('✅ Scan successful:', result);
 
       // Update order details with new data
-      await fetchOrderDetails(orderDetails.order.id);
+      await fetchOrderDetails(orderDetails.order.id, true);
 
       displayToast(
         `✅ ${selectedItem.product_name} scanned successfully!`,
@@ -316,8 +315,8 @@ export default function StoreFulfillmentPage() {
 
     if (typeof window !== 'undefined') {
       const confirmed = window.confirm(
-        `Confirm this order again?\n\n` +
-        `All ${totalCount} product item(s) are scanned. The order will move back to Confirmed stage and editing will lock again.`
+        `Pack and confirm this order?\n\n` +
+        `All ${totalCount} product item(s) are scanned. The order will be confirmed, inventory will be deducted, and scanned barcodes will become sold.`
       );
       if (!confirmed) return;
     }
@@ -325,17 +324,20 @@ export default function StoreFulfillmentPage() {
     setIsProcessing(true);
 
     try {
-      await storeFulfillmentService.confirmScannedOrder(orderDetails.order.id);
+      // One atomic backend request finalizes fulfillment, deducts stock,
+      // and transitions reserved_for_order barcodes to with_customer.
+      await orderService.complete(orderDetails.order.id);
 
-      displayToast('✅ Order confirmed again. Editing is now locked.', 'success');
+      displayToast('✅ Order packed and confirmed. Inventory and barcode statuses updated.', 'success');
 
       setTimeout(() => {
         setSelectedOrderId(null);
         setOrderDetails(null);
         setScanHistory([]);
         setSelectedItemId(null);
+        setIsScanning(false);
         fetchAssignedOrders();
-      }, 1500);
+      }, 700);
     } catch (error: any) {
       console.error('❌ Confirm scanned order error:', error);
       displayToast(error.message || 'Failed to confirm scanned order', 'error');
@@ -694,7 +696,7 @@ export default function StoreFulfillmentPage() {
                   </div>
                   {progress.is_complete && (
                     <p className="text-sm text-green-600 dark:text-green-400 mt-2 font-medium">
-                      ✅ All items scanned! Ready to confirm order again.
+                      ✅ All items scanned and saved! Ready to pack and confirm.
                     </p>
                   )}
                 </div>
@@ -785,12 +787,12 @@ export default function StoreFulfillmentPage() {
                     ) : progress?.can_ship ? (
                       <>
                         <CheckCircle className="h-5 w-5" />
-                        Confirm Scanned Order
+                        Pack & Confirm Order
                       </>
                     ) : (
                       <>
                         <AlertTriangle className="h-5 w-5" />
-                        Scan all items to confirm ({progress?.pending_items} pending)
+                        Scan all items to pack ({progress?.pending_items} pending)
                       </>
                     )}
                   </button>

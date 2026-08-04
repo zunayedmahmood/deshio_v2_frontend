@@ -918,6 +918,7 @@ export default function LookupPage() {
     const map: Record<string, string> = {
       sold: 'Sold',
       with_customer: 'Sold - With Customer',
+      reserved_for_order: 'Reserved for Open Order',
       in_warehouse: 'In Warehouse',
       inwarehouse: 'In Warehouse',
       warehouse: 'In Warehouse',
