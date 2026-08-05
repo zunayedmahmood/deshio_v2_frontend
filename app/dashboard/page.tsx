@@ -1,1046 +1,804 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  ArrowUpRight,
+  AlertTriangle,
   ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  Banknote,
+  Boxes,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock3,
+  Download,
+  HandCoins,
+  Landmark,
+  PackageSearch,
+  Percent,
+  Printer,
+  RefreshCw,
+  RotateCcw,
   ShoppingBag,
   Store,
-  Globe2,
-  Clock,
-  Package,
-  Truck,
-  CheckCircle2,
-  RotateCcw,
-  RefreshCw,
-  AlertTriangle,
+  TrendingUp,
+  WalletCards,
 } from "lucide-react";
-import axios from "axios";
 import Header from "@/components/Header";
 import Sidebar from "@/components/Sidebar";
 import { useTheme } from "@/contexts/ThemeContext";
-import { useAuth } from "@/contexts/AuthContext";
+import dashboardService, {
+  DashboardAgingBucket,
+  DashboardKpi,
+  DashboardOverviewPeriod,
+  DashboardOverviewResponse,
+} from "@/services/dashboardService";
 
-// ✅ Axios instance (same as you had, but safer extract below)
-const axiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: {
-    "Content-Type": "application/json",
-    Accept: "application/json",
+type Overview = DashboardOverviewResponse["data"];
+type IconType = React.ComponentType<{ className?: string }>;
+
+type DashboardFilters = {
+  period: DashboardOverviewPeriod;
+  dateFrom: string;
+  dateTo: string;
+  storeId: string;
+};
+
+const formatBDT = (value: number) =>
+  new Intl.NumberFormat("en-BD", {
+    style: "currency",
+    currency: "BDT",
+    maximumFractionDigits: 2,
+  }).format(Number(value || 0));
+
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 }).format(Number(value || 0));
+
+const formatValue = (kpi?: DashboardKpi) => {
+  if (!kpi) return "—";
+  if (kpi.format === "currency") return formatBDT(kpi.value);
+  if (kpi.format === "percentage") return `${formatNumber(kpi.value)}%`;
+  return formatNumber(kpi.value);
+};
+
+const todayString = () => new Date().toISOString().slice(0, 10);
+
+const KPI_LINKS: Record<string, string> = {
+  sales: "/orders",
+  collection: "/transaction",
+  purchase_value: "/purchase-order",
+  return_value: "/returns",
+  gross_profit: "/inventory/reports",
+  gross_margin: "/inventory/reports",
+  net_profit: "/inventory/reports",
+  net_margin: "/inventory/reports",
+  expenses: "/accounting",
+  orders: "/orders",
+  customer_due: "/orders",
+  supplier_due: "/purchase-order",
+  cash_balance: "/accounting",
+  bank_balance: "/accounting",
+  mobile_wallet_balance: "/accounting",
+  stock_value: "/inventory/reports",
+  fixed_asset_value: "/accounting",
+  investment_balance: "/accounting",
+  loan_balance: "/accounting",
+  tax_liability: "/accounting",
+  low_stock_count: "/inventory/reports",
+  pending_orders: "/orders",
+};
+
+const KPI_ICONS: Record<string, IconType> = {
+  sales: ShoppingBag,
+  collection: HandCoins,
+  purchase_value: Boxes,
+  return_value: RotateCcw,
+  gross_profit: TrendingUp,
+  gross_margin: Percent,
+  net_profit: CircleDollarSign,
+  net_margin: Percent,
+  expenses: WalletCards,
+  orders: ShoppingBag,
+  customer_due: Clock3,
+  supplier_due: HandCoins,
+  cash_balance: Banknote,
+  bank_balance: Landmark,
+  mobile_wallet_balance: WalletCards,
+  stock_value: Boxes,
+  fixed_asset_value: Building2,
+  investment_balance: CircleDollarSign,
+  loan_balance: Landmark,
+  tax_liability: CircleDollarSign,
+  low_stock_count: AlertTriangle,
+  pending_orders: Clock3,
+};
+
+const KPI_GROUPS = [
+  {
+    title: "Sales & cash flow",
+    description: "Sales, collections, purchases, and returns for the selected period.",
+    keys: ["sales", "collection", "purchase_value", "return_value"],
   },
-});
-
-axiosInstance.interceptors.request.use(
-  (config) => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("authToken");
-      if (token) config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+  {
+    title: "Profitability",
+    description: "Gross and net performance after COGS, expenses, and returns.",
+    keys: ["gross_profit", "gross_margin", "net_profit", "net_margin", "expenses"],
   },
-  (error) => Promise.reject(error)
-);
+  {
+    title: "Liquidity, receivables & payables",
+    description: "Live balances as of the selected end date.",
+    keys: ["customer_due", "supplier_due", "cash_balance", "bank_balance", "mobile_wallet_balance"],
+  },
+  {
+    title: "Inventory, assets & operations",
+    description: "Current stock position, capital balances, and open workload.",
+    keys: [
+      "stock_value",
+      "fixed_asset_value",
+      "investment_balance",
+      "loan_balance",
+      "tax_liability",
+      "low_stock_count",
+      "pending_orders",
+      "orders",
+    ],
+  },
+];
 
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      if (typeof window !== "undefined") {
-        localStorage.clear();
-        window.location.href = "/login";
-      }
-    }
-    return Promise.reject(error);
-  }
-);
-
-type AnyObj = Record<string, any>;
-
-interface DashboardData {
-  todayMetrics: AnyObj | null;
-  last30Days: AnyObj | null;
-  salesByChannel: AnyObj | null;
-  topStores: AnyObj | null;
-  topProducts: AnyObj | null;
-  slowMoving: AnyObj | null;
-  lowStock: AnyObj | null;
-  inventoryAge: AnyObj | null;
-  operations: AnyObj | null;
-}
-
-export default function FounderDashboard() {
+export default function DashboardPage() {
+  const router = useRouter();
   const { darkMode, setDarkMode } = useTheme();
-  const { role, isLoading: authLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [overview, setOverview] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
 
-  const [data, setData] = useState<DashboardData>({
-    todayMetrics: null,
-    last30Days: null,
-    salesByChannel: null,
-    topStores: null,
-    topProducts: null,
-    slowMoving: null,
-    lowStock: null,
-    inventoryAge: null,
-    operations: null,
-  });
-
-  const [timeFilter, setTimeFilter] = useState<"today" | "week" | "month">("today");
-  const [branchFilter, setBranchFilter] = useState("all"); // reserved for store_id filter later
+  const initialFilters = useMemo<DashboardFilters>(
+    () => ({ period: "today", dateFrom: todayString(), dateTo: todayString(), storeId: "all" }),
+    []
+  );
+  const [draftFilters, setDraftFilters] = useState<DashboardFilters>(initialFilters);
+  const [appliedFilters, setAppliedFilters] = useState<DashboardFilters>(initialFilters);
 
 
-  // ✅ Normalizer: supports both shapes
-  // A) { success:true, data:{...} }
-  // B) { success:true, top_stores:[...], ... }  (flat)
-  const extractPayload = (raw: any) => {
-    const payload = raw?.data; // axios response => raw.data is server payload
-    if (!payload) return null;
-    if (payload?.success === false) return null;
-    return payload?.data ?? payload;
-  };
+  const loadOverview = useCallback(
+    async (filters: DashboardFilters, refresh = false) => {
+      try {
+        refresh ? setRefreshing(true) : setLoading(true);
+        setError(null);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+        const response = await dashboardService.getOverview({
+          period: filters.period,
+          ...(filters.period === "custom"
+            ? { date_from: filters.dateFrom, date_to: filters.dateTo }
+            : {}),
+          ...(filters.storeId !== "all" ? { store_id: Number(filters.storeId) } : {}),
+        });
 
-      const fetchEndpoint = async (endpoint: string, params?: any) => {
-        try {
-          const res = await axiosInstance.get(endpoint, { params });
-          const extracted = extractPayload(res);
-          if (!extracted) {
-            console.warn(`Empty/invalid payload for ${endpoint}`, res.data);
-            return null;
-          }
-          return extracted;
-        } catch (err: any) {
-          console.error(
-            `Error fetching ${endpoint}:`,
-            err?.response?.data || err?.message || err
-          );
-          return null;
+        if (!response.success || !response.data) {
+          throw new Error("Dashboard response was empty.");
         }
-      };
 
-      // optional store filter
-      const storeParams = branchFilter !== "all" ? { store_id: branchFilter } : {};
-
-      const [
-        todayMetrics,
-        last30Days,
-        salesByChannel,
-        topStores,
-        topProducts,
-        slowMoving,
-        lowStock,
-        inventoryAge,
-        operations,
-      ] = await Promise.all([
-        fetchEndpoint("/dashboard/today-metrics", storeParams),
-        fetchEndpoint("/dashboard/last-30-days-sales", storeParams),
-        fetchEndpoint("/dashboard/sales-by-channel", { ...storeParams, period: timeFilter }),
-        fetchEndpoint("/dashboard/top-stores", { ...storeParams, period: timeFilter, limit: 10 }),
-        fetchEndpoint("/dashboard/today-top-products", { ...storeParams, limit: 5 }),
-        fetchEndpoint("/dashboard/slow-moving-products", { ...storeParams, limit: 10, days: 90 }),
-        fetchEndpoint("/dashboard/low-stock-products", { ...storeParams, threshold: 10 }),
-        fetchEndpoint("/dashboard/inventory-age-by-value", storeParams),
-        fetchEndpoint("/dashboard/operations-today", storeParams),
-      ]);
-
-      setData({
-        todayMetrics,
-        last30Days,
-        salesByChannel,
-        topStores,
-        topProducts,
-        slowMoving,
-        lowStock,
-        inventoryAge,
-        operations,
-      });
-
-      // If the most important blocks fail, show top error banner
-      if (!todayMetrics && !last30Days && !salesByChannel) {
-        setError("Failed to load critical dashboard data. Please check your connection.");
+        setOverview(response.data);
+      } catch (caught: any) {
+        setError(
+          caught?.response?.data?.message ||
+            caught?.message ||
+            "Failed to load the Deshio dashboard."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (err: any) {
-      console.error("Error fetching dashboard data:", err);
-      setError(err?.response?.data?.message || "Failed to load dashboard data");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    []
+  );
 
   useEffect(() => {
-    fetchDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeFilter, branchFilter]);
+    void loadOverview(appliedFilters);
+  }, [appliedFilters, loadOverview]);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchDashboardData();
-  };
-
-  const formatCurrency = (amount: number) => {
-    if (amount === null || amount === undefined || Number.isNaN(amount)) return "৳ 0";
-    return `৳ ${Number(amount).toLocaleString("en-BD")}`;
-  };
-
-  const formatPercentage = (value: number) => {
-    if (value === null || value === undefined || Number.isNaN(value)) return "0%";
-    return `${Number(value).toFixed(1)}%`;
-  };
-
-  // ---------------------------
-  // ✅ Normalize sections safely
-  // ---------------------------
-  const metrics = data.todayMetrics ?? null;
-
-  // last30Days is usually { total_sales, total_orders, daily_sales:[...] }
-  const sales30Days = data.last30Days ?? null;
-
-  // channels: usually { total_orders, channels:[{channel_label,total_sales,percentage}] }
-  const channels = data.salesByChannel ?? null;
-
-  // topStores: might be { top_stores:[...], total_sales_all_stores, period }
-  const topStores = data.topStores ?? null;
-
-  // topProducts: might be { top_products:[...] }
-  const topProducts = data.topProducts ?? null;
-
-  // slowMoving: might be { slow_moving_products:[...] }
-  const slowMoving = data.slowMoving ?? null;
-
-  // lowStock: might be { summary:{...}, out_of_stock:[...], low_stock:[...] }
-  const lowStock = data.lowStock ?? null;
-
-  // inventoryAge: { age_categories:[{label, inventory_value, percentage_of_total}] }
-  const inventoryAge = data.inventoryAge ?? null;
-
-  // operations: often { operations_status:{ pending:{label,count}, ... }, summary:{...} }
-  const operations = data.operations ?? null;
-
-  // derive a stable list of pipeline stages from operations object
-  const pipelineStages = useMemo(() => {
-    const ops = operations?.operations_status || operations?.status_breakdown || operations?.pipeline || null;
-    if (!ops) return [];
-
-    // common keys order
-    const keys = ["pending", "processing", "ready_for_pickup", "shipped", "delivered", "cancelled"];
-    const list: Array<{ key: string; label: string; count: number }> = [];
-
-    keys.forEach((k) => {
-      if (ops[k]) {
-        list.push({
-          key: k,
-          label: ops[k]?.label || k.replace(/_/g, " "),
-          count: Number(ops[k]?.count ?? 0),
-        });
+  const applyFilters = () => {
+    setFilterError(null);
+    if (draftFilters.period === "custom") {
+      if (!draftFilters.dateFrom || !draftFilters.dateTo) {
+        setFilterError("Select both custom dates.");
+        return;
       }
-    });
-
-    // if backend uses different keys, fallback to all entries
-    if (!list.length) {
-      Object.entries(ops).forEach(([k, v]: any) => {
-        list.push({
-          key: k,
-          label: v?.label || k.replace(/_/g, " "),
-          count: Number(v?.count ?? 0),
-        });
-      });
+      if (draftFilters.dateFrom > draftFilters.dateTo) {
+        setFilterError("The start date cannot be after the end date.");
+        return;
+      }
+      const start = new Date(`${draftFilters.dateFrom}T00:00:00`);
+      const end = new Date(`${draftFilters.dateTo}T00:00:00`);
+      const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+      if (days > 367) {
+        setFilterError("Choose a range of 367 days or less.");
+        return;
+      }
     }
+    setAppliedFilters({ ...draftFilters });
+  };
 
-    return list;
-  }, [operations]);
+  const choosePeriod = (period: DashboardOverviewPeriod) => {
+    const next = { ...draftFilters, period };
+    setDraftFilters(next);
+    setFilterError(null);
+    if (period !== "custom") setAppliedFilters(next);
+  };
 
-  // Access Check
-  const canAccess = role === 'super-admin' || role === 'admin';
+  const chooseStore = (storeId: string) => {
+    const next = { ...draftFilters, storeId };
+    setDraftFilters(next);
+    setAppliedFilters(next);
+  };
 
-  // Loading state
-  if ((loading || authLoading) && !data.todayMetrics) {
+  const resetFilters = () => {
+    const next = { ...initialFilters, storeId: "all" };
+    setDraftFilters(next);
+    setAppliedFilters(next);
+    setFilterError(null);
+  };
+
+  const refresh = () => void loadOverview(appliedFilters, true);
+
+  const routeTo = (key: string) => {
+    const route = KPI_LINKS[key];
+    if (!route || !overview) return;
+    const params = new URLSearchParams({
+      date_from: overview.period.start_date,
+      date_to: overview.period.end_date,
+    });
+    if (overview.scope.store_id) params.set("store_id", String(overview.scope.store_id));
+    router.push(`${route}?${params.toString()}`);
+  };
+
+  const exportExcel = () => {
+    if (!overview) return;
+    const rows: Array<Array<string | number>> = [
+      ["Deshio ERP Dashboard"],
+      ["Period", `${overview.period.start_date} to ${overview.period.end_date}`],
+      ["Branch", overview.scope.label],
+      ["Last updated", overview.last_updated_at],
+      [],
+      ["KPI", "Value", "Previous Value", "Change %", "Type"],
+      ...Object.values(overview.kpis).map((kpi) => [
+        kpi.label,
+        kpi.value,
+        kpi.previous_value ?? "",
+        kpi.change_percentage ?? "",
+        kpi.is_snapshot ? "Snapshot" : "Period",
+      ]),
+      [],
+      ["Channel", "Sales", "Orders", "Share %"],
+      ...overview.channel_mix.map((row) => [row.label, row.sales, row.orders, row.percentage]),
+      [],
+      ["Top product", "SKU", "Quantity sold", "Sales"],
+      ...overview.top_products.map((row) => [row.name, row.sku, row.quantity_sold, row.sales]),
+    ];
+
+    const html = `
+      <html><head><meta charset="utf-8"></head><body>
+      <table border="1">${rows
+        .map(
+          (row) =>
+            `<tr>${row
+              .map((cell) => `<td>${String(cell).replace(/&/g, "&amp;").replace(/</g, "&lt;")}</td>`)
+              .join("")}</tr>`
+        )
+        .join("")}</table></body></html>`;
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `deshio-dashboard-${overview.period.start_date}-${overview.period.end_date}.xls`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading && !overview) {
     return (
-      <div className={darkMode ? "dark" : ""}>
-        <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-          <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            />
-            <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
-              <div className="text-center">
-                <RefreshCw className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-                <p className="text-xl mb-2 text-gray-900 dark:text-white">Loading Dashboard...</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Connecting to backend...</p>
-              </div>
-            </main>
+      <DashboardShell darkMode={darkMode} setDarkMode={setDarkMode} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <div className="text-center">
+            <RefreshCw className="mx-auto h-10 w-10 animate-spin text-indigo-600" />
+            <p className="mt-4 text-lg font-semibold text-slate-900 dark:text-white">Loading Deshio dashboard</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Calculating current ERP metrics…</p>
           </div>
         </div>
-      </div>
+      </DashboardShell>
     );
   }
 
-  // Restriction UI
-  if (!canAccess && !authLoading) {
-    return (
-      <div className={darkMode ? "dark" : ""}>
-        <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-          <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            />
-            <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
-              <div className="text-center max-w-md p-8 rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 shadow-xl backdrop-blur">
-                <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-                <p className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Access Restricted</p>
-                <p className="text-gray-600 dark:text-gray-400">
-                  You do not have access to this page. Please go to a page you have access to.
-                </p>
+  return (
+    <DashboardShell darkMode={darkMode} setDarkMode={setDarkMode} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}>
+      <div className="mx-auto w-full max-w-[1700px] space-y-6 print:max-w-none">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950 print:border-0 print:shadow-none">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600 dark:text-indigo-400">
+                <Store className="h-4 w-4" /> Deshio ERP
               </div>
-            </main>
-          </div>
-        </div>
-      </div>
-    );
-  }
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Business dashboard</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+                Sales, profitability, dues, liquidity, inventory, and operations using one consistent date and store scope.
+              </p>
+              {overview && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-slate-900">{overview.period.label}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 dark:bg-slate-900">{overview.scope.label}</span>
+                  <span>Updated {new Date(overview.last_updated_at).toLocaleString("en-BD")}</span>
+                </div>
+              )}
+            </div>
 
-  // Error state (only if no data at all)
-  if (error && !data.todayMetrics && !data.last30Days) {
-    return (
-      <div className={darkMode ? "dark" : ""}>
-        <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-          <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-            />
-            <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
-              <div className="text-center max-w-md">
-                <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
-                <p className="text-xl mb-4 text-gray-900 dark:text-white">Error Loading Dashboard</p>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-                <button
-                  onClick={fetchDashboardData}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                >
-                  Try Again
-                </button>
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <button onClick={refresh} disabled={refreshing} className="dashboard-secondary-button">
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+              </button>
+              <button onClick={exportExcel} disabled={!overview} className="dashboard-secondary-button">
+                <Download className="h-4 w-4" /> Export Excel
+              </button>
+              <button onClick={() => window.print()} className="dashboard-secondary-button">
+                <Printer className="h-4 w-4" /> Print / PDF
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900/70 lg:grid-cols-[1.4fr_1fr_auto] print:hidden">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Date range</label>
+              <div className="flex flex-wrap gap-2">
+                {(["today", "week", "month", "custom"] as DashboardOverviewPeriod[]).map((period) => (
+                  <button
+                    key={period}
+                    onClick={() => choosePeriod(period)}
+                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                      draftFilters.period === period
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "border border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"
+                    }`}
+                  >
+                    {period === "today" ? "Today" : period === "week" ? "This week" : period === "month" ? "This month" : "Custom"}
+                  </button>
+                ))}
               </div>
-            </main>
+              {draftFilters.period === "custom" && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={draftFilters.dateFrom}
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+                    className="dashboard-input"
+                  />
+                  <span className="text-slate-400">to</span>
+                  <input
+                    type="date"
+                    value={draftFilters.dateTo}
+                    onChange={(event) => setDraftFilters((current) => ({ ...current, dateTo: event.target.value }))}
+                    className="dashboard-input"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Store scope</label>
+              <select
+                value={draftFilters.storeId}
+                onChange={(event) => chooseStore(event.target.value)}
+                className="dashboard-input w-full"
+              >
+                <option value="all">All Stores</option>
+                {(overview?.stores || []).map((store) => (
+                  <option key={store.id} value={store.id}>
+                    {store.name}{store.store_code ? ` (${store.store_code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <button onClick={resetFilters} className="dashboard-secondary-button h-[42px]">Reset</button>
+              <button onClick={applyFilters} className="flex h-[42px] items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700">
+                <CalendarDays className="h-4 w-4" /> Apply
+              </button>
+            </div>
           </div>
-        </div>
+
+          {filterError && <p className="mt-3 text-sm font-medium text-rose-600">{filterError}</p>}
+          {error && (
+            <div className="mt-4 flex items-start justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+              <span>{error}</span>
+              <button onClick={refresh} className="font-semibold underline">Retry</button>
+            </div>
+          )}
+        </section>
+
+        {overview && (
+          <>
+            {KPI_GROUPS.map((group) => (
+              <KpiSection key={group.title} title={group.title} description={group.description}>
+                {group.keys.map((key) => (
+                  <KpiCard key={key} itemKey={key} kpi={overview.kpis[key]} onOpen={() => routeTo(key)} />
+                ))}
+              </KpiSection>
+            ))}
+
+            <section className="grid gap-6 xl:grid-cols-[1.65fr_1fr]">
+              <Panel title="Sales and purchase trend" subtitle={`${overview.period.start_date} to ${overview.period.end_date}`}>
+                <SalesTrendChart rows={overview.sales_trend} />
+              </Panel>
+              <Panel title="Sales by channel" subtitle="Share of sales in the selected period">
+                <ChannelMix rows={overview.channel_mix} />
+              </Panel>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-2">
+              <AgingPanel title="Customer due aging" rows={overview.customer_due_aging} total={overview.kpis.customer_due?.value || 0} />
+              <AgingPanel title="Supplier due aging" rows={overview.supplier_due_aging} total={overview.kpis.supplier_due?.value || 0} />
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <Panel title="Inventory age by value" subtitle="Older stock is highlighted for closer review">
+                <InventoryAge rows={overview.inventory_age} />
+              </Panel>
+              <Panel title="Order operations" subtitle="Status distribution in the selected period">
+                <Operations rows={overview.operations} />
+              </Panel>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+              <Panel title="Top products" subtitle="Highest sales value in the selected period">
+                <TopProducts rows={overview.top_products} />
+              </Panel>
+              <Panel
+                title="Stock alerts"
+                subtitle={`${formatNumber(overview.kpis.low_stock_count?.value || 0)} item(s) at or below reorder level`}
+              >
+                <StockAlerts rows={overview.stock_alerts} onOpen={() => router.push("/inventory/reports")} />
+              </Panel>
+            </section>
+          </>
+        )}
       </div>
-    );
-  }
 
-  // KPI derived fields
-  const todaySales = Number(metrics?.total_sales ?? 0);
-  const todayOrders = Number(metrics?.order_count ?? 0);
-  const aov = Number(metrics?.average_order_value ?? 0);
+      <style jsx global>{`
+        .dashboard-secondary-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          border-radius: 0.75rem;
+          border: 1px solid rgb(226 232 240);
+          background: white;
+          padding: 0.625rem 0.875rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: rgb(51 65 85);
+          transition: 150ms ease;
+        }
+        .dashboard-secondary-button:hover { border-color: rgb(165 180 252); color: rgb(79 70 229); }
+        .dark .dashboard-secondary-button { border-color: rgb(51 65 85); background: rgb(2 6 23); color: rgb(226 232 240); }
+        .dashboard-input {
+          border-radius: 0.75rem;
+          border: 1px solid rgb(203 213 225);
+          background: white;
+          padding: 0.625rem 0.75rem;
+          font-size: 0.875rem;
+          color: rgb(15 23 42);
+          outline: none;
+        }
+        .dashboard-input:focus { border-color: rgb(99 102 241); box-shadow: 0 0 0 3px rgb(99 102 241 / 0.12); }
+        .dark .dashboard-input { border-color: rgb(51 65 85); background: rgb(2 6 23); color: white; }
+        @media print {
+          body { background: white !important; }
+          aside, header, button, select, input { display: none !important; }
+          main { overflow: visible !important; padding: 0 !important; }
+        }
+      `}</style>
+    </DashboardShell>
+  );
+}
 
-  const grossMarginPct = Number(metrics?.gross_margin_percentage ?? 0);
-  const grossMargin = Number(metrics?.gross_margin ?? 0);
-
-  const netProfit = Number(metrics?.net_profit ?? 0);
-  const netProfitPct = Number(metrics?.net_profit_percentage ?? 0);
-
-  // MTD best-effort: prefer backend mtd_sales if exists, else last30Days total (fallback)
-  const mtdSales = Number(metrics?.mtd_sales ?? sales30Days?.month_to_date_sales ?? sales30Days?.total_sales ?? 0);
-  const mtdTarget = metrics?.mtd_target ? Number(metrics.mtd_target) : null;
-  const mtdProgressPct = mtdTarget ? (mtdSales / Math.max(mtdTarget, 1)) * 100 : null;
-
+function DashboardShell({
+  darkMode,
+  setDarkMode,
+  sidebarOpen,
+  setSidebarOpen,
+  children,
+}: {
+  darkMode: boolean;
+  setDarkMode: (value: boolean) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  children: React.ReactNode;
+}) {
   return (
     <div className={darkMode ? "dark" : ""}>
-      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex h-screen bg-slate-50 dark:bg-slate-900 print:h-auto print:bg-white">
         <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-          />
-
-          <main className="flex-1 overflow-auto">
-            <div className="min-h-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900">
-              {/* Background glow - only visible in dark mode */}
-              <div className="pointer-events-none fixed inset-0 -z-10 dark:block hidden">
-                <div className="absolute -top-32 right-10 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-3xl" />
-                <div className="absolute -bottom-32 left-10 h-72 w-72 rounded-full bg-sky-500/20 blur-3xl" />
-              </div>
-
-              <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-6 py-6">
-                {/* Warning banner for partial data */}
-                {error && (data.todayMetrics || data.last30Days) && (
-                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-center gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-400" />
-                    <div className="flex-1">
-                      <div className="font-semibold text-amber-400">Partial Data Load</div>
-                      <div className="text-sm text-slate-700 dark:text-slate-300">
-                        Some sections failed to load. Check console for details.
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleRefresh}
-                      disabled={refreshing}
-                      className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg transition text-sm disabled:opacity-50"
-                    >
-                      {refreshing ? "Refreshing..." : "Retry"}
-                    </button>
-                  </div>
-                )}
-
-                {/* HEADER */}
-                <header className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <h1 className="text-xl font-semibold tracking-tight">Founder Dashboard</h1>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Live snapshot of sales, inventory, and operations across all channels.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    {/* Filters */}
-                    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900/60 px-3 py-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 dark:text-slate-400">Time</span>
-                        <button
-                          onClick={() => setTimeFilter("today")}
-                          className={`rounded-full px-3 py-1 text-xs transition ${timeFilter === "today"
-                              ? "bg-slate-100 dark:bg-slate-800 font-medium text-slate-900 dark:text-slate-100 shadow-inner"
-                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            }`}
-                        >
-                          Today
-                        </button>
-                        <button
-                          onClick={() => setTimeFilter("month")}
-                          className={`rounded-full px-3 py-1 text-xs transition ${timeFilter === "month"
-                              ? "bg-slate-100 dark:bg-slate-800 font-medium text-slate-900 dark:text-slate-100 shadow-inner"
-                              : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                            }`}
-                        >
-                          This Month
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300 md:flex">
-                      <Clock className="h-4 w-4 text-slate-400" />
-                      <span>Live • Updated just now</span>
-                    </div>
-
-                    <button
-                      onClick={handleRefresh}
-                      disabled={refreshing}
-                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition disabled:opacity-50"
-                    >
-                      <RefreshCw className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
-                    </button>
-
-                  </div>
-                </header>
-
-                {/* ✅ KPI ROW (cash snapshot removed) */}
-                {metrics && (
-                  <section className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-                    <KpiCard
-                      label="Today's Sales"
-                      value={formatCurrency(todaySales)}
-                      delta={`${todayOrders} orders • AOV: ${formatCurrency(aov)}`}
-                      positive
-                    />
-
-                    <KpiCard
-                      label="MTD Sales"
-                      value={formatCurrency(mtdSales)}
-                      delta={
-                        mtdTarget
-                          ? `${formatPercentage(mtdProgressPct || 0)} of target • Target: ${formatCurrency(mtdTarget)}`
-                          : "Target not set"
-                      }
-                      positive
-                    />
-
-                    <KpiCard
-                      label="Gross Margin (MTD)"
-                      value={formatPercentage(grossMarginPct)}
-                      delta={`GM: ${formatCurrency(grossMargin)}`}
-                      positive={grossMarginPct >= 35}
-                    />
-
-                    <KpiCard
-                      label="Est. Net Profit (MTD)"
-                      value={formatCurrency(netProfit)}
-                      delta={`Net margin: ${formatPercentage(netProfitPct)}`}
-                      positive={netProfit >= 0}
-                    />
-
-                    <KpiCard
-                      label="Orders Today"
-                      value={String(todayOrders)}
-                      delta={`Avg order: ${formatCurrency(aov)}`}
-                      positive
-                    />
-                  </section>
-                )}
-
-                {/* MIDDLE GRID */}
-                <section className="grid flex-1 gap-4 lg:grid-cols-[1.3fr,1.4fr]">
-                  {/* LEFT COLUMN */}
-                  <div className="flex flex-col gap-4">
-                    {/* Daily sales chart */}
-                    {sales30Days && Array.isArray(sales30Days.daily_sales) && (
-                      <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 shadow-sm dark:shadow-[0_0_40px_rgba(15,23,42,0.8)] backdrop-blur">
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                          <div>
-                            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              Daily Sales • Last 30 Days
-                            </h2>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Total: {formatCurrency(Number(sales30Days.total_sales ?? 0))} •{" "}
-                              {Number(sales30Days.total_orders ?? 0)} orders
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-2 h-40 rounded-2xl bg-gradient-to-b from-sky-500/10 via-slate-100 to-white dark:from-sky-500/15 dark:via-slate-900/40 dark:to-slate-950/80 p-3">
-                          <div className="flex h-full items-end gap-1">
-                            {(() => {
-                              const allSales = sales30Days.daily_sales.map((d: any) => Number(d.total_sales ?? 0));
-                              const maxSales = Math.max(...allSales, 1);
-                              return sales30Days.daily_sales.map((day: any, i: number) => {
-                                const height = (Number(day.total_sales ?? 0) / maxSales) * 100;
-                                return (
-                                  <div
-                                    key={i}
-                                    className="flex-1 rounded-t-full bg-gradient-to-t from-sky-400/40 via-sky-400/70 to-fuchsia-400/80 hover:opacity-100 transition cursor-pointer"
-                                    style={{ height: `${Math.max(height, 8)}%` }}
-                                    title={`${day.date}: ${formatCurrency(Number(day.total_sales ?? 0))}`}
-                                  />
-                                );
-                              });
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sales by channel + Store performance */}
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {channels && (
-                        <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                          <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            Sales by Channel • {timeFilter === "today" ? "Today" : "This Month"}
-                          </h2>
-
-                          <div className="flex items-center gap-3">
-                            <div className="relative h-24 w-24">
-                              <div className="absolute inset-0 rounded-full bg-[conic-gradient(at_top,_#0ea5e9_0,_#e879f9_70%,_#22c55e_100%)]" />
-                              <div className="absolute inset-3 rounded-full bg-white dark:bg-slate-950" />
-                              <div className="absolute inset-6 flex flex-col items-center justify-center text-[10px] text-slate-600 dark:text-slate-300">
-                                <span className="font-semibold text-slate-900 dark:text-slate-50">
-                                  {Number(channels.total_orders ?? 0)}
-                                </span>
-                                <span>orders</span>
-                              </div>
-                            </div>
-
-                            <div className="flex-1 space-y-2 text-[11px]">
-                              {(channels.channels || []).map((channel: any, index: number) => {
-                                const icons = [
-                                  <Store key="store" className="h-3.5 w-3.5" />,
-                                  <Globe2 key="globe" className="h-3.5 w-3.5" />,
-                                  <ShoppingBag key="bag" className="h-3.5 w-3.5" />,
-                                ];
-                                return (
-                                  <ChannelRow
-                                    key={channel.channel || index}
-                                    icon={icons[index] || <Store className="h-3.5 w-3.5" />}
-                                    label={channel.channel_label || channel.channel || "Channel"}
-                                    value={formatCurrency(Number(channel.total_sales ?? 0))}
-                                    percent={formatPercentage(Number(channel.percentage ?? 0))}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Store performance */}
-                      <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                        <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          Store Performance
-                        </h2>
-
-                        {Array.isArray(topStores?.top_stores) && topStores.top_stores.length > 0 ? (
-                          <div className="space-y-2 text-[11px]">
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                              Top stores by sales • {timeFilter === "today" ? "Today" : "This Month"}
-                            </p>
-
-                            {topStores.top_stores.slice(0, 4).map((store: any) => (
-                              <StoreCard
-                                key={store.store_id}
-                                rank={store.rank}
-                                name={store.store_name}
-                                location={store.store_location}
-                                type={store.store_type}
-                                sales={formatCurrency(Number(store.total_sales ?? 0))}
-                                contribution={formatPercentage(Number(store.contribution_percentage ?? 0))}
-                                orders={Number(store.order_count ?? 0)}
-                              />
-                            ))}
-
-                            <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">
-                              Total period sales: {formatCurrency(Number(topStores.total_sales_all_stores ?? 0))}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
-                            Store-wise analytics will appear once store sales data is available.
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RIGHT COLUMN */}
-                  <div className="flex flex-col gap-4">
-                    {/* Top products */}
-                    {Array.isArray(topProducts?.top_products) && (
-                      <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                        <div className="mb-3">
-                          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            Top Products • Today
-                          </h2>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            By revenue across all branches & channels.
-                          </p>
-                        </div>
-
-                        <div className="grid gap-3 text-[11px] md:grid-cols-2 xl:grid-cols-3">
-                          {topProducts.top_products.slice(0, 5).map((product: any) => (
-                            <TopProductCard
-                              key={product.product_id}
-                              name={product.product_name}
-                              category={product.product_sku}
-                              sales={formatCurrency(Number(product.total_revenue ?? 0))}
-                              qty={Number(product.total_quantity_sold ?? 0)}
-                              branches={Number(product.order_count ?? 0)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Slow moving + inventory */}
-                    <div className="grid gap-4 md:grid-cols-[1.4fr,1fr]">
-                      {/* Slow moving */}
-                      {Array.isArray(slowMoving?.slow_moving_products) && (
-                        <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                          <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            Slow-Moving / Overstock
-                          </h2>
-
-                          <div className="space-y-2 text-[11px]">
-                            {slowMoving.slow_moving_products.slice(0, 3).map((item: any) => (
-                              <div
-                                key={item.product_id}
-                                className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800/80 dark:bg-slate-950/70"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="truncate text-slate-900 dark:text-slate-100">
-                                    {item.product_name}
-                                  </span>
-                                  <span className="text-[10px] text-fuchsia-700 dark:text-fuchsia-300">
-                                    {formatCurrency(Number(item.stock_value ?? 0))}
-                                  </span>
-                                </div>
-
-                                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                                  <span>{Number(item.current_stock ?? 0)} pcs in stock</span>
-                                  <span>{Number(item.days_of_supply ?? 0)} days supply</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Inventory risk */}
-                      <div className="flex flex-col gap-4">
-                        {/* Low stock */}
-                        {lowStock && (
-                          <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                            <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              Low Stock / OOS
-                            </h2>
-
-                            <div className="space-y-2 text-[11px]">
-                              {(lowStock.out_of_stock || []).slice(0, 2).map((item: any) => (
-                                <div
-                                  key={`${item.product_id}-${item.store_id}-out`}
-                                  className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 dark:border-slate-800/80 dark:bg-slate-950/70"
-                                >
-                                  <div className="flex-1">
-                                    <div className="truncate text-slate-900 dark:text-slate-100">{item.product_name}</div>
-                                    <div className="text-[10px] text-slate-500 dark:text-slate-400">{item.store_name}</div>
-                                  </div>
-                                  <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
-                                    Out of stock
-                                  </span>
-                                </div>
-                              ))}
-
-                              {(lowStock.low_stock || []).slice(0, 1).map((item: any) => (
-                                <div
-                                  key={`${item.product_id}-${item.store_id}-low`}
-                                  className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 dark:border-slate-800/80 dark:bg-slate-950/70"
-                                >
-                                  <div className="flex-1">
-                                    <div className="truncate text-slate-900 dark:text-slate-100">{item.product_name}</div>
-                                    <div className="text-[10px] text-slate-500 dark:text-slate-400">{item.store_name}</div>
-                                  </div>
-                                  <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
-                                    Low stock
-                                  </span>
-                                </div>
-                              ))}
-
-                              {Number(lowStock?.summary?.out_of_stock_count ?? 0) === 0 &&
-                                Number(lowStock?.summary?.low_stock_count ?? 0) === 0 && (
-                                  <div className="text-xs text-slate-500 dark:text-slate-400">
-                                    No stock alerts right now.
-                                  </div>
-                                )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Inventory age */}
-                        {Array.isArray(inventoryAge?.age_categories) && (
-                          <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                            <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                              Inventory Age (by value)
-                            </h2>
-
-                            <div className="mb-2 h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
-                              <div className="flex h-full w-full">
-                                {inventoryAge.age_categories.map((cat: any, i: number) => {
-                                  const colors = [
-                                    "bg-emerald-400/80",
-                                    "bg-sky-400/80",
-                                    "bg-amber-400/90",
-                                    "bg-rose-500/90",
-                                  ];
-                                  return (
-                                    <div
-                                      key={i}
-                                      className={`h-full ${colors[i] || "bg-slate-400/80"}`}
-                                      style={{ width: `${Number(cat.percentage_of_total ?? 0)}%` }}
-                                      title={`${cat.label}: ${formatCurrency(Number(cat.inventory_value ?? 0))}`}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 text-[11px]">
-                              {inventoryAge.age_categories.map((cat: any, i: number) => {
-                                const tones = ["fresh", "good", "watch", "danger"];
-                                return (
-                                  <AgeTile
-                                    key={i}
-                                    label={cat.label}
-                                    value={formatCurrency(Number(cat.inventory_value ?? 0))}
-                                    tone={tones[i] || "good"}
-                                  />
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </section>
-
-                {/* ✅ BOTTOM – OPERATIONS & ALERTS */}
-                <section className="grid gap-4 lg:grid-cols-2">
-                  {/* Operations */}
-                  <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        Operations • Today
-                      </h2>
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                        From order placed to delivered
-                      </span>
-                    </div>
-
-                    {pipelineStages.length ? (
-                      <div className="mb-1 grid gap-2 text-[11px] md:grid-cols-5">
-                        {pipelineStages.slice(0, 5).map((stage) => {
-                          const icons: Record<string, any> = {
-                            pending: <Clock className="h-3 w-3" />,
-                            processing: <Package className="h-3 w-3" />,
-                            ready_for_pickup: <Truck className="h-3 w-3" />,
-                            shipped: <Truck className="h-3 w-3" />,
-                            delivered: <CheckCircle2 className="h-3 w-3" />,
-                            cancelled: <RotateCcw className="h-3 w-3" />,
-                          };
-
-                          return (
-                            <PipelineStage
-                              key={stage.key}
-                              label={stage.label}
-                              count={stage.count}
-                              value={`—`}
-                              icon={icons[stage.key] || <Clock className="h-3 w-3" />}
-                              highlight={stage.key === "delivered"}
-                              warning={stage.key === "cancelled"}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        No operations data available for today.
-                      </div>
-                    )}
-
-                    {operations?.summary ? (
-                      <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
-                        <MiniStat label="Total orders" value={String(Number(operations.summary.total_orders ?? 0))} />
-                        <MiniStat label="Delivered" value={String(Number(operations.summary.delivered_orders ?? 0))} />
-                        <MiniStat label="Cancelled" value={String(Number(operations.summary.cancelled_orders ?? 0))} />
-                        <MiniStat label="Pending" value={String(Number(operations.summary.pending_orders ?? 0))} />
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Alerts */}
-                  <div className="rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950/60 p-4 backdrop-blur">
-                    <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      Alerts & Exceptions
-                    </h2>
-
-                    <div className="space-y-2 text-[11px]">
-                      {lowStock?.summary ? (
-                        <>
-                          {Number(lowStock.summary.out_of_stock_count ?? 0) > 0 && (
-                            <div className="rounded-2xl border border-rose-300 bg-rose-50 px-3 py-2 dark:border-rose-500/50 dark:bg-rose-500/10">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[10px] bg-rose-500/10 text-rose-700 px-2 py-0.5 rounded-full dark:bg-rose-500/20 dark:text-rose-200">
-                                  Critical
-                                </span>
-                                <span className="text-[10px] text-slate-500 dark:text-slate-200">
-                                  Recent
-                                </span>
-                              </div>
-                              <div className="text-slate-900 dark:text-slate-50">Stock-out Alert</div>
-                              <div className="text-[10px] text-slate-600 dark:text-slate-200">
-                                {lowStock.summary.out_of_stock_count} products out of stock across branches
-                              </div>
-                            </div>
-                          )}
-
-                          {Number(lowStock.summary.low_stock_count ?? 0) > 0 && (
-                            <div className="rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-500/40 dark:bg-amber-500/8">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full dark:bg-amber-500/15 dark:text-amber-200">
-                                  Warning
-                                </span>
-                                <span className="text-[10px] text-slate-500 dark:text-slate-200">
-                                  Recent
-                                </span>
-                              </div>
-                              <div className="text-slate-900 dark:text-slate-50">Low Stock Warning</div>
-                              <div className="text-[10px] text-slate-600 dark:text-slate-200">
-                                {lowStock.summary.low_stock_count} products running low on inventory
-                              </div>
-                            </div>
-                          )}
-
-                          {Number(lowStock.summary.out_of_stock_count ?? 0) === 0 &&
-                            Number(lowStock.summary.low_stock_count ?? 0) === 0 && (
-                              <div className="text-xs text-slate-500 dark:text-slate-400">
-                                No alerts right now.
-                              </div>
-                            )}
-                        </>
-                      ) : (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          Alerts will appear once the backend provides stock summary.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              </div>
-            </div>
-          </main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header darkMode={darkMode} setDarkMode={setDarkMode} toggleSidebar={() => setSidebarOpen((open) => !open)} />
+          <main className="flex-1 overflow-auto p-4 sm:p-6 print:overflow-visible print:p-0">{children}</main>
         </div>
       </div>
     </div>
   );
 }
 
-/* Subcomponents */
-
-function KpiCard({ label, value, delta, positive, neutral }: any) {
-  const tone = neutral
-    ? "text-slate-500 dark:text-slate-300"
-    : positive
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-rose-600 dark:text-rose-400";
-
-  const Icon = neutral ? ShoppingBag : positive ? ArrowUpRight : ArrowDownRight;
-
+function KpiSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/70 dark:shadow-[0_0_25px_rgba(15,23,42,0.9)] backdrop-blur">
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
-        <Icon className={`h-3.5 w-3.5 ${tone}`} />
+    <section>
+      <div className="mb-3">
+        <h2 className="text-lg font-bold text-slate-950 dark:text-white">{title}</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{description}</p>
       </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{value}</div>
-      <div className={`mt-1 text-[10px] ${tone}`}>{delta}</div>
-    </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">{children}</div>
+    </section>
   );
 }
 
-function MiniStat({ label, value }: any) {
+function KpiCard({ itemKey, kpi, onOpen }: { itemKey: string; kpi?: DashboardKpi; onOpen: () => void }) {
+  const Icon = KPI_ICONS[itemKey] || CircleDollarSign;
+  const change = kpi?.change_percentage;
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800/80 dark:bg-slate-950/70">
-      <div className="text-[10px] text-slate-500 dark:text-slate-400">{label}</div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{value}</div>
-    </div>
-  );
-}
-
-function TopProductCard({ name, category, sales, qty, branches }: any) {
-  return (
-    <div className="flex flex-col justify-between rounded-2xl border border-gray-200 dark:border-slate-800/80 bg-white dark:bg-slate-950/80 p-3 shadow-sm dark:shadow-[0_0_18px_rgba(15,23,42,0.9)]">
-      <div className="mb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1">
-            <div className="truncate text-[12px] font-semibold text-gray-900 dark:text-slate-50">{name}</div>
-            <span className="mt-1 inline-flex items-center rounded-full bg-gray-100 dark:bg-slate-900 px-2 py-0.5 text-[10px] text-gray-700 dark:text-slate-300">
-              {category}
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group min-h-[150px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-950 dark:hover:border-indigo-700 print:break-inside-avoid"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="rounded-xl bg-indigo-50 p-2.5 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300">
+          <Icon className="h-5 w-5" />
+        </div>
+        <ArrowRight className="h-4 w-4 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-indigo-500" />
+      </div>
+      <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{kpi?.label || itemKey}</p>
+      <p className="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-white">{formatValue(kpi)}</p>
+      <div className="mt-2 flex items-center gap-1.5 text-xs">
+        {kpi?.is_snapshot || change === null || change === undefined ? (
+          <span className="text-slate-500 dark:text-slate-400">Live balance</span>
+        ) : (
+          <>
+            {change > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : change < 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : null}
+            <span className={kpi.is_positive ? "text-emerald-600" : "text-rose-600"}>
+              {change > 0 ? "+" : ""}{formatNumber(change)}%
             </span>
+            <span className="text-slate-400">vs previous</span>
+          </>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-950 print:break-inside-avoid">
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-slate-950 dark:text-white">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SalesTrendChart({ rows }: { rows: Overview["sales_trend"] }) {
+  if (!rows.length) return <EmptyState label="No sales data for this period." />;
+  const width = 900;
+  const height = 260;
+  const padding = 34;
+  const max = Math.max(1, ...rows.flatMap((row) => [row.sales, row.purchases]));
+  const points = (key: "sales" | "purchases") =>
+    rows
+      .map((row, index) => {
+        const x = rows.length === 1 ? width / 2 : padding + (index / (rows.length - 1)) * (width - padding * 2);
+        const y = height - padding - (row[key] / max) * (height - padding * 2);
+        return `${x},${y}`;
+      })
+      .join(" ");
+  const labels = rows.length <= 8 ? rows : rows.filter((_, index) => index % Math.ceil(rows.length / 6) === 0 || index === rows.length - 1);
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap gap-4 text-xs text-slate-500">
+        <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-indigo-600" /> Sales</span>
+        <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Purchases</span>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[620px] w-full" role="img" aria-label="Sales and purchase trend chart">
+          {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+            const y = height - padding - fraction * (height - padding * 2);
+            return <line key={fraction} x1={padding} y1={y} x2={width - padding} y2={y} stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="1" />;
+          })}
+          <polyline points={points("sales")} fill="none" stroke="rgb(79 70 229)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          <polyline points={points("purchases")} fill="none" stroke="rgb(245 158 11)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {labels.map((row) => {
+            const index = rows.findIndex((candidate) => candidate.date === row.date);
+            const x = rows.length === 1 ? width / 2 : padding + (index / (rows.length - 1)) * (width - padding * 2);
+            return <text key={row.date} x={x} y={height - 8} textAnchor="middle" fontSize="11" fill="currentColor" className="text-slate-500">{row.label}</text>;
+          })}
+        </svg>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-3 text-center text-xs">
+        <MiniValue label="Sales" value={formatBDT(rows.reduce((sum, row) => sum + row.sales, 0))} />
+        <MiniValue label="Purchases" value={formatBDT(rows.reduce((sum, row) => sum + row.purchases, 0))} />
+        <MiniValue label="Orders" value={formatNumber(rows.reduce((sum, row) => sum + row.orders, 0))} />
+      </div>
+    </div>
+  );
+}
+
+function ChannelMix({ rows }: { rows: Overview["channel_mix"] }) {
+  return (
+    <div className="space-y-5">
+      {rows.map((row) => (
+        <div key={row.channel}>
+          <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">{row.label}</p>
+              <p className="text-xs text-slate-500">{formatNumber(row.orders)} order(s)</p>
+            </div>
+            <div className="text-right">
+              <p className="font-semibold text-slate-900 dark:text-white">{formatBDT(row.sales)}</p>
+              <p className="text-xs text-slate-500">{formatNumber(row.percentage)}%</p>
+            </div>
           </div>
-          <div className="text-right text-xs font-semibold text-purple-700 dark:text-fuchsia-300">{sales}</div>
-        </div>
-      </div>
-
-      <div className="mt-1 flex items-center justify-between text-[10px] text-gray-600 dark:text-slate-300">
-        <div className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-slate-900 px-2 py-0.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-green-500 dark:bg-emerald-400" />
-          <span>{qty} pcs sold</span>
-        </div>
-        <div className="inline-flex items-center gap-1 rounded-full bg-gray-100 dark:bg-slate-900 px-2 py-0.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500 dark:bg-sky-400" />
-          <span>{branches} orders</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ChannelRow({ icon, label, value, percent }: any) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1.5">
-        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-100">
-          {icon}
-        </div>
-        <span className="text-slate-700 dark:text-slate-200">{label}</span>
-      </div>
-
-      <div className="flex items-center gap-2 text-[10px]">
-        <span className="text-slate-600 dark:text-slate-300">{value}</span>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-          {percent}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function StoreCard({ rank, name, location, type, sales, contribution, orders }: any) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800/80 dark:bg-slate-950/70">
-      <div className="flex items-center gap-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-          {rank}
-        </span>
-        <div>
-          <div className="text-[11px] font-semibold text-slate-900 dark:text-slate-50">{name}</div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400">
-            {location} • {type}
+          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
+            <div className="h-full rounded-full bg-indigo-600" style={{ width: `${Math.max(0, Math.min(100, row.percentage))}%` }} />
           </div>
         </div>
-      </div>
+      ))}
+    </div>
+  );
+}
 
-      <div className="text-right text-[10px]">
-        <div className="font-semibold text-slate-900 dark:text-slate-50">{sales}</div>
-        <div className="text-slate-500 dark:text-slate-400">
-          {orders} orders • {contribution} of total
-        </div>
+function AgingPanel({ title, rows, total }: { title: string; rows: DashboardAgingBucket[]; total: number }) {
+  return (
+    <Panel title={title} subtitle={`Total outstanding: ${formatBDT(total)}`}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rows.map((row, index) => (
+          <div key={row.key} className={`rounded-2xl border p-4 ${index === rows.length - 1 ? "border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/20" : "border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60"}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{row.label}</p>
+            <p className="mt-2 text-lg font-bold text-slate-950 dark:text-white">{formatBDT(row.amount)}</p>
+            <p className="mt-1 text-xs text-slate-500">{formatNumber(row.count)} record(s)</p>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function InventoryAge({ rows }: { rows: Overview["inventory_age"] }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex h-4 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
+        {rows.map((row, index) => (
+          <div
+            key={row.key}
+            className={index === 0 ? "bg-emerald-500" : index === 1 ? "bg-sky-500" : index === 2 ? "bg-amber-500" : "bg-rose-500"}
+            style={{ width: `${row.percentage}%` }}
+            title={`${row.label}: ${formatBDT(row.value)}`}
+          />
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rows.map((row, index) => (
+          <div key={row.key} className="rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className={`h-2.5 w-2.5 rounded-full ${index === 0 ? "bg-emerald-500" : index === 1 ? "bg-sky-500" : index === 2 ? "bg-amber-500" : "bg-rose-500"}`} />
+              <span className="text-xs font-semibold text-slate-500">{formatNumber(row.percentage)}%</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">{row.label}</p>
+            <p className="mt-1 text-lg font-bold text-slate-950 dark:text-white">{formatBDT(row.value)}</p>
+            <p className="text-xs text-slate-500">{formatNumber(row.quantity)} unit(s)</p>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
-function AgeTile({ label, value, tone }: any) {
-  const toneStyles: Record<string, string> = {
-    fresh:
-      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/40",
-    good:
-      "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:border-sky-500/40",
-    watch:
-      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/40",
-    danger:
-      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/12 dark:text-rose-200 dark:border-rose-500/50",
-  };
-
+function Operations({ rows }: { rows: Overview["operations"] }) {
+  if (!rows.length) return <EmptyState label="No orders in this period." />;
+  const total = rows.reduce((sum, row) => sum + row.count, 0) || 1;
   return (
-    <div className={`rounded-2xl border px-3 py-2 text-[11px] ${toneStyles[tone] || toneStyles.good}`}>
-      <div>{label}</div>
-      <div className="text-xs font-semibold">{value}</div>
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const percentage = (row.count / total) * 100;
+        return (
+          <div key={row.status} className="rounded-2xl border border-slate-200 p-3 dark:border-slate-800">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {row.status === "delivered" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : row.status === "cancelled" ? <RotateCcw className="h-4 w-4 text-rose-500" /> : <Clock3 className="h-4 w-4 text-indigo-500" />}
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">{row.label}</span>
+              </div>
+              <span className="text-sm font-bold text-slate-950 dark:text-white">{formatNumber(row.count)}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-900">
+              <div className="h-full rounded-full bg-indigo-500" style={{ width: `${percentage}%` }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function PipelineStage({ label, count, value, icon, highlight, warning }: any) {
-  const base = "rounded-2xl border px-3 py-2 flex flex-col gap-0.5 bg-white dark:bg-slate-950/70";
-  const color = highlight
-    ? "border-emerald-300 bg-emerald-50 dark:border-emerald-500/50 dark:bg-emerald-500/10"
-    : warning
-      ? "border-amber-300 bg-amber-50 dark:border-amber-500/50 dark:bg-amber-500/10"
-      : "border-slate-200 dark:border-slate-800";
-
+function TopProducts({ rows }: { rows: Overview["top_products"] }) {
+  if (!rows.length) return <EmptyState label="No product sales in this period." />;
   return (
-    <div className={`${base} ${color}`}>
-      <div className="flex items-center justify-between text-[10px]">
-        <span className="text-slate-700 dark:text-slate-300">{label}</span>
-        <span className="text-slate-700 dark:text-slate-200">{icon}</span>
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[620px] text-sm">
+        <thead>
+          <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800">
+            <th className="pb-3 font-semibold">Product</th>
+            <th className="pb-3 font-semibold">SKU</th>
+            <th className="pb-3 text-right font-semibold">Qty</th>
+            <th className="pb-3 text-right font-semibold">Sales</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.product_id} className="border-b border-slate-100 last:border-0 dark:border-slate-900">
+              <td className="py-3 font-medium text-slate-900 dark:text-white">{row.name}</td>
+              <td className="py-3 text-slate-500">{row.sku}</td>
+              <td className="py-3 text-right text-slate-700 dark:text-slate-300">{formatNumber(row.quantity_sold)}</td>
+              <td className="py-3 text-right font-semibold text-slate-950 dark:text-white">{formatBDT(row.sales)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StockAlerts({ rows, onOpen }: { rows: Overview["stock_alerts"]; onOpen: () => void }) {
+  if (!rows.length) return <EmptyState label="No low-stock or out-of-stock alerts." />;
+  return (
+    <div>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.product_id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 p-3 dark:border-slate-800">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{row.name}</p>
+              <p className="text-xs text-slate-500">{row.sku} · Reorder at {formatNumber(row.reorder_point)}</p>
+            </div>
+            <div className="text-right">
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.status === "out_of_stock" ? "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>
+                {formatNumber(row.quantity)} left
+              </span>
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="text-sm font-semibold text-slate-900 dark:text-slate-50">{count}</div>
-      <div className="text-[10px] text-slate-600 dark:text-slate-200">{value}</div>
+      <button onClick={onOpen} className="mt-4 flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400">
+        Open inventory reports <ArrowRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+function MiniValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/70">
+      <p className="text-slate-500">{label}</p>
+      <p className="mt-1 font-bold text-slate-950 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 text-center dark:border-slate-700">
+      <PackageSearch className="h-8 w-8 text-slate-400" />
+      <p className="mt-2 text-sm text-slate-500">{label}</p>
     </div>
   );
 }
