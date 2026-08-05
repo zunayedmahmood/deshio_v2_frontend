@@ -553,7 +553,6 @@ export default function OrdersDashboard() {
   // 🧃 Product picker (for Edit Order)
   const [productResults, setProductResults] = useState<any[]>([]);
   const [isProductLoading, setIsProductLoading] = useState(false);
-  const [pickerBatches, setPickerBatches] = useState<any[]>([]);
   const [pickerStoreId, setPickerStoreId] = useState<number | null>(null);
   const [productSearch, setProductSearch] = useState('');
   const [showProductPicker, setShowProductPicker] = useState(false);
@@ -3257,57 +3256,13 @@ When the courier brings back the original product, open this order/lookup and cl
 
 
 
-  // 🔁 Product picker helpers
-  const fetchBatchesForStore = async (storeId: number) => {
-    try {
-      setIsProductLoading(true);
-
-      try {
-        const batchesData = await batchService.getAvailableBatches(storeId);
-        if (batchesData && batchesData.length > 0) {
-          const availableBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-          setPickerBatches(availableBatches);
-          return;
-        }
-      } catch (err) {
-        console.warn('getAvailableBatches failed, trying getBatchesArray...', err);
-      }
-
-      try {
-        const batchesData = await batchService.getBatchesArray({
-          store_id: storeId,
-          status: 'available',
-        });
-        if (batchesData && batchesData.length > 0) {
-          const availableBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-          setPickerBatches(availableBatches);
-          return;
-        }
-      } catch (err) {
-        console.warn('getBatchesArray failed, trying getBatchesByStore...', err);
-      }
-
-      try {
-        const batchesData = await batchService.getBatchesByStore(storeId);
-        if (batchesData && batchesData.length > 0) {
-          const availableBatches = batchesData.filter((batch: any) => batch.quantity > 0);
-          setPickerBatches(availableBatches);
-          return;
-        }
-      } catch (err) {
-        console.error('All batch fetch methods failed', err);
-      }
-
-      setPickerBatches([]);
-    } finally {
-      setIsProductLoading(false);
-    }
-  };
-
   const fetchProductResults = async (query: string) => {
-    // Online orders might not have a storeId yet
     const isOnlineOrder = ['ecommerce', 'social_commerce'].includes(editableOrder?.orderType || '');
-    if (!pickerStoreId && !isOnlineOrder) return;
+    const storeId = Number(editableOrder?.storeId || pickerStoreId || 0);
+    if (!Number.isFinite(storeId) || storeId <= 0) {
+      setProductResults([]);
+      return;
+    }
     if (!query.trim()) {
       setProductResults([]);
       return;
@@ -3315,64 +3270,100 @@ When the courier brings back the original product, open this order/lookup and cl
 
     setIsProductLoading(true);
     try {
-      const searchResult = await productService.advancedSearch({
-        query,
-        enable_fuzzy: true,
-        per_page: 50,
+      // Use the same store-aware endpoint and stock source as Social Commerce:
+      // GET /api/batches?store_id=...&status=available&search=...&page=1&per_page=100
+      const response = await batchService.getBatches({
+        store_id: storeId,
+        status: 'available',
+        search: query.trim(),
+        page: 1,
+        per_page: 100,
       });
-      const products = searchResult.data;
+      const batches = Array.isArray((response as any)?.data?.data)
+        ? (response as any).data.data
+        : Array.isArray((response as any)?.data)
+          ? (response as any).data
+          : [];
 
-      const results: any[] = [];
+      if (isOnlineOrder) {
+        // Match Social Commerce display semantics: one product card, stock
+        // summed across the selected store's available batches, minimum sell
+        // price shown, and batch assigned later by fulfillment scanning.
+        const grouped = new Map<number, any>();
 
-      for (const prod of products) {
-        const imgPath =
-          prod?.images?.[0]?.image_path ||
-          (prod as any)?.image_url ||
-          (prod as any)?.image_path ||
-          (prod as any)?.thumbnail;
-        const imageUrl = toPublicImageUrl(imgPath);
+        for (const batch of batches) {
+          const product = batch?.product || {};
+          const productId = Number(product?.id || batch?.product_id || 0);
+          const available = Math.max(0, Number(
+            batch?.store_available_quantity ??
+            batch?.store_sellable_quantity ??
+            batch?.available_quantity ??
+            batch?.quantity ??
+            0,
+          ) || 0);
+          if (!productId || available <= 0) continue;
 
-        const productBatches = pickerBatches.filter((batch: any) => {
-          const batchProductId = batch.product?.id || batch.product_id;
-          return batchProductId === prod.id && batch.quantity > 0;
-        });
+          const price = parseMoney(batch?.sell_price ?? batch?.selling_price ?? product?.selling_price ?? 0);
+          const imgPath =
+            product?.images?.[0]?.image_path ||
+            product?.main_image?.image_path ||
+            product?.image_url ||
+            product?.image_path ||
+            product?.thumbnail;
 
-        if (productBatches.length > 0) {
-          for (const batch of productBatches) {
-            results.push({
-              id: prod.id,
-              name: prod.name,
-              sku: prod.sku,
-              imageUrl,
-              batchId: batch.id,
-              batchNumber: batch.batch_number,
-              price: parseMoney(batch.sell_price),
-              available: batch.quantity,
-              relevance_score: (prod as any).relevance_score || 0,
-              search_stage: (prod as any).search_stage || 'api',
+          const existing = grouped.get(productId);
+          if (!existing) {
+            grouped.set(productId, {
+              id: productId,
+              name: product?.name || batch?.product_name || 'Unknown product',
+              sku: product?.sku || batch?.product_sku || '',
+              imageUrl: toPublicImageUrl(imgPath),
+              batchId: null,
+              batchNumber: null,
+              batchesCount: 1,
+              price,
+              available,
             });
+          } else {
+            existing.available += available;
+            existing.batchesCount += 1;
+            if (price > 0 && (existing.price <= 0 || price < existing.price)) {
+              existing.price = price;
+            }
           }
-        } else if (isOnlineOrder) {
-          // If no local batch but it's an online order, still allow picking
-          results.push({
-            id: prod.id,
-            name: prod.name,
-            sku: prod.sku,
-            imageUrl,
-            batchId: null,
-            batchNumber: 'Unassigned (Global Stock)',
-            price: parseMoney((prod as any).selling_price || prod.base_price || 0),
-            available: (prod as any).global_available || 0,
-            relevance_score: (prod as any).relevance_score || 0,
-            search_stage: (prod as any).search_stage || 'api',
-          });
         }
-      }
 
-      results.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
-      setProductResults(results);
+        setProductResults(Array.from(grouped.values()).sort((a, b) => {
+          const priceDiff = Number(a.price || 0) - Number(b.price || 0);
+          return priceDiff !== 0 ? priceDiff : String(a.name).localeCompare(String(b.name));
+        }));
+      } else {
+        const results = batches.flatMap((batch: any) => {
+          const product = batch?.product || {};
+          const available = Math.max(0, Number(batch?.available_quantity ?? batch?.quantity ?? 0) || 0);
+          if (!product?.id || available <= 0) return [];
+          const imgPath =
+            product?.images?.[0]?.image_path ||
+            product?.main_image?.image_path ||
+            product?.image_url ||
+            product?.image_path ||
+            product?.thumbnail;
+          return [{
+            id: Number(product.id),
+            name: product.name,
+            sku: product.sku,
+            imageUrl: toPublicImageUrl(imgPath),
+            batchId: Number(batch.id),
+            batchNumber: batch.batch_number,
+            batchesCount: 1,
+            price: parseMoney(batch.sell_price),
+            available,
+          }];
+        });
+        setProductResults(results);
+      }
     } catch (err) {
-      console.error('Product search failed', err);
+      console.error('Store batch product search failed', err);
       setProductResults([]);
     } finally {
       setIsProductLoading(false);
@@ -3391,7 +3382,7 @@ When the courier brings back the original product, open this order/lookup and cl
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productSearch, showProductPicker, pickerStoreId, pickerBatches]);
+  }, [productSearch, showProductPicker, pickerStoreId, editableOrder?.storeId]);
 
   const handleSelectProductForOrder = async (product: any) => {
     if (!editableOrder) return;
@@ -3439,15 +3430,13 @@ When the courier brings back the original product, open this order/lookup and cl
   };
 
   const openProductPicker = () => {
-    const isOnlineOrder = ['ecommerce', 'social_commerce'].includes(editableOrder?.orderType || '');
-    if (!editableOrder?.storeId && !pickerStoreId && !isOnlineOrder) {
-      alert('Store information is missing for this order.');
+    if (!editableOrder?.storeId && !pickerStoreId) {
+      alert('Assign this order to a store before adding products. Product search uses that store’s available batches.');
       return;
     }
     const storeId = editableOrder?.storeId || pickerStoreId;
     if (storeId) {
       setPickerStoreId(storeId);
-      fetchBatchesForStore(storeId);
     }
     setShowProductPicker(true);
     setProductSearch('');
@@ -6647,6 +6636,11 @@ When the courier brings back the original product, open this order/lookup and cl
                             {product.batchNumber && (
                               <p className="text-[11px] text-blue-600 dark:text-blue-400 break-words whitespace-normal">
                                 Batch: {product.batchNumber} ({product.available} left)
+                              </p>
+                            )}
+                            {!product.batchNumber && (
+                              <p className="text-[11px] text-blue-600 dark:text-blue-400 break-words whitespace-normal">
+                                Available: {product.available} across {product.batchesCount || 1} batch{Number(product.batchesCount || 1) === 1 ? '' : 'es'}
                               </p>
                             )}
                             <p className="text-xs font-bold text-black dark:text-white">৳{product.price}</p>

@@ -11,12 +11,14 @@ interface DispatchItem {
   product_name: string;
   quantity: string;
   available_quantity: number;
+  manual_quantity?: number;
+  scanned_quantity?: number;
 }
 
 interface CreateDispatchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<boolean>;
   stores: Store[];
   loading: boolean;
   defaultSourceStoreId?: number;
@@ -32,6 +34,36 @@ type ScanEntry = {
   scanned_at: string;
 };
 
+const EMPTY_FORM = {
+  source_store_id: '',
+  destination_store_id: '',
+  expected_delivery_date: '',
+  carrier_name: '',
+  tracking_number: '',
+  notes: '',
+};
+
+const DRAFT_VERSION = 2;
+
+const normalizeDraftItem = (item: DispatchItem): DispatchItem => {
+  const quantity = Math.max(0, Number.parseInt(String(item.quantity || '0'), 10) || 0);
+  const scannedQuantity = Math.min(
+    quantity,
+    Math.max(0, Number(item.scanned_quantity ?? 0) || 0),
+  );
+  const manualQuantity = Math.max(
+    0,
+    Number(item.manual_quantity ?? quantity - scannedQuantity) || 0,
+  );
+
+  return {
+    ...item,
+    quantity: String(manualQuantity + scannedQuantity),
+    manual_quantity: manualQuantity,
+    scanned_quantity: scannedQuantity,
+  };
+};
+
 const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
   isOpen,
   onClose,
@@ -40,29 +72,16 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
   loading,
   defaultSourceStoreId,
 }) => {
-  const [formData, setFormData] = useState({
-    source_store_id: '',
-    destination_store_id: '',
-    expected_delivery_date: '',
-    carrier_name: '',
-    tracking_number: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
 
   const [items, setItems] = useState<DispatchItem[]>([]);
+  const itemsRef = useRef<DispatchItem[]>([]);
 
   // Only for UI convenience while creating dispatch (does NOT replace send/receive scan flow).
-  type AddMode = 'batch' | 'barcode';
-  type ScanEntry = {
-    barcode: string;
-    batch_id: string;
-    batch_number: string;
-    product_name: string;
-    scanned_at: string;
-  };
-
   const [addMode, setAddMode] = useState<AddMode>('batch');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [scanInput, setScanInput] = useState('');
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -91,36 +110,161 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
   const [batchData, setBatchData] = useState<any>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      setFormData({
-        source_store_id: '',
-        destination_store_id: '',
-        expected_delivery_date: '',
-        carrier_name: '',
-        tracking_number: '',
-        notes: '',
-      });
-      setItems([]);
-      setCurrentItem({ batch_id: '', quantity: '' });
-      setBatchData(null);
-      setAvailableBatches([]);
-      setAddMode('batch');
-      setScanInput('');
-      setScanError(null);
-      setScanning(false);
-      setScanHistory([]);
-      // reset queued scans (otherwise pending scans from a previous open can leak)
-      scanQueueRef.current = [];
-      scanQueueSetRef.current = new Set();
-      scanQueueProcessingRef.current = false;
-      setQueuedScanCount(0);
-    } else if (isOpen && defaultSourceStoreId) {
-      setFormData(prev => ({
-        ...prev,
-        source_store_id: defaultSourceStoreId.toString(),
-      }));
+    itemsRef.current = items;
+  }, [items]);
+
+  const draftStorageKey = useMemo(
+    () => `deshio.dispatch.create-draft.v${DRAFT_VERSION}.${defaultSourceStoreId || 'any-store'}`,
+    [defaultSourceStoreId],
+  );
+
+  const resetScanQueue = () => {
+    scanQueueRef.current = [];
+    scanQueueSetRef.current = new Set();
+    scanQueueProcessingRef.current = false;
+    setQueuedScanCount(0);
+    setScanning(false);
+  };
+
+  const resetDraftState = () => {
+    setFormData({
+      ...EMPTY_FORM,
+      source_store_id: defaultSourceStoreId ? String(defaultSourceStoreId) : '',
+    });
+    setItems([]);
+    setCurrentItem({ batch_id: '', quantity: '' });
+    setBatchData(null);
+    setAvailableBatches([]);
+    setAddMode('batch');
+    setScanInput('');
+    setScanError(null);
+    setScanHistory([]);
+    setDraftSavedAt(null);
+    setIsSubmitting(false);
+    resetScanQueue();
+  };
+
+  const deleteStoredDraft = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(draftStorageKey);
     }
-  }, [isOpen, defaultSourceStoreId]);
+    setDraftSavedAt(null);
+  };
+
+  const persistCurrentDraft = () => {
+    if (typeof window === 'undefined') return;
+
+    const hasMeaningfulProgress = Boolean(
+      formData.destination_store_id ||
+      formData.expected_delivery_date ||
+      formData.carrier_name.trim() ||
+      formData.tracking_number.trim() ||
+      formData.notes.trim() ||
+      items.length ||
+      scanHistory.length,
+    );
+
+    if (!hasMeaningfulProgress) {
+      window.localStorage.removeItem(draftStorageKey);
+      setDraftSavedAt(null);
+      return;
+    }
+
+    const savedAt = new Date().toISOString();
+    window.localStorage.setItem(
+      draftStorageKey,
+      JSON.stringify({
+        version: DRAFT_VERSION,
+        saved_at: savedAt,
+        formData,
+        items,
+        addMode,
+        scanHistory,
+      }),
+    );
+    setDraftSavedAt(savedAt);
+  };
+
+  useEffect(() => {
+    setDraftHydrated(false);
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    if (!isOpen || draftHydrated) return;
+
+    let restored = false;
+    try {
+      const raw = window.localStorage.getItem(draftStorageKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        const savedSource = String(draft?.formData?.source_store_id || '');
+        const sourceMatches = !defaultSourceStoreId || savedSource === String(defaultSourceStoreId);
+
+        if (draft?.version === DRAFT_VERSION && sourceMatches) {
+          setFormData({
+            ...EMPTY_FORM,
+            ...(draft.formData || {}),
+            source_store_id: defaultSourceStoreId
+              ? String(defaultSourceStoreId)
+              : String(draft?.formData?.source_store_id || ''),
+          });
+          const restoredScans: ScanEntry[] = Array.isArray(draft.scanHistory) ? draft.scanHistory : [];
+          const scannedByBatch = restoredScans.reduce<Record<string, number>>((acc, entry) => {
+            acc[String(entry.batch_id)] = (acc[String(entry.batch_id)] || 0) + 1;
+            return acc;
+          }, {});
+          setItems(Array.isArray(draft.items)
+            ? draft.items.map((item: DispatchItem) => {
+                const quantity = Math.max(0, Number.parseInt(String(item.quantity || '0'), 10) || 0);
+                const restoredScanned = Math.min(
+                  quantity,
+                  Number(item.scanned_quantity ?? scannedByBatch[String(item.batch_id)] ?? 0) || 0,
+                );
+                return normalizeDraftItem({
+                  ...item,
+                  scanned_quantity: restoredScanned,
+                  manual_quantity: item.manual_quantity ?? Math.max(0, quantity - restoredScanned),
+                });
+              })
+            : []);
+          setScanHistory(restoredScans);
+          setAddMode(draft.addMode === 'barcode' ? 'barcode' : 'batch');
+          setDraftSavedAt(draft.saved_at || null);
+          restored = true;
+        }
+      }
+    } catch (error) {
+      console.warn('Unable to restore saved dispatch draft:', error);
+      window.localStorage.removeItem(draftStorageKey);
+    }
+
+    if (!restored) {
+      resetDraftState();
+    }
+
+    // Delay persistence until restored state has rendered; otherwise the empty
+    // first render can overwrite a valid saved draft.
+    const timer = window.setTimeout(() => setDraftHydrated(true), 0);
+    return () => window.clearTimeout(timer);
+    // resetDraftState intentionally omitted: this hydration runs only when the
+    // modal opens or the storage key changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, draftHydrated, draftStorageKey, defaultSourceStoreId]);
+
+  useEffect(() => {
+    if (isOpen || !draftHydrated) return;
+    setIsSubmitting(false);
+    setScanInput('');
+    setScanError(null);
+    resetScanQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, draftHydrated]);
+
+  useEffect(() => {
+    if (!draftHydrated || typeof window === 'undefined') return;
+    persistCurrentDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftHydrated, draftStorageKey, formData, items, addMode, scanHistory]);
 
   useEffect(() => {
     if (formData.source_store_id) {
@@ -130,15 +274,6 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
       setBatchData(null);
       setCurrentItem({ batch_id: '', quantity: '' });
     }
-
-    // barcode scan UI depends on source store
-    setScanInput('');
-    setScanError(null);
-    setScanHistory([]);
-    scanQueueRef.current = [];
-    scanQueueSetRef.current = new Set();
-    scanQueueProcessingRef.current = false;
-    setQueuedScanCount(0);
   }, [formData.source_store_id]);
 
   const fetchAvailableBatches = async () => {
@@ -208,6 +343,30 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
     fetchBatchDetails();
   }, [currentItem.batch_id]);
 
+  const handleSourceStoreChange = (nextSourceStoreId: string) => {
+    if (nextSourceStoreId === formData.source_store_id) return;
+
+    if ((items.length > 0 || scanHistory.length > 0) && !window.confirm(
+      'Changing the source store will remove all draft items and scanned barcodes. Continue?',
+    )) {
+      return;
+    }
+
+    setItems([]);
+    setScanHistory([]);
+    setCurrentItem({ batch_id: '', quantity: '' });
+    setBatchData(null);
+    setScanInput('');
+    setScanError(null);
+    resetScanQueue();
+    setFormData((prev) => ({
+      ...prev,
+      source_store_id: nextSourceStoreId,
+      destination_store_id:
+        prev.destination_store_id === nextSourceStoreId ? '' : prev.destination_store_id,
+    }));
+  };
+
   const addItem = () => {
     if (addMode !== 'batch') return;
 
@@ -233,6 +392,8 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
       updatedItems[existingItemIndex] = {
         ...existingItem,
         quantity: newQuantity.toString(),
+        manual_quantity: Number(existingItem.manual_quantity || 0) + quantityToAdd,
+        scanned_quantity: Number(existingItem.scanned_quantity || 0),
       };
       setItems(updatedItems);
     } else {
@@ -248,6 +409,8 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
         product_name: batchData.product.name,
         quantity: currentItem.quantity,
         available_quantity: batchData.quantity,
+        manual_quantity: quantityToAdd,
+        scanned_quantity: 0,
       };
 
       setItems([...items, newItem]);
@@ -310,40 +473,46 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
           : data.current_batch.quantity_available ?? 0
       );
 
-      setItems((prev) => {
-        const idx = prev.findIndex((it) => it.batch_id === batchId);
+      const currentItems = itemsRef.current;
+      const idx = currentItems.findIndex((it) => it.batch_id === batchId);
+      let nextItems: DispatchItem[];
 
-        if (idx === -1) {
-          return [
-            ...prev,
-            {
-              batch_id: batchId,
-              batch_number: batchNumber,
-              product_name: productName,
-              quantity: '1',
-              available_quantity: availableQty,
-            },
-          ];
-        }
-
-        const next = [...prev];
-        const existing = next[idx];
+      if (idx === -1) {
+        nextItems = [
+          ...currentItems,
+          {
+            batch_id: batchId,
+            batch_number: batchNumber,
+            product_name: productName,
+            quantity: '1',
+            available_quantity: availableQty,
+            manual_quantity: 0,
+            scanned_quantity: 1,
+          },
+        ];
+      } else {
+        nextItems = [...currentItems];
+        const existing = nextItems[idx];
         const existingQty = Number.parseInt(existing.quantity || '0', 10) || 0;
         const nextQty = existingQty + 1;
 
         const maxAllowed = existing.available_quantity || availableQty;
         if (maxAllowed > 0 && nextQty > maxAllowed) {
           setScanError(`Batch limit reached. Only ${maxAllowed} active unit(s) available.`);
-          return prev;
+          return;
         }
 
-        next[idx] = {
+        nextItems[idx] = {
           ...existing,
           quantity: String(nextQty),
           available_quantity: maxAllowed,
+          manual_quantity: Number(existing.manual_quantity || 0),
+          scanned_quantity: Number(existing.scanned_quantity || 0) + 1,
         };
-        return next;
-      });
+      }
+
+      itemsRef.current = nextItems;
+      setItems(nextItems);
 
       setScanHistory((prev) => [
         {
@@ -408,32 +577,52 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
     void processScanQueue();
   };
 
-  const removeLastScan = () => {
-    const last = scanHistory[0];
-    if (!last) return;
+  const removeDraftScan = (barcode: string) => {
+    const target = scanHistory.find((entry) => entry.barcode === barcode);
+    if (!target) return;
 
-    setScanHistory((prev) => prev.slice(1));
+    setScanHistory((prev) => prev.filter((entry) => entry.barcode !== barcode));
     setItems((prev) => {
-      const idx = prev.findIndex((it) => it.batch_id === last.batch_id);
+      const idx = prev.findIndex((it) => it.batch_id === target.batch_id);
       if (idx === -1) return prev;
       const next = [...prev];
       const item = next[idx];
-      const existingQty = Number.parseInt(item.quantity || '0', 10) || 0;
-      const nextQty = Math.max(0, existingQty - 1);
+      const manualQty = Math.max(0, Number(item.manual_quantity || 0));
+      const scannedQty = Math.max(0, Number(item.scanned_quantity || 0) - 1);
+      const nextQty = manualQty + scannedQty;
       if (nextQty === 0) {
         next.splice(idx, 1);
       } else {
-        next[idx] = { ...item, quantity: String(nextQty) };
+        next[idx] = {
+          ...item,
+          quantity: String(nextQty),
+          manual_quantity: manualQty,
+          scanned_quantity: scannedQty,
+        };
       }
       return next;
     });
   };
 
+  const removeLastScan = () => {
+    const last = scanHistory[0];
+    if (last) removeDraftScan(last.barcode);
+  };
+
   const clearScans = () => {
-    // Reduce quantities only for items added via scans. Since we don't know which were manual,
-    // safest behavior: clear scan list only (does not auto-remove items).
+    setItems((prev) => prev.flatMap((item) => {
+      const manualQty = Math.max(0, Number(item.manual_quantity || 0));
+      if (manualQty === 0) return [];
+      return [{
+        ...item,
+        quantity: String(manualQty),
+        manual_quantity: manualQty,
+        scanned_quantity: 0,
+      }];
+    }));
     setScanHistory([]);
     setScanError(null);
+    resetScanQueue();
   };
 
   const removeItem = (index: number) => {
@@ -444,8 +633,8 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
     }
   };
 
-  const handleSubmit = () => {
-    if (isSubmitting) return;
+  const handleSubmit = async () => {
+    if (isSubmitting || loading) return;
 
     if (
       !formData.source_store_id ||
@@ -457,12 +646,46 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
     }
 
     setIsSubmitting(true);
-    onSubmit({
-      ...formData,
-      items,
-      // If you scanned barcodes while creating (quick-add), we will attach those scans to the created dispatch items immediately (DB).
-      draft_scan_history: scanHistory,
-    });
+    try {
+      const created = await onSubmit({
+        ...formData,
+        items: items.map((item) => ({
+          ...item,
+          quantity: Number.parseInt(item.quantity, 10),
+        })),
+        // If you scanned barcodes while creating (quick-add), attach those
+        // scans to the created dispatch items immediately in the backend.
+        draft_scan_history: scanHistory,
+      });
+
+      if (created) {
+        deleteStoredDraft();
+        resetDraftState();
+        onClose();
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveAndClose = () => {
+    if (isSubmitting || loading || scanning || queuedScanCount > 0) return;
+    persistCurrentDraft();
+    setScanInput('');
+    setScanError(null);
+    resetScanQueue();
+    onClose();
+  };
+
+  const handleDiscardDraft = () => {
+    if (isSubmitting || loading || scanning || queuedScanCount > 0) return;
+    if (!window.confirm('Cancel this dispatch draft and remove all added items and scanned barcodes?')) {
+      return;
+    }
+
+    deleteStoredDraft();
+    resetDraftState();
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -472,12 +695,22 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full my-8">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Create Dispatch
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Create Dispatch
+              </h2>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                {draftSavedAt
+                  ? `Draft saved automatically at ${new Date(draftSavedAt).toLocaleTimeString()}`
+                  : 'Progress is saved automatically until you create or cancel this draft.'}
+              </p>
+            </div>
             <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              type="button"
+              onClick={handleSaveAndClose}
+              disabled={isSubmitting || loading || scanning || queuedScanCount > 0}
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Save draft and close"
             >
               <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
             </button>
@@ -496,9 +729,7 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
               </label>
               <select
                 value={formData.source_store_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, source_store_id: e.target.value })
-                }
+                onChange={(e) => handleSourceStoreChange(e.target.value)}
                 disabled={!!defaultSourceStoreId}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
               >
@@ -724,13 +955,24 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
                     </div>
                     <div className="max-h-40 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
                       {scanHistory.map((s, idx) => (
-                        <div key={`${s.barcode}-${idx}`} className="px-3 py-2">
-                          <div className="text-xs font-mono text-gray-900 dark:text-white truncate">
-                            {idx + 1}. {s.barcode}
+                        <div key={`${s.barcode}-${idx}`} className="px-3 py-2 flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-mono text-gray-900 dark:text-white truncate">
+                              {idx + 1}. {s.barcode}
+                            </div>
+                            <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                              {s.product_name} • {s.batch_number}
+                            </div>
                           </div>
-                          <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                            {s.product_name} • {s.batch_number}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDraftScan(s.barcode)}
+                            disabled={scanning || isSubmitting || loading}
+                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                            title="Remove this barcode from the draft"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -866,7 +1108,8 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
                         <td className="px-3 py-2">
                           <button
                             onClick={() => removeItem(index)}
-                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                            disabled={scanning || queuedScanCount > 0 || isSubmitting || loading}
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                           </button>
@@ -894,20 +1137,33 @@ const CreateDispatchModal: React.FC<CreateDispatchModalProps> = ({
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
           <button
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            type="button"
+            onClick={handleDiscardDraft}
+            disabled={isSubmitting || loading || scanning || queuedScanCount > 0}
+            className="px-4 py-2 border border-red-300 dark:border-red-800 rounded-lg text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Cancel
+            Cancel Draft
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={loading || isSubmitting || items.length === 0}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium"
-          >
-            {loading || isSubmitting ? 'Creating...' : 'Create Dispatch'}
-          </button>
+          <div className="flex flex-col-reverse sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={handleSaveAndClose}
+              disabled={isSubmitting || loading || scanning || queuedScanCount > 0}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Save & Close
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading || isSubmitting || scanning || queuedScanCount > 0 || items.length === 0}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-medium"
+            >
+              {loading || isSubmitting ? 'Creating Dispatch...' : 'Create Dispatch'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

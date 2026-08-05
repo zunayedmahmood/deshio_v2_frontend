@@ -177,18 +177,6 @@ export default function Sidebar({
     { icon: CreditCard, label: 'Transaction', href: '/transaction' },
     { icon: CreditCard, label: 'Accounting', href: '/accounting' },
     {
-      icon: CreditCard,
-      label: 'Cash Sheet',
-      href: '/cash-sheet',
-      subMenu: [
-        { label: 'Monthly Sheet',  href: '/cash-sheet' },
-        { label: 'Branch Costs',   href: '/cash-sheet/branch-cost' },
-        { label: 'Admin Panel',    href: '/cash-sheet/admin' },
-        { label: 'Owner Panel',    href: '/cash-sheet/owner' },
-        { label: 'Summary View',   href: '/cash-sheet/summary' },
-      ],
-    },
-    {
       icon: Users,
       label: 'Human Resources (HRM)',
       subMenu: [

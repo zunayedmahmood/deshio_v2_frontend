@@ -23,7 +23,6 @@ import storeFulfillmentService from '@/services/storeFulfillmentService';
 import Toast from '@/components/Toast';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
 import OpenOrderLockRescueWidget, { readOpenOrderLockError } from '@/components/barcode/OpenOrderLockRescueWidget';
-import MobileCameraBarcodeScanner from '@/components/barcode/MobileCameraBarcodeScanner';
 
 interface ScannedItemTracking {
   required: number;
@@ -1021,7 +1020,7 @@ export default function WarehouseFulfillmentPage() {
                     />
                     <div className="flex items-center justify-between mt-2">
                       <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {isScanning ? '📱 Scan barcode or type manually and press Enter' : '⏸️ Click "Start Scanning" to begin'}
+                        {isScanning ? 'Scan with a USB barcode scanner or type manually and press Enter' : 'Click "Start Scanning" to begin'}
                       </p>
                       {isScanning && (
                         <div className="flex items-center gap-2">
@@ -1031,15 +1030,6 @@ export default function WarehouseFulfillmentPage() {
                       )}
                     </div>
 
-                    <MobileCameraBarcodeScanner
-                      enabled={isScanning}
-                      disabled={isProcessing || !orderDetails}
-                      scannerId="social-commerce-packing-camera-scanner"
-                      onScan={(barcode) => handleBarcodeScan(barcode)}
-                      buttonLabel="Scan with Mobile Camera"
-                      activeLabel="Social commerce packing camera active"
-                      helperText="Use this on mobile/tablet for packing scans. Keep manual/scanner input above for USB barcode scanners."
-                    />
                   </div>
 
                   {/* Quick Actions */}

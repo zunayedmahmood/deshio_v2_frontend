@@ -1,0 +1,10 @@
+Deshio frontend validation — 5 August 2026
+
+- 450 TypeScript/TSX source files transpiled successfully with zero syntax diagnostics.
+- Dispatch draft static contract checks passed.
+- Active OrdersClient contains no advanced-search call.
+- Active OrdersClient uses GET /batches with store_id, status=available, page=1, per_page=100.
+- Cash-sheet route tree and service are absent.
+- Cash-sheet sidebar references are absent.
+- Social-commerce packing camera control/import is absent.
+- Duplicate social-commerce example packing camera control/import is absent.

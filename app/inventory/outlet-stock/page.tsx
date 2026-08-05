@@ -174,6 +174,7 @@ export default function DispatchManagementPage() {
   const [filterDestStore, setFilterDestStore] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [creatingDispatch, setCreatingDispatch] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
   const [pagination, setPagination] = useState<PaginationMeta>(defaultPagination);
@@ -278,9 +279,9 @@ export default function DispatchManagementPage() {
     setCurrentPage(1);
   };
 
-  const handleCreateDispatch = async (data: any) => {
+  const handleCreateDispatch = async (data: any): Promise<boolean> => {
     try {
-      setLoading(true);
+      setCreatingDispatch(true);
 
       // Create dispatch with items and draft scans in ONE atomic call
       await dispatchService.createDispatch({
@@ -301,15 +302,19 @@ export default function DispatchManagementPage() {
       });
 
       showToast('Dispatch created successfully', 'success');
-      setShowCreateModal(false);
-      setCurrentPage(1);
-      fetchDispatches();
-      fetchStatistics();
+      if (currentPage === 1) {
+        void fetchDispatches();
+      } else {
+        setCurrentPage(1);
+      }
+      void fetchStatistics();
+      return true;
     } catch (error: any) {
       console.error('Error creating dispatch:', error);
       showToast(error.response?.data?.message || 'Failed to create dispatch', 'error');
+      return false;
     } finally {
-      setLoading(false);
+      setCreatingDispatch(false);
     }
   };
 
@@ -593,7 +598,7 @@ export default function DispatchManagementPage() {
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleCreateDispatch}
         stores={stores}
-        loading={loading}
+        loading={creatingDispatch}
         defaultSourceStoreId={store?.id}
       />
 
