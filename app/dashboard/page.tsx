@@ -64,7 +64,11 @@ const formatValue = (kpi?: DashboardKpi) => {
   return formatNumber(kpi.value);
 };
 
-const todayString = () => new Date().toISOString().slice(0, 10);
+const todayString = () => {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+};
 
 const KPI_LINKS: Record<string, string> = {
   sales: "/orders",
@@ -180,17 +184,20 @@ export default function DashboardPage() {
           ...(filters.storeId !== "all" ? { store_id: Number(filters.storeId) } : {}),
         });
 
-        if (!response.success || !response.data) {
-          throw new Error("Dashboard response was empty.");
+        if (!response?.success || !response?.data) {
+          throw new Error((response as any)?.message || "Dashboard response was empty.");
         }
 
         setOverview(response.data);
       } catch (caught: any) {
-        setError(
-          caught?.response?.data?.message ||
-            caught?.message ||
-            "Failed to load the Deshio dashboard."
-        );
+        const backendMessage = caught?.response?.data?.message;
+        const backendDetail = caught?.response?.data?.error;
+        const message =
+          backendMessage && backendDetail && backendMessage !== backendDetail
+            ? `${backendMessage} ${backendDetail}`
+            : backendMessage || backendDetail || caught?.message;
+
+        setError(message || "Failed to load the Deshio dashboard.");
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -297,8 +304,10 @@ export default function DashboardPage() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `deshio-dashboard-${overview.period.start_date}-${overview.period.end_date}.xls`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   if (loading && !overview) {
@@ -566,7 +575,7 @@ function KpiCard({ itemKey, kpi, onOpen }: { itemKey: string; kpi?: DashboardKpi
         ) : (
           <>
             {change > 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : change < 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : null}
-            <span className={kpi.is_positive ? "text-emerald-600" : "text-rose-600"}>
+            <span className={kpi?.is_positive ? "text-emerald-600" : "text-rose-600"}>
               {change > 0 ? "+" : ""}{formatNumber(change)}%
             </span>
             <span className="text-slate-400">vs previous</span>
