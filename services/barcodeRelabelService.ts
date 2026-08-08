@@ -3,6 +3,7 @@ import axios from '@/lib/axios';
 export type RelabelStatus = 'open' | 'used' | 'reconciled' | 'cancelled';
 
 export interface CreateRelabelPayload {
+  quantity?: number;
   batch_number: string;
   product_id?: number;
   store_id?: number;
@@ -30,7 +31,10 @@ export interface CreateRelabelResponse {
   message: string;
   data: {
     relabel: any;
+    relabels?: any[];
     replacement_barcode: ReplacementBarcodeResult;
+    replacement_barcodes?: ReplacementBarcodeResult[];
+    quantity?: number;
     rule: string;
   };
 }

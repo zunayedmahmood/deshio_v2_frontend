@@ -70,6 +70,9 @@ export interface CreateOrderRequest {
   assignment_status?: string;
   auto_assign_store?: boolean;
   requires_store_assignment?: boolean;
+  use_loyalty_points?: boolean;
+  loyalty_points_requested?: number;
+  loyalty_rate_id?: number;
 }
 
 export interface Order {
@@ -83,6 +86,8 @@ export interface Order {
   tax_amount: number;
   shipping_amount: number;
   discount_amount: number;
+  loyalty_points_used?: number;
+  loyalty_points_discount_amount?: number;
   created_at: string;
   estimated_delivery?: string;
   items: OrderItem[];

@@ -13,6 +13,14 @@ type Customer = {
   customer_code?: string;
   total_orders?: number;
   total_purchases?: string;
+  loyalty?: {
+    points_balance: number;
+    discount_value: number;
+    points_per_1000: number;
+    taka_per_point: number;
+    rate_id: number;
+    phone_normalized?: string | null;
+  };
 };
 
 type LastOrderSummary = {

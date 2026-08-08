@@ -11,6 +11,7 @@ import cartService from '@/services/cartService';
 import guestCheckoutService, { GuestPaymentMethod } from '@/services/guestCheckoutService';
 import campaignService, { CouponValidationResult, CouponErrorCode } from '@/services/campaignService';
 import { usePromotion } from '@/contexts/PromotionContext';
+import customerRewardService from '@/services/customerRewardService';
 
 export default function CheckoutClient() {
   const router = useRouter();
@@ -60,6 +61,9 @@ export default function CheckoutClient() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [shippingCharge, setShippingCharge] = useState(60);
+  const [loyaltySummary, setLoyaltySummary] = useState<any>(null);
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [isLoadingLoyalty, setIsLoadingLoyalty] = useState(false);
 
   // Guest checkout state
   const [guestPhone, setGuestPhone] = useState('');
@@ -329,6 +333,41 @@ export default function CheckoutClient() {
     }
   }, [guestAddress.city]);
 
+  // Logged-in checkout follows the customer's own phone wallet. Guest checkout
+  // follows the phone entered during checkout (not a delivery recipient's phone).
+  useEffect(() => {
+    const authenticated = isAuthenticated();
+    const phone = guestPhone.trim();
+
+    setUseLoyaltyPoints(false);
+    if (!authenticated && phone.replace(/\D/g, '').length < 7) {
+      setLoyaltySummary(null);
+      setIsLoadingLoyalty(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsLoadingLoyalty(true);
+      try {
+        const result = authenticated
+          ? await customerRewardService.getMyLoyaltySummary()
+          : await customerRewardService.getPhoneSummary(phone);
+        const wallet = authenticated ? (result?.wallet ?? result?.loyalty ?? null) : result;
+        if (!cancelled) setLoyaltySummary(wallet);
+      } catch {
+        if (!cancelled) setLoyaltySummary(null);
+      } finally {
+        if (!cancelled) setIsLoadingLoyalty(false);
+      }
+    }, authenticated ? 0 : 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [guestPhone]);
+
   // Calculate totals
   const orderItems: OrderItem[] = selectedItems.map(item => {
     const originalUnitPrice = typeof item.unit_price === 'string' ? parseFloat(item.unit_price) : item.unit_price;
@@ -350,6 +389,50 @@ export default function CheckoutClient() {
   });
   const couponDiscount = appliedCoupon?.discount || 0;
   const summary = checkoutService.calculateOrderSummary(orderItems, shippingCharge, couponDiscount);
+  const loyaltyBalance = Math.max(0, Number(loyaltySummary?.points_balance || 0));
+  const loyaltyTakaPerPoint = Math.max(0, Number(loyaltySummary?.taka_per_point || 0));
+  const loyaltyPointsNeeded = loyaltyTakaPerPoint > 0 ? Math.ceil(summary.total_amount / loyaltyTakaPerPoint) : 0;
+  const loyaltyPointsToUse = useLoyaltyPoints ? Math.min(loyaltyBalance, loyaltyPointsNeeded) : 0;
+  const loyaltyDiscount = Math.min(summary.total_amount, loyaltyPointsToUse * loyaltyTakaPerPoint);
+  const finalPayable = Math.max(0, summary.total_amount - loyaltyDiscount);
+
+  const renderLoyaltyPanel = () => {
+    if (isLoadingLoyalty) {
+      return <p className="text-xs text-[var(--text-muted)] mt-4">Checking loyalty points…</p>;
+    }
+    if (!loyaltySummary) return null;
+
+    return (
+      <div className="mt-5 p-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface-2)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold text-[var(--text-primary)]">Customer Loyalty</p>
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+              {loyaltyBalance.toLocaleString()} points · worth ৳{(loyaltyBalance * loyaltyTakaPerPoint).toLocaleString()}
+            </p>
+            <p className="text-[10px] text-[var(--text-muted)] mt-1">
+              1 point = ৳{loyaltyTakaPerPoint.toLocaleString()}
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-primary)] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useLoyaltyPoints}
+              onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+              disabled={loyaltyBalance <= 0 || loyaltyTakaPerPoint <= 0}
+              className="h-4 w-4"
+            />
+            Use points
+          </label>
+        </div>
+        {useLoyaltyPoints && loyaltyPointsToUse > 0 && (
+          <p className="text-[11px] text-[var(--status-success)] font-semibold mt-3">
+            {loyaltyPointsToUse.toLocaleString()} points will give ৳{loyaltyDiscount.toLocaleString()} discount.
+          </p>
+        )}
+      </div>
+    );
+  };
 
   const handleSaveAddress = async () => {
     setError(null);
@@ -571,6 +654,11 @@ export default function CheckoutClient() {
         ...(guestName.trim() ? { customer_name: guestName.trim() } : {}),
         ...(guestEmail.trim() ? { customer_email: guestEmail.trim() } : {}),
         ...(orderNotes.trim() ? { notes: orderNotes.trim() } : {}),
+        ...(loyaltyPointsToUse > 0 ? {
+          use_loyalty_points: true,
+          loyalty_points_requested: loyaltyPointsToUse,
+          loyalty_rate_id: Number(loyaltySummary?.rate_id),
+        } : {}),
       };
 
       const resp: any = await guestCheckoutService.checkout(payload as any);
@@ -582,7 +670,7 @@ export default function CheckoutClient() {
         try {
           const orderNo = resp?.data?.order_number || resp?.data?.order?.order_number;
           const txn = resp?.data?.transaction_id;
-          const amt = resp?.data?.total_amount ?? summary.total_amount;
+          const amt = resp?.data?.total_amount ?? finalPayable;
           if (orderNo) {
             localStorage.setItem(
               'ec_last_order',
@@ -640,7 +728,7 @@ export default function CheckoutClient() {
           JSON.stringify({
             order_number: orderNumber,
             payment_method: guestPaymentMethod,
-            total_amount: summary.total_amount,
+            total_amount: finalPayable,
             shipping_charge: shippingCharge,
             discount: couponDiscount,
             created_at: Date.now(),
@@ -728,7 +816,7 @@ export default function CheckoutClient() {
 
     console.log('🔍 Is online payment:', isOnlinePayment);
 
-    if (isOnlinePayment) {
+    if (isOnlinePayment && finalPayable > 0) {
       // ✅ Show SSLCommerz payment component
       console.log('🔐 Showing SSLCommerz payment screen');
       setShowSSLCommerzPayment(true);
@@ -748,6 +836,11 @@ export default function CheckoutClient() {
         delivery_preference: 'standard' as const,
         // Keep unassigned; manual assignment from Store Assignment page
         store_id: null,
+        ...(loyaltyPointsToUse > 0 ? {
+          use_loyalty_points: true,
+          loyalty_points_requested: loyaltyPointsToUse,
+          loyalty_rate_id: Number(loyaltySummary?.rate_id),
+        } : {}),
       };
 
       if (appliedCoupon && couponCode) {
@@ -841,7 +934,9 @@ export default function CheckoutClient() {
             billingAddressId={sameAsShipping ? selectedShippingAddressId! : (selectedBillingAddressId ?? undefined)}
             orderNotes={orderNotes}
             couponCode={appliedCoupon ? couponCode : undefined}
-            totalAmount={summary.total_amount}
+            totalAmount={finalPayable}
+            loyaltyPointsRequested={loyaltyPointsToUse || undefined}
+            loyaltyRateId={loyaltyPointsToUse > 0 ? Number(loyaltySummary?.rate_id) : undefined}
             items={selectedItems}
             shippingCharge={shippingCharge}
             discount={couponDiscount}
@@ -1147,6 +1242,8 @@ export default function CheckoutClient() {
                   {couponSuccess && <p className="text-[10px] text-[var(--status-success)] mt-2 ml-1 font-medium">{couponSuccess}</p>}
                 </div>
 
+                {renderLoyaltyPanel()}
+
                 <div className="border-t border-[var(--border-default)] mt-6 pt-6 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-[var(--text-secondary)]">Subtotal</span>
@@ -1162,9 +1259,15 @@ export default function CheckoutClient() {
                       <span className="text-sm font-bold">-৳{couponDiscount.toLocaleString()}</span>
                     </div>
                   )}
+                  {loyaltyDiscount > 0 && (
+                    <div className="flex justify-between items-center text-[var(--status-success)]">
+                      <span className="text-sm">Loyalty Points</span>
+                      <span className="text-sm font-bold">-৳{loyaltyDiscount.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center border-t border-[var(--border-strong)] mt-4 pt-4">
                     <span className="text-base font-bold text-[var(--text-primary)]">Total</span>
-                    <span className="text-2xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Poppins', sans-serif" }}>৳{summary.total_amount.toLocaleString()}</span>
+                    <span className="text-2xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Poppins', sans-serif" }}>৳{finalPayable.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -1884,6 +1987,8 @@ export default function CheckoutClient() {
                       {couponSuccess && <p className="text-[10px] text-[var(--status-success)] mt-2 font-medium">{couponSuccess}</p>}
                     </div>
 
+                    {renderLoyaltyPanel()}
+
                     {/* Fees & Discounts */}
                     <div className="space-y-3 pt-6">
 
@@ -1901,12 +2006,18 @@ export default function CheckoutClient() {
                           <span className="text-[var(--status-success)] font-bold">- ৳{summary.discount_amount.toLocaleString()}</span>
                         </div>
                       )}
+                      {loyaltyDiscount > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-[var(--status-success)] font-medium">Loyalty Points</span>
+                          <span className="text-[var(--status-success)] font-bold">- ৳{loyaltyDiscount.toLocaleString()}</span>
+                        </div>
+                      )}
 
                       {/* Total */}
                       <div className="flex justify-between pt-6 border-t border-[var(--border-strong)] items-center">
                         <span className="text-base font-bold text-[var(--text-primary)]">Total</span>
                         <h3 className="text-2xl font-bold text-[var(--text-primary)]" style={{ fontFamily: "'Poppins', sans-serif" }}>
-                          ৳{summary.total_amount.toLocaleString()}
+                          ৳{finalPayable.toLocaleString()}
                         </h3>
                       </div>
                     </div>

@@ -2835,6 +2835,11 @@ export default function SocialCommercePage() {
                                 <p>
                                   Total Orders: <span className="font-medium">{existingCustomer.total_orders ?? 0}</span>
                                 </p>
+                                {existingCustomer.loyalty && (
+                                  <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                                    Loyalty: {Number(existingCustomer.loyalty.points_balance || 0)} points · worth ৳{Number(existingCustomer.loyalty.discount_value || 0).toFixed(2)}
+                                  </p>
+                                )}
                                 {/* Customer Tags (view + manage) */}
                                 <CustomerTagManager
                                   customerId={existingCustomer.id}

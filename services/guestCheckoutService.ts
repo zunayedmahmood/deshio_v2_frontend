@@ -36,6 +36,9 @@ export type GuestCheckoutRequest = {
   assignment_status?: string;
   auto_assign_store?: boolean;
   requires_store_assignment?: boolean;
+  use_loyalty_points?: boolean;
+  loyalty_points_requested?: number;
+  loyalty_rate_id?: number;
 };
 
 export type GuestCheckoutCodSuccess = {

@@ -10,6 +10,8 @@ interface SSLCommerzPaymentProps {
   orderNotes?: string;
   couponCode?: string;
   totalAmount: number;
+  loyaltyPointsRequested?: number;
+  loyaltyRateId?: number;
   items?: any[];
   shippingCharge?: number;
   discount?: number;
@@ -23,6 +25,8 @@ export default function SSLCommerzPayment({
   orderNotes,
   couponCode,
   totalAmount,
+  loyaltyPointsRequested,
+  loyaltyRateId,
   items,
   shippingCharge,
   discount,
@@ -48,6 +52,11 @@ export default function SSLCommerzPayment({
         billing_address_id: billingAddressId || shippingAddressId,
         notes: orderNotes || '',
         ...(couponCode && { coupon_code: couponCode }),
+        ...(loyaltyPointsRequested ? {
+          use_loyalty_points: true,
+          loyalty_points_requested: loyaltyPointsRequested,
+          loyalty_rate_id: loyaltyRateId,
+        } : {}),
       };
 
       const response = await sslcommerzService.initializePayment(orderData);

@@ -28,6 +28,9 @@ class SSLCommerzService {
     billing_address_id?: number;
     notes?: string;
     coupon_code?: string;
+    use_loyalty_points?: boolean;
+    loyalty_points_requested?: number;
+    loyalty_rate_id?: number;
   }): Promise<SSLCommerzInitResponse> {
     const basePayload = {
       ...orderData,

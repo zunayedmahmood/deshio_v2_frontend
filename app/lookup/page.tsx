@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import CustomerTagManager from '@/components/customers/CustomerTagManager';
 
 import customerService, { Customer, CustomerOrder } from '@/services/customerService';
+import customerRewardService from '@/services/customerRewardService';
 import orderService from '@/services/orderService';
 import orderManagementService from '@/services/orderManagementService';
 import batchService, { Batch } from '@/services/batchService';
@@ -435,6 +436,7 @@ export default function LookupPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerLoyalty, setCustomerLoyalty] = useState<any>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
@@ -1293,6 +1295,20 @@ export default function LookupPage() {
       setLoading(false);
     }
   };
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!customer?.phone) {
+      setCustomerLoyalty(null);
+      return () => { cancelled = true; };
+    }
+
+    customerRewardService.getPhoneSummary(String(customer.phone))
+      .then((summary) => { if (!cancelled) setCustomerLoyalty(summary); })
+      .catch(() => { if (!cancelled) setCustomerLoyalty(null); });
+
+    return () => { cancelled = true; };
+  }, [customer?.phone]);
 
   // -----------------------
   // CUSTOMER suggestions
@@ -2624,6 +2640,11 @@ export default function LookupPage() {
                           <p className="text-xs text-gray-600 dark:text-gray-400">{customer.phone}</p>
                           {customer.customer_code && (
                             <p className="text-[10px] text-gray-500 dark:text-gray-500">Code: {customer.customer_code}</p>
+                          )}
+                          {customerLoyalty && (
+                            <p className="mt-1 text-[10px] font-medium text-black dark:text-white">
+                              Loyalty: {Number(customerLoyalty.points_balance || 0).toLocaleString()} points · worth ৳{Number(customerLoyalty.discount_value || 0).toFixed(2)}
+                            </p>
                           )}
                           {/* Customer Tags (view + manage) */}
                           <CustomerTagManager

@@ -36,6 +36,7 @@ export default function BarcodeRelabelPage() {
   const [productId, setProductId] = useState('');
   const [storeId, setStoreId] = useState('');
   const [customBarcode, setCustomBarcode] = useState('');
+  const [relabelQuantity, setRelabelQuantity] = useState('1');
   const [reason, setReason] = useState('lost_sticker');
   const [notes, setNotes] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -44,10 +45,13 @@ export default function BarcodeRelabelPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [generated, setGenerated] = useState<ReplacementBarcodeResult | null>(null);
+  const [generated, setGenerated] = useState<ReplacementBarcodeResult[]>([]);
   const [history, setHistory] = useState<RelabelRow[]>([]);
 
-  const canCreate = useMemo(() => batchNumber.trim().length > 0 && !isCreating, [batchNumber, isCreating]);
+  const canCreate = useMemo(() => {
+    const quantity = Number(relabelQuantity);
+    return batchNumber.trim().length > 0 && Number.isInteger(quantity) && quantity >= 1 && !isCreating;
+  }, [batchNumber, relabelQuantity, isCreating]);
 
   const loadHistory = async () => {
     setIsLoadingHistory(true);
@@ -87,10 +91,16 @@ export default function BarcodeRelabelPage() {
   const handleCreate = async () => {
     setError(null);
     setMessage(null);
-    setGenerated(null);
+    setGenerated([]);
 
     if (!batchNumber.trim()) {
       setError('Batch Number is required. Scan any barcode from the same batch or enter the batch number manually.');
+      return;
+    }
+
+    const quantity = Number(relabelQuantity);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setError('Number of relabelled barcodes must be a whole number of 1 or more.');
       return;
     }
 
@@ -101,13 +111,20 @@ export default function BarcodeRelabelPage() {
         product_id: productId ? Number(productId) : undefined,
         store_id: storeId ? Number(storeId) : undefined,
         barcode: customBarcode.trim() || undefined,
+        quantity,
         reason,
         notes: notes.trim() || undefined,
         type: 'CODE128',
       });
 
-      setGenerated(response.data.replacement_barcode);
-      setMessage(response.message || 'Replacement barcode generated. Stock quantity was not increased.');
+      const created = response.data.replacement_barcodes?.length
+        ? response.data.replacement_barcodes
+        : response.data.replacement_barcode
+          ? [response.data.replacement_barcode]
+          : [];
+
+      setGenerated(created);
+      setMessage(response.message || `${created.length} replacement barcode(s) generated. Stock quantity was not increased.`);
       setCustomBarcode('');
       setNotes('');
       await loadHistory();
@@ -120,8 +137,8 @@ export default function BarcodeRelabelPage() {
     }
   };
 
-  const printLabel = async () => {
-    if (!generated || isPrinting) return;
+  const printLabels = async () => {
+    if (generated.length === 0 || isPrinting) return;
 
     setError(null);
     setIsPrinting(true);
@@ -160,14 +177,19 @@ export default function BarcodeRelabelPage() {
 
       if (!printer) throw new Error('No printer found. Set a default printer and try again.');
 
-      const price = Number((generated as any).sell_price ?? (generated as any).price ?? 0);
-      const base64 = await renderBarcodeLabelBase64({
-        code: generated.barcode,
-        productName: (generated.product_name || 'Product').trim(),
-        price: Number.isFinite(price) ? price : 0,
-        dpi: LABEL_DPI,
-        brandName: 'Deshio',
-      });
+      const data: any[] = [];
+      for (const generatedBarcode of generated) {
+        const price = Number((generatedBarcode as any).sell_price ?? (generatedBarcode as any).price ?? 0);
+        const base64 = await renderBarcodeLabelBase64({
+          code: generatedBarcode.barcode,
+          productName: (generatedBarcode.product_name || 'Product').trim(),
+          price: Number.isFinite(price) ? price : 0,
+          dpi: LABEL_DPI,
+          brandName: 'Deshio',
+        });
+
+        data.push({ type: 'pixel', format: 'image', flavor: 'base64', data: base64 });
+      }
 
       const config = qz.configs.create(printer, {
         units: 'in',
@@ -179,8 +201,8 @@ export default function BarcodeRelabelPage() {
         scaleContent: false,
       });
 
-      await qz.print(config, [{ type: 'pixel', format: 'image', flavor: 'base64', data: base64 }]);
-      setMessage('Replacement barcode sent to printer.');
+      await qz.print(config, data);
+      setMessage(`${generated.length} replacement barcode(s) sent to printer.`);
     } catch (err: any) {
       console.error('Replacement barcode print failed:', err);
       if (err?.message?.includes('Unable to establish connection')) {
@@ -207,7 +229,7 @@ export default function BarcodeRelabelPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Temporary Barcode Relabeling</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 max-w-3xl">
-            Generate a floating replacement barcode for one existing physical unit. This creates a new scan identity only; it does not increase stock. When the batch stock reaches zero, leftover barcode identities in that relabel pool are automatically voided by the backend.
+            Generate one or more floating replacement barcodes for existing physical units. Relabelling creates new scan identities only; it does not increase stock. When the batch stock reaches zero, leftover barcode identities in that relabel pool are automatically voided by the backend.
           </p>
         </div>
 
@@ -222,7 +244,7 @@ export default function BarcodeRelabelPage() {
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5 space-y-5">
             <div>
               <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <BarcodeIcon className="w-5 h-5" /> Create replacement barcode
+                <BarcodeIcon className="w-5 h-5" /> Create replacement barcode(s)
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Scan any barcode from the same product/batch to auto-fill details, or enter the batch manually.
@@ -262,10 +284,21 @@ export default function BarcodeRelabelPage() {
               </label>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-3 gap-4">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Temporary barcode</span>
-                <input value={customBarcode} onChange={(e) => setCustomBarcode(e.target.value)} placeholder="Leave empty to auto-generate" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+                <input value={customBarcode} onChange={(e) => setCustomBarcode(e.target.value)} placeholder="Optional; first label only in bulk" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Number of relabelled barcodes *</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={relabelQuantity}
+                  onChange={(e) => setRelabelQuantity(e.target.value)}
+                  className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm"
+                />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Reason</span>
@@ -288,30 +321,34 @@ export default function BarcodeRelabelPage() {
               className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarcodeIcon className="w-4 h-4" />}
-              Generate Replacement Barcode
+              {Number(relabelQuantity) > 1 ? `Generate ${relabelQuantity} Replacement Barcodes` : 'Generate Replacement Barcode'}
             </button>
           </div>
 
           <div className="space-y-6">
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm p-5">
               <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <Package className="w-5 h-5" /> Generated label
+                <Package className="w-5 h-5" /> Generated label(s)
               </h2>
-              {generated ? (
+              {generated.length > 0 ? (
                 <div className="mt-4 space-y-4">
-                  <div className="rounded-2xl border border-dashed border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 p-5 text-center">
-                    <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300 font-bold">Replacement Barcode</p>
-                    <p className="text-3xl font-black text-gray-900 dark:text-white mt-2 tracking-widest">{generated.barcode}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{generated.product_name || 'Product'} {generated.batch_number ? `• ${generated.batch_number}` : ''}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Stock after relabel: {generated.batch_quantity_after_relabel ?? 'unchanged'}</p>
+                  <div className="max-h-[420px] overflow-y-auto space-y-3 pr-1">
+                    {generated.map((generatedBarcode, index) => (
+                      <div key={generatedBarcode.id || generatedBarcode.barcode} className="rounded-2xl border border-dashed border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 p-5 text-center">
+                        <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300 font-bold">Replacement Barcode {generated.length > 1 ? `${index + 1}/${generated.length}` : ''}</p>
+                        <p className="text-3xl font-black text-gray-900 dark:text-white mt-2 tracking-widest break-all">{generatedBarcode.barcode}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{generatedBarcode.product_name || 'Product'} {generatedBarcode.batch_number ? `• ${generatedBarcode.batch_number}` : ''}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Stock after relabel: {generatedBarcode.batch_quantity_after_relabel ?? 'unchanged'}</p>
+                      </div>
+                    ))}
                   </div>
                   <button
-                    onClick={printLabel}
+                    onClick={printLabels}
                     disabled={isPrinting}
                     className="w-full rounded-xl border border-gray-300 dark:border-gray-700 px-5 py-3 text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
                   >
                     {isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                    {isPrinting ? 'Printing...' : 'Print Temporary Label'}
+                    {isPrinting ? 'Printing...' : generated.length > 1 ? `Print All ${generated.length} Temporary Labels` : 'Print Temporary Label'}
                   </button>
                 </div>
               ) : (

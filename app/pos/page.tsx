@@ -179,6 +179,7 @@ export default function POSPage() {
   // ✅ Customer lookup (existing customer by phone + last purchase)
   const customerLookup = useCustomerLookup({ debounceMs: 500, minLength: 6 });
   const [autoCustomerId, setAutoCustomerId] = useState<number | null>(null);
+  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
 
   // ✅ Customer create/edit modal
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -223,6 +224,10 @@ export default function POSPage() {
       setAutoCustomerId(null);
     }
   }, [customerLookup.customer, autoCustomerId]);
+
+  useEffect(() => {
+    setUseLoyaltyPoints(false);
+  }, [(customerLookup.customer as any)?.id]);
 
   // Payment
   const [transportCost, setTransportCost] = useState(0);
@@ -606,7 +611,15 @@ export default function POSPage() {
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
   const grossSubtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
-  const total = subtotal + transportCost;
+  const loyalty = (customerLookup.customer as any)?.loyalty;
+  const loyaltyPointsBalance = Number(loyalty?.points_balance || 0);
+  const loyaltyTakaPerPoint = Number(loyalty?.taka_per_point || 0);
+  const payableBeforeLoyalty = Math.max(0, subtotal + transportCost);
+  const loyaltyPointsToUse = useLoyaltyPoints && loyaltyTakaPerPoint > 0
+    ? Math.min(loyaltyPointsBalance, Math.ceil(payableBeforeLoyalty / loyaltyTakaPerPoint))
+    : 0;
+  const loyaltyDiscount = Math.min(payableBeforeLoyalty, loyaltyPointsToUse * loyaltyTakaPerPoint);
+  const total = Math.max(0, payableBeforeLoyalty - loyaltyDiscount);
 
   // Installment amount (ceil to 2 decimals so collected amount is not less than required per installment)
   const installmentAmount = useMemo(() => {
@@ -723,6 +736,14 @@ export default function POSPage() {
               ...(address ? { address } : {}),
             },
           }
+          : {}),
+
+        ...(loyaltyPointsToUse > 0
+          ? {
+              use_loyalty_points: true,
+              loyalty_points_requested: loyaltyPointsToUse,
+              loyalty_rate_id: Number(loyalty?.rate_id || 0) || undefined,
+            }
           : {}),
 
         // ✅ Map cart items (VAT inclusive — send tax_amount = 0)
@@ -1181,6 +1202,7 @@ export default function POSPage() {
     setNagadPaid(0);
     setTransportCost(0);
     setAutoCustomerId(null);
+    setUseLoyaltyPoints(false);
     setOrderNotes('');
 
     // ✅ Clear lookup input + last order UI as well
@@ -1990,6 +2012,34 @@ export default function POSPage() {
                                 </div>
                               )}
 
+                              <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs dark:border-emerald-800 dark:bg-emerald-900/20">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <div className="font-semibold text-emerald-900 dark:text-emerald-200">
+                                      Loyalty: {loyaltyPointsBalance} point{loyaltyPointsBalance === 1 ? '' : 's'}
+                                    </div>
+                                    <div className="text-emerald-800 dark:text-emerald-300">
+                                      Worth up to ৳{Number(loyalty?.discount_value || 0).toFixed(2)} · 1 point = ৳{loyaltyTakaPerPoint.toFixed(2)}
+                                    </div>
+                                  </div>
+                                  <label className="flex items-center gap-2 font-medium text-emerald-900 dark:text-emerald-200">
+                                    <input
+                                      type="checkbox"
+                                      checked={useLoyaltyPoints}
+                                      disabled={loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0}
+                                      onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                                      className="h-4 w-4"
+                                    />
+                                    Use points
+                                  </label>
+                                </div>
+                                {useLoyaltyPoints && loyaltyPointsToUse > 0 && (
+                                  <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-300">
+                                    Using {loyaltyPointsToUse} point{loyaltyPointsToUse === 1 ? '' : 's'} → discount ৳{loyaltyDiscount.toFixed(2)}
+                                  </div>
+                                )}
+                              </div>
+
                               {/* ✅ Actions */}
                               <div className="pt-2 flex flex-wrap gap-2">
                                 <button
@@ -2066,6 +2116,13 @@ export default function POSPage() {
                         ৳{totalDiscount.toFixed(2)}
                       </span>
                     </div>
+
+                    {loyaltyDiscount > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-emerald-700 dark:text-emerald-300">Loyalty Discount ({loyaltyPointsToUse} pts)</span>
+                        <span className="text-emerald-700 dark:text-emerald-300 font-medium">-৳{loyaltyDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">

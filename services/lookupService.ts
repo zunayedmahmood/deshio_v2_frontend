@@ -20,7 +20,7 @@ const lookupService = {
 
   async getProductByBarcode(barcode: string): Promise<LookupApiResponse<any>> {
     const res = await axios.get(`${this.basePath}/product`, {
-      params: { barcode },
+      params: { barcode, summary: 1 },
     });
     return res.data;
   },
