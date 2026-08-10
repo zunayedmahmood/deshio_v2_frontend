@@ -151,11 +151,13 @@ export default function TransactionDetailPage() {
                               {transaction.name}
                             </h1>
                           </div>
-                          <div className={`px-4 py-1.5 rounded-full text-sm font-bold capitalize ${transaction.type === 'expense'
+                          <div className={`px-4 py-1.5 rounded-full text-sm font-bold ${transaction.type === 'expense'
                               ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
-                              : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                              : transaction.type === 'income'
+                                ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                             }`}>
-                            {transaction.type}
+                            {transaction.type === 'income' ? 'Cash In' : transaction.type === 'expense' ? 'Cash Out' : 'Non-cash Adjustment'}
                           </div>
                         </div>
                         <div className="text-4xl font-black text-gray-900 dark:text-white flex items-baseline gap-2">

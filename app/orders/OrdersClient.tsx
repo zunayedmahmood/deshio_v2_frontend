@@ -1966,11 +1966,25 @@ export default function OrdersDashboard() {
       await productReturnService.complete(returnId);
 
       if (returnData.refundMethods.total > 0) {
+        const activeRefundTenders = [
+          returnData.refundMethods.cash,
+          returnData.refundMethods.card,
+          returnData.refundMethods.bkash,
+          returnData.refundMethods.nagad,
+        ].filter((amount) => Number(amount) > 0).length;
+        const refundMethod: CreateRefundRequest['refund_method'] = activeRefundTenders > 1
+          ? 'other'
+          : returnData.refundMethods.card > 0
+            ? 'card_refund'
+            : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0)
+              ? 'digital_wallet'
+              : 'cash';
+
         const refundRequest: CreateRefundRequest = {
           return_id: returnId,
           refund_type: 'partial_amount',
           refund_amount: returnData.refundMethods.total,
-          refund_method: 'cash',
+          refund_method: refundMethod,
           refund_method_details: {
             cash: returnData.refundMethods.cash,
             card: returnData.refundMethods.card,
