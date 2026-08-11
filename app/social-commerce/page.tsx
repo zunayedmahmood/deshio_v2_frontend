@@ -46,6 +46,11 @@ interface CartProduct {
   isService?: boolean; // NEW: Flag for service items
   serviceId?: number; // NEW: Service ID
   serviceCategory?: string; // NEW: Service category
+  product_barcode_id?: number | null;
+  barcode_id?: number | null;
+  barcode?: string | null;
+  is_scanned?: boolean;
+  is_inventory_deducted?: boolean;
 }
 
 interface StoreAvailabilityDetail {
@@ -210,6 +215,9 @@ export default function SocialCommercePage() {
   const [totalAmountState, setTotalAmountState] = useState<number>(0);
   const [discountAmountState, setDiscountAmountState] = useState<number>(0);
   const [shippingAmountState, setShippingAmountState] = useState<number>(0);
+  const [loyaltyPointsUsedState, setLoyaltyPointsUsedState] = useState<number>(0);
+  const [loyaltyPointsDiscountState, setLoyaltyPointsDiscountState] = useState<number>(0);
+  const [removedBarcodeIds, setRemovedBarcodeIds] = useState<number[]>([]);
 
   // 🔎 Order preview (from Last 5 Orders)
   const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
@@ -377,6 +385,9 @@ export default function SocialCommercePage() {
         outstandingAmount,
         discountAmountState,
         shippingAmountState,
+        loyaltyPointsUsedState,
+        loyaltyPointsDiscountState,
+        removedBarcodeIds,
       };
       sessionStorage.setItem(SC_DRAFT_STORAGE_KEY, JSON.stringify(draft));
       if (selectedStore) persistSelectedStore(selectedStore);
@@ -524,6 +535,9 @@ export default function SocialCommercePage() {
     setTotalAmountState(0);
     setDiscountAmountState(0);
     setShippingAmountState(0);
+    setLoyaltyPointsUsedState(0);
+    setLoyaltyPointsDiscountState(0);
+    setRemovedBarcodeIds([]);
     setSearchQuery('');
     setMinPrice('');
     setMaxPrice('');
@@ -593,6 +607,11 @@ export default function SocialCommercePage() {
       isService: Boolean(item.isService),
       serviceId: item.serviceId,
       serviceCategory: item.serviceCategory,
+      product_barcode_id: Number(item.product_barcode_id ?? item.barcode_id ?? 0) || null,
+      barcode_id: Number(item.barcode_id ?? item.product_barcode_id ?? 0) || null,
+      barcode: item.barcode ?? item.barcode_number ?? null,
+      is_scanned: Boolean(item.is_scanned || item.product_barcode_id || item.barcode_id || item.barcode || item.barcode_number),
+      is_inventory_deducted: Boolean(item.is_inventory_deducted),
     };
   };
 
@@ -1511,6 +1530,9 @@ export default function SocialCommercePage() {
           if (ep.outstandingAmount !== undefined) setOutstandingAmount(parseAmount(ep.outstandingAmount));
           if (ep.discountAmount !== undefined) setDiscountAmountState(parseAmount(ep.discountAmount));
           if (ep.shippingAmount !== undefined) setShippingAmountState(parseAmount(ep.shippingAmount));
+          if (ep.loyaltyPointsUsed !== undefined) setLoyaltyPointsUsedState(parseAmount(ep.loyaltyPointsUsed));
+          if (ep.loyaltyPointsDiscountAmount !== undefined) setLoyaltyPointsDiscountState(parseAmount(ep.loyaltyPointsDiscountAmount));
+          setRemovedBarcodeIds([]);
         }
         draftHydratedRef.current = true;
         return;
@@ -1574,6 +1596,11 @@ export default function SocialCommercePage() {
         if (d.outstandingAmount !== undefined) setOutstandingAmount(parseAmount(d.outstandingAmount));
         if (d.discountAmountState !== undefined) setDiscountAmountState(parseAmount(d.discountAmountState));
         if (d.shippingAmountState !== undefined) setShippingAmountState(parseAmount(d.shippingAmountState));
+        if (d.loyaltyPointsUsedState !== undefined) setLoyaltyPointsUsedState(parseAmount(d.loyaltyPointsUsedState));
+        if (d.loyaltyPointsDiscountState !== undefined) setLoyaltyPointsDiscountState(parseAmount(d.loyaltyPointsDiscountState));
+        if (Array.isArray(d.removedBarcodeIds)) {
+          setRemovedBarcodeIds(d.removedBarcodeIds.map((id: any) => Number(id)).filter((id: number) => id > 0));
+        }
       }
     } catch (e) {
       console.warn('Failed to restore social commerce draft', e);
@@ -1621,6 +1648,9 @@ export default function SocialCommercePage() {
     outstandingAmount,
     discountAmountState,
     shippingAmountState,
+    loyaltyPointsUsedState,
+    loyaltyPointsDiscountState,
+    removedBarcodeIds,
   ]);
 
   useEffect(() => {
@@ -2144,6 +2174,15 @@ export default function SocialCommercePage() {
   };
 
   const removeFromCart = (id: number | string) => {
+    const target = cart.find((item) => item.id === id);
+    if (editOrderId && target?.product_barcode_id) {
+      const barcodeId = Number(target.product_barcode_id);
+      const barcodeLabel = target.barcode || `barcode ID ${barcodeId}`;
+      if (!window.confirm(`Remove scanned product ${barcodeLabel} from this order?`)) return;
+      if (barcodeId > 0) {
+        setRemovedBarcodeIds((prev) => (prev.includes(barcodeId) ? prev : [...prev, barcodeId]));
+      }
+    }
     setCart(cart.filter((item) => item.id !== id));
   };
 
@@ -2522,6 +2561,11 @@ export default function SocialCommercePage() {
             quantity: item.quantity,
             unit_price: item.unit_price,
             discount_amount: item.discount_amount,
+            ...(item.product_barcode_id ? { product_barcode_id: item.product_barcode_id } : {}),
+            ...(item.barcode_id ? { barcode_id: item.barcode_id } : {}),
+            ...(item.barcode ? { barcode: item.barcode } : {}),
+            ...(item.is_scanned ? { is_scanned: true } : {}),
+            ...(item.is_inventory_deducted ? { is_inventory_deducted: true } : {}),
             ...(item.isDefective
               ? {
                 is_defective: true,
@@ -2576,6 +2620,9 @@ export default function SocialCommercePage() {
           total_amount: totalAmountState,
           original_discount_amount: discountAmountState,
           original_shipping_amount: shippingAmountState,
+          loyalty_points_used: loyaltyPointsUsedState,
+          loyalty_points_discount_amount: loyaltyPointsDiscountState,
+          remove_barcode_ids: removedBarcodeIds,
         })
       );
 
@@ -3538,6 +3585,9 @@ export default function SocialCommercePage() {
                               Product
                             </th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                              Barcode
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
                               Qty
                             </th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -3554,7 +3604,7 @@ export default function SocialCommercePage() {
                         <tbody>
                           {cart.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                              <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                 No products in cart
                               </td>
                             </tr>
@@ -3574,6 +3624,16 @@ export default function SocialCommercePage() {
                                     </span>
                                   )}
                                 </td>
+                                <td className="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
+                                  {item.product_barcode_id ? (
+                                    <div>
+                                      <div className="font-mono break-all">{item.barcode || `ID #${item.product_barcode_id}`}</div>
+                                      <span className="text-[10px] text-green-700 dark:text-green-400">SCANNED</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400">—</span>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{item.quantity}</td>
                                 <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{item.unit_price.toFixed(2)}</td>
                                 <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{item.amount.toFixed(2)}</td>
@@ -3582,7 +3642,7 @@ export default function SocialCommercePage() {
                                     onClick={() => removeFromCart(item.id)}
                                     className="text-red-600 hover:text-red-700 text-xs font-medium"
                                   >
-                                    Remove
+                                    {editOrderId && item.product_barcode_id ? 'Remove barcode' : 'Remove'}
                                   </button>
                                 </td>
                               </tr>

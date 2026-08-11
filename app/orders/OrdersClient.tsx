@@ -1836,6 +1836,92 @@ export default function OrdersDashboard() {
 
     try {
       const fullOrder = await orderService.getById(order.id);
+      const fo = fullOrder as any;
+      const orderType = normalize(fo.order_type || order.orderType);
+
+      // All online-order edits use Social Commerce edit mode. This keeps product
+      // search, payment collection and barcode-aware removals in one workflow.
+      if (['social_commerce', 'ecommerce'].includes(orderType)) {
+        const rawShipping = fo.shipping_address && typeof fo.shipping_address === 'object'
+          ? fo.shipping_address
+          : {};
+        const sa: any = normalizeShippingObject(rawShipping) || {};
+        const countryName = String(sa.country || 'Bangladesh').trim();
+        const isInternational = countryName !== '' && !['bangladesh', 'bd'].includes(countryName.toLowerCase());
+        const hasManualPathaoLocation = Boolean(sa.pathao_city_id && sa.pathao_zone_id && sa.pathao_area_id);
+        const streetAddress = sa.street || sa.address_line1 || sa.address_line_1 || sa.address || '';
+
+        const productCart = (fo.items || []).map((item: any) => ({
+          id: item.id,
+          product_id: item.product_id,
+          batch_id: item.batch_id ?? item.product_batch_id ?? null,
+          productName: item.product_name || item.product?.name || '',
+          quantity: Number(item.quantity) || 1,
+          unit_price: parseMoney(item.unit_price),
+          discount_amount: parseMoney(item.discount_amount),
+          amount: parseMoney(item.total_amount) || Math.max(0, (parseMoney(item.unit_price) * (Number(item.quantity) || 1)) - parseMoney(item.discount_amount)),
+          product_barcode_id: item.product_barcode_id ?? item.barcode_id ?? null,
+          barcode_id: item.barcode_id ?? item.product_barcode_id ?? null,
+          barcode: item.barcode || item.barcode_number || null,
+          is_scanned: Boolean(item.is_scanned || item.product_barcode_id || item.barcode_id || item.barcode),
+          is_inventory_deducted: Boolean(item.is_inventory_deducted),
+        }));
+
+        const serviceCart = (fo.services || fo.service_items || []).map((service: any) => ({
+          id: `service-${service.id}`,
+          product_id: 0,
+          batch_id: null,
+          productName: service.service_name || service.name || 'Service',
+          quantity: Number(service.quantity) || 1,
+          unit_price: parseMoney(service.unit_price),
+          discount_amount: parseMoney(service.discount_amount),
+          amount: parseMoney(service.total_price ?? service.total_amount) || Math.max(0, (parseMoney(service.unit_price) * (Number(service.quantity) || 1)) - parseMoney(service.discount_amount)),
+          isService: true,
+          serviceId: service.service_id,
+          serviceCategory: service.category,
+        }));
+
+        const storeId = Number(fo.store_id || fo.store?.id || 0) || null;
+        const prefill = {
+          editOrderId: order.id,
+          editOrderNumber: fo.order_number || order.orderNumber,
+          editOrderType: orderType,
+          salesmanId: fo.salesman?.id ?? null,
+          salesBy: fo.salesman?.name || '',
+          storeId: storeId ? String(storeId) : '',
+          storeAssignmentMode: storeId ? 'manual' : 'auto',
+          userName: fo.customer?.name || fo.customer_name || '',
+          userPhone: fo.customer?.phone || fo.customer_phone || '',
+          userEmail: fo.customer?.email || fo.customer_email || '',
+          socialId: fo.social_id || '',
+          orderNotes: fo.notes || '',
+          isInternational,
+          usePathaoAutoLocation: !hasManualPathaoLocation,
+          pathaoCityId: sa.pathao_city_id ? String(sa.pathao_city_id) : '',
+          pathaoZoneId: sa.pathao_zone_id ? String(sa.pathao_zone_id) : '',
+          pathaoAreaId: sa.pathao_area_id ? String(sa.pathao_area_id) : '',
+          streetAddress,
+          postalCode: sa.postal_code || '',
+          country: isInternational ? countryName : '',
+          state: sa.state || '',
+          internationalCity: sa.city || '',
+          internationalPostalCode: sa.postal_code || '',
+          deliveryAddress: streetAddress,
+          cart: [...productCart, ...serviceCart],
+          paidAmount: parseMoney(fo.paid_amount),
+          totalAmount: parseMoney(fo.total_amount),
+          outstandingAmount: parseMoney(fo.outstanding_amount),
+          discountAmount: parseMoney(fo.discount_amount),
+          shippingAmount: parseMoney(fo.shipping_amount),
+          loyaltyPointsUsed: Number(fo.loyalty_points_used || 0),
+          loyaltyPointsDiscountAmount: parseMoney(fo.loyalty_points_discount_amount),
+        };
+
+        sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefill));
+        window.location.href = '/social-commerce';
+        return;
+      }
+
       const transformed = transformOrder(fullOrder);
 
       setSelectedOrder(transformed);

@@ -523,7 +523,10 @@ export default function AmountDetailsPage() {
         displayToast('Please select a payment method', 'error');
         return;
       }
-      // Transaction reference is optional (even if a method normally requires it)
+      if (selectedMethod?.requires_reference && !transactionReference.trim()) {
+        displayToast(`Transaction reference is required for ${selectedMethod.name}`, 'error');
+        return;
+      }
     }
 
     // Installment validation
@@ -648,7 +651,9 @@ export default function AmountDetailsPage() {
         }
 
         const claimedExistingIds = new Set<number>();
-        const finalItemPayloads = itemPayloads.map((item: any) => {
+        const finalItemPayloads = itemPayloads.map((item: any, itemIndex: number) => {
+          const sourceItem = orderData.items?.[itemIndex] || {};
+          const sourceBarcodeId = Number(sourceItem?.product_barcode_id ?? sourceItem?.barcode_id ?? 0) || 0;
           const requestedId = Number(item.id);
           if (requestedId && existingById.has(requestedId) && !claimedExistingIds.has(requestedId)) {
             claimedExistingIds.add(requestedId);
@@ -659,8 +664,13 @@ export default function AmountDetailsPage() {
           // identify the same product/batch line.
           const fallback = existingItems.find((candidate: any) => {
             const candidateId = Number(candidate?.id);
+            const candidateBarcodeId = Number(candidate?.product_barcode_id ?? candidate?.barcode_id ?? 0) || 0;
+            const barcodeMatches = sourceBarcodeId > 0
+              ? candidateBarcodeId === sourceBarcodeId
+              : candidateBarcodeId === 0;
             return candidateId
               && !claimedExistingIds.has(candidateId)
+              && barcodeMatches
               && normalizeKey(candidate) === normalizeKey(item);
           });
 
@@ -674,6 +684,13 @@ export default function AmountDetailsPage() {
           const { id: _uiOnlyId, batch_id: _batchId, ...newItem } = item;
           return newItem;
         });
+
+        // Only barcodes explicitly selected in the Social Commerce cart may be
+        // released. Never infer approval from a fresh backend response because a
+        // barcode may have been scanned concurrently after the editor was opened.
+        const removedBarcodeIds = Array.isArray(orderData.remove_barcode_ids)
+          ? orderData.remove_barcode_ids.map((id: any) => Number(id)).filter((id: number) => id > 0)
+          : [];
 
         // Submit the FINAL edited cart in one backend transaction. This is the
         // important part for one-product replacements: the backend validates the
@@ -689,6 +706,7 @@ export default function AmountDetailsPage() {
           discount_amount: orderDiscount,
           shipping_amount: transport,
           items: finalItemPayloads,
+          ...(removedBarcodeIds.length > 0 ? { remove_barcode_ids: removedBarcodeIds } : {}),
           services: orderData.services || [],
           ...(String(orderData.notes || '').trim() ? { notes: String(orderData.notes).trim() } : {}),
         };
@@ -1527,7 +1545,8 @@ export default function AmountDetailsPage() {
 
                         <div>
                           <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
-                            Transaction Reference <span className="text-gray-500">(optional)</span>
+                            Transaction Reference{' '}
+                            <span className="text-gray-500">({selectedMethod?.requires_reference ? 'required' : 'optional'})</span>
                           </label>
                           <input
                             value={transactionReference}
