@@ -87,7 +87,7 @@ const calculateItemAmount = (item: any): number => {
 
 const normalizeKey = (item: any): string => {
   const productId = Number(item?.product_id ?? item?.productId ?? 0) || 0;
-  const batchId = Number(item?.batch_id ?? item?.batchId ?? 0) || 0;
+  const batchId = Number(item?.batch_id ?? item?.product_batch_id ?? item?.batchId ?? item?.productBatchId ?? 0) || 0;
   return `${productId}::${batchId}`;
 };
 
@@ -590,6 +590,7 @@ export default function AmountDetailsPage() {
       const itemPayloads = (orderData.items || []).map((item: any) => ({
         id: item.id ?? null,
         product_id: item.product_id,
+        batch_id: item.batch_id ?? item.product_batch_id ?? null,
         quantity: Number(item.quantity) || 1,
         unit_price: Number(item.unit_price) || 0,
         discount_amount: Number(item.discount_amount) || 0,
@@ -630,6 +631,54 @@ export default function AmountDetailsPage() {
           throw new Error('Edit order id missing');
         }
 
+        // Load the persisted lines first so browser-only cart ids (Date.now(),
+        // staging ids, etc.) are never sent as database order-item ids.
+        const existingResponse = await axios.get(`/orders/${targetOrderId}`);
+        const existingBody: any = existingResponse.data;
+        if (existingBody?.success === false) {
+          throw new Error(existingBody?.message || 'Failed to load existing order items');
+        }
+
+        const existingOrder = existingBody?.data ?? existingBody;
+        const existingItems = Array.isArray(existingOrder?.items) ? existingOrder.items : [];
+        const existingById = new Map<number, any>();
+        for (const existingItem of existingItems) {
+          const existingId = Number(existingItem?.id);
+          if (existingId) existingById.set(existingId, existingItem);
+        }
+
+        const claimedExistingIds = new Set<number>();
+        const finalItemPayloads = itemPayloads.map((item: any) => {
+          const requestedId = Number(item.id);
+          if (requestedId && existingById.has(requestedId) && !claimedExistingIds.has(requestedId)) {
+            claimedExistingIds.add(requestedId);
+            return { ...item, id: requestedId };
+          }
+
+          // Fallback for legacy prefills that lost the order-item id but still
+          // identify the same product/batch line.
+          const fallback = existingItems.find((candidate: any) => {
+            const candidateId = Number(candidate?.id);
+            return candidateId
+              && !claimedExistingIds.has(candidateId)
+              && normalizeKey(candidate) === normalizeKey(item);
+          });
+
+          if (fallback) {
+            const fallbackId = Number(fallback.id);
+            claimedExistingIds.add(fallbackId);
+            return { ...item, id: fallbackId };
+          }
+
+          // New cart line: omit its UI-only id so Laravel creates a new item.
+          const { id: _uiOnlyId, batch_id: _batchId, ...newItem } = item;
+          return newItem;
+        });
+
+        // Submit the FINAL edited cart in one backend transaction. This is the
+        // important part for one-product replacements: the backend validates the
+        // final state before removing the old line, so there is no temporary
+        // zero-product state that triggers the "unless the order contains a service" guard.
         const updatePayload: any = {
           customer_name: orderData.customer?.name,
           customer_phone: orderData.customer?.phone,
@@ -639,93 +688,19 @@ export default function AmountDetailsPage() {
           ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
           discount_amount: orderDiscount,
           shipping_amount: transport,
+          items: finalItemPayloads,
           services: orderData.services || [],
           ...(String(orderData.notes || '').trim() ? { notes: String(orderData.notes).trim() } : {}),
         };
 
-        console.log('✏️ Updating order:', targetOrderId, updatePayload);
+        console.log('✏️ Updating order with final edited cart:', targetOrderId, updatePayload);
         const updateResponse = await axios.patch(`/orders/${targetOrderId}`, updatePayload);
         const updateBody: any = updateResponse.data;
         if (updateBody?.success === false) {
           throw new Error(updateBody?.message || 'Failed to update order');
         }
 
-        const existingResponse = await axios.get(`/orders/${targetOrderId}`);
-        const existingBody: any = existingResponse.data;
-        if (existingBody?.success === false) {
-          throw new Error(existingBody?.message || 'Failed to load existing order items');
-        }
-
-        const existingOrder = existingBody?.data ?? existingBody;
-        const existingItems = Array.isArray(existingOrder?.items) ? existingOrder.items : [];
-
-        const desiredById = new Map<number, any>();
-        const desiredUnmatched: any[] = [];
-        for (const item of itemPayloads) {
-          const numericId = Number(item.id);
-          if (numericId) desiredById.set(numericId, item);
-          else desiredUnmatched.push(item);
-        }
-
-        const usedExistingIds = new Set<number>();
-
-        for (const existingItem of existingItems) {
-          const existingId = Number(existingItem?.id);
-          if (!existingId) continue;
-
-          if (desiredById.has(existingId)) {
-            const desiredItem = desiredById.get(existingId);
-            await axios.put(`/orders/${targetOrderId}/items/${existingId}`, {
-              quantity: desiredItem.quantity,
-              unit_price: desiredItem.unit_price,
-              discount_amount: desiredItem.discount_amount,
-            });
-            usedExistingIds.add(existingId);
-            desiredById.delete(existingId);
-            continue;
-          }
-
-          const fallbackIndex = desiredUnmatched.findIndex((candidate) => normalizeKey(candidate) === normalizeKey(existingItem));
-          if (fallbackIndex >= 0) {
-            const desiredItem = desiredUnmatched.splice(fallbackIndex, 1)[0];
-            await axios.put(`/orders/${targetOrderId}/items/${existingId}`, {
-              quantity: desiredItem.quantity,
-              unit_price: desiredItem.unit_price,
-              discount_amount: desiredItem.discount_amount,
-            });
-            usedExistingIds.add(existingId);
-            continue;
-          }
-
-          await axios.delete(`/orders/${targetOrderId}/items/${existingId}`);
-        }
-
-        for (const [, desiredItem] of desiredById) {
-          await axios.post(`/orders/${targetOrderId}/items`, {
-            product_id: desiredItem.product_id,
-            batch_id: desiredItem.batch_id,
-            quantity: desiredItem.quantity,
-            unit_price: desiredItem.unit_price,
-            discount_amount: desiredItem.discount_amount,
-          });
-        }
-
-        for (const desiredItem of desiredUnmatched) {
-          await axios.post(`/orders/${targetOrderId}/items`, {
-            product_id: desiredItem.product_id,
-            batch_id: desiredItem.batch_id,
-            quantity: desiredItem.quantity,
-            unit_price: desiredItem.unit_price,
-            discount_amount: desiredItem.discount_amount,
-          });
-        }
-
-        const refreshedResponse = await axios.get(`/orders/${targetOrderId}`);
-        const refreshedBody: any = refreshedResponse.data;
-        if (refreshedBody?.success === false) {
-          throw new Error(refreshedBody?.message || 'Order updated but failed to reload final details');
-        }
-        createdOrder = refreshedBody?.data ?? refreshedBody;
+        createdOrder = updateBody?.data ?? updateBody;
       } else {
         // 1) Create order (sanitize payload)
         const isPreorderOrder = Boolean(

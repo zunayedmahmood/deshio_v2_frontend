@@ -204,7 +204,6 @@ export default function AccountingSystem() {
         sort_by: 'transaction_date',
         sort_order: 'desc',
         per_page: 1000,
-        status: 'completed',
         store_id: selectedStoreId,
       });
 

@@ -1,0 +1,13 @@
+Dashboard all-account store filter validation — August 5, 2026
+
+PASS: dashboard page has no role-based access gate.
+PASS: store selector always shows All Stores plus API-provided active stores.
+PASS: selector is not disabled for any role.
+PASS: All Stores omits store_id from API requests.
+PASS: individual selection sends store_id and refreshes the dashboard.
+PASS: Reset returns to Today + All Stores.
+PASS: drill-down links preserve selected store_id when present.
+PASS: TypeScript syntax checks passed.
+PASS: dashboard API response normalization added.
+PASS: dashboard page and dashboard service passed TypeScript syntax transpilation.
+PASS: local-date Today filter avoids UTC date rollover.

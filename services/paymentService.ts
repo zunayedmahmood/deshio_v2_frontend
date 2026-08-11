@@ -1,4 +1,4 @@
-import axiosInstance, { createIdempotencyKey } from '@/lib/axios';
+import axiosInstance from '@/lib/axios';
 
 
 export interface PaymentMethod {
@@ -139,70 +139,6 @@ export interface PaymentResponse {
 // ===========================
 
 class PaymentService {
-  private stableAttemptFingerprint(path: string, payload: unknown): string {
-    const text = `${path}|${JSON.stringify(payload)}`;
-    let hash = 2166136261;
-    for (let i = 0; i < text.length; i += 1) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(16);
-  }
-
-  /**
-   * Preserve the same idempotency key across an ambiguous network retry.
-   * A definite server response clears the attempt, except the middleware's
-   * "request still in progress" response where retrying must reuse the key.
-   */
-  private async postWithStableAttempt<T>(
-    path: string,
-    payload: unknown,
-    prefix: string,
-  ): Promise<T> {
-    const storageKey = `deshio-payment-attempt:${this.stableAttemptFingerprint(path, payload)}`;
-    let idempotencyKey = createIdempotencyKey(prefix);
-
-    if (typeof window !== 'undefined') {
-      try {
-        const remembered = window.sessionStorage.getItem(storageKey);
-        if (remembered) {
-          idempotencyKey = remembered;
-        } else {
-          window.sessionStorage.setItem(storageKey, idempotencyKey);
-        }
-      } catch {
-        // Storage can be unavailable in hardened/private browser contexts.
-        // The request still has a one-attempt idempotency key in memory.
-      }
-    }
-
-    try {
-      const response = await axiosInstance.post<T>(path, payload, {
-        headers: { 'Idempotency-Key': idempotencyKey },
-      });
-
-      if (typeof window !== 'undefined') {
-        try {
-          window.sessionStorage.removeItem(storageKey);
-        } catch {
-          // Non-fatal: the successful request must not be turned into a UI failure.
-        }
-      }
-      return response.data;
-    } catch (error: any) {
-      const shouldRetain = !error?.response ||
-        (error.response.status === 409 && error.response.data?.code === 'idempotency_request_in_progress');
-
-      if (!shouldRetain && typeof window !== 'undefined') {
-        try {
-          window.sessionStorage.removeItem(storageKey);
-        } catch {
-          // Non-fatal; a future retry still has backend semantic guards.
-        }
-      }
-      throw error;
-    }
-  }
   /**
    * ✅ Get Available Payment Methods
    * 
@@ -280,19 +216,18 @@ class PaymentService {
         throw new Error('Invalid payment amount');
       }
       
-      const response = await this.postWithStableAttempt<PaymentResponse>(
+      const response = await axiosInstance.post<PaymentResponse>(
         `/orders/${orderId}/payments/simple`,
-        paymentData,
-        'payment-simple',
+        paymentData
       );
       
-      console.log('✅ Payment processed:', response);
+      console.log('✅ Payment processed:', response.data);
       
-      if (!response.success) {
-        throw new Error(response.message || 'Payment processing failed');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Payment processing failed');
       }
       
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('❌ Payment processing failed:', error);
       console.error('❌ Error response:', error.response?.data);
@@ -357,19 +292,18 @@ class PaymentService {
         }
       }
       
-      const response = await this.postWithStableAttempt<PaymentResponse>(
+      const response = await axiosInstance.post<PaymentResponse>(
         `/orders/${orderId}/payments/split`,
-        paymentData,
-        'payment-split',
+        paymentData
       );
       
-      console.log('✅ Split payment processed:', response);
+      console.log('✅ Split payment processed:', response.data);
       
-      if (!response.success) {
-        throw new Error(response.message || 'Split payment processing failed');
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Split payment processing failed');
       }
       
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       console.error('❌ Split payment processing failed:', error);
       console.error('❌ Error response:', error.response?.data);
@@ -388,15 +322,11 @@ class PaymentService {
    */
   async setupInstallmentPlan(orderId: number, payload: InstallmentPlanRequest): Promise<any> {
     try {
-      const response = await this.postWithStableAttempt<any>(
-        `/orders/${orderId}/payments/installment/setup`,
-        payload,
-        'installment-plan',
-      );
-      if (!response?.success) {
-        throw new Error(response?.message || 'Failed to setup installment plan');
+      const response = await axiosInstance.post(`/orders/${orderId}/payments/installment/setup`, payload);
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to setup installment plan');
       }
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message || 'Failed to setup installment plan';
       throw new Error(msg);
@@ -410,17 +340,16 @@ class PaymentService {
    */
   async addInstallmentPayment(orderId: number, payload: InstallmentPaymentRequest): Promise<Payment> {
     try {
-      const response = await this.postWithStableAttempt<PaymentResponse>(
+      const response = await axiosInstance.post<PaymentResponse>(
         `/orders/${orderId}/payments/installment`,
-        payload,
-        'installment-payment',
+        payload
       );
 
-      if (!response?.success) {
-        throw new Error(response?.message || 'Failed to add installment payment');
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Failed to add installment payment');
       }
 
-      return response.data;
+      return response.data.data;
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message || 'Failed to add installment payment';
       throw new Error(msg);

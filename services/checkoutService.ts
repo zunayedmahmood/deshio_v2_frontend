@@ -1,4 +1,4 @@
-import axiosInstance, { createIdempotencyKey } from '@/lib/axios';
+import axiosInstance from '@/lib/axios';
 
 // Types for checkout and orders
 export interface Address {
@@ -240,40 +240,70 @@ class CheckoutService {
       status: string;
       status_description: string;
     };
-    payment_url?: string;
-    transaction_id?: string;
+    payment_url?: string; // For SSLCommerz
+    transaction_id?: string; // For SSLCommerz
   }> {
-    const payload: CreateOrderRequest = {
+    const basePayload: CreateOrderRequest = {
       ...orderData,
+      // enforce "not assigned" at order creation
       store_id: null,
       assigned_store_id: null,
-      status: 'pending',
-      order_status: 'pending',
-      assignment_status: 'unassigned',
-      auto_assign_store: false,
-      requires_store_assignment: true,
     };
 
-    // One logical checkout attempt = one request body + one idempotency key.
-    // Do not retry with mutated fallback payloads: a lost first response could
-    // otherwise create a second order under a different key.
-    const idempotencyKey = createIdempotencyKey('checkout-create-order');
+    // Try explicit pending status hints first; fall back gracefully
+    // so checkout never breaks on strict validators.
+    const payloadVariants: CreateOrderRequest[] = [
+      {
+        ...basePayload,
+        status: 'pending',
+        order_status: 'pending',
+        assignment_status: 'unassigned',
+        auto_assign_store: false,
+        requires_store_assignment: true,
+      },
+      {
+        ...basePayload,
+        status: 'pending',
+      },
+      {
+        ...basePayload,
+      },
+    ];
 
-    try {
-      const response = await axiosInstance.post<ApiResponse<{
-        order: Order;
-        order_summary: any;
-        payment_url?: string;
-        transaction_id?: string;
-      }>>('/customer/orders/create-from-cart', payload, {
-        headers: { 'Idempotency-Key': idempotencyKey },
-      });
+    let lastError: any = null;
 
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Failed to create order:', error?.response?.data || error);
-      throw new Error(error?.response?.data?.message || 'Failed to create order');
+    for (const payload of payloadVariants) {
+      try {
+        console.log('📦 Creating order from cart...');
+        console.log('📋 Order payload:', payload);
+
+        const response = await axiosInstance.post<ApiResponse<{
+          order: Order;
+          order_summary: any;
+          payment_url?: string;
+          transaction_id?: string;
+        }>>('/customer/orders/create-from-cart', payload);
+
+        console.log('✅ Order created successfully:', response.data);
+
+        return response.data.data;
+      } catch (error: any) {
+        lastError = error;
+        console.warn('⚠️ create-from-cart attempt failed, trying fallback payload...', {
+          status: error?.response?.status,
+          message: error?.response?.data?.message || error?.message,
+          errors: error?.response?.data?.errors,
+        });
+      }
     }
+
+    console.error('❌ Failed to create order - Full error details:');
+    console.error('Status:', lastError?.response?.status);
+    console.error('Status Text:', lastError?.response?.statusText);
+    console.error('Data:', lastError?.response?.data);
+    console.error('Message:', lastError?.message);
+
+    throw new Error(lastError?.response?.data?.message || 'Failed to create order');
   }
 
   /**

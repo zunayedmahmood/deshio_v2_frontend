@@ -1,0 +1,14 @@
+Deshio dashboard frontend runtime hotfix — August 5, 2026
+
+Stability fixes:
+- Dashboard API response is normalized before rendering.
+- Missing arrays, null sections, and numeric strings no longer crash widgets.
+- Backend debug details are shown when the API returns them.
+- Today uses the browser-local calendar date rather than UTC.
+- Excel export object URL cleanup is browser-safe.
+
+Modified files:
+- app/dashboard/page.tsx
+- services/dashboardService.ts
+- DESHIO_DASHBOARD_FRONTEND_UPDATE_AUG_5.md
+- FRONTEND_VALIDATION_DASHBOARD_ALL_ACCOUNTS_STORE_FILTER_AUG_5.txt

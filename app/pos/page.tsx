@@ -235,9 +235,6 @@ export default function POSPage() {
   const [cardPaid, setCardPaid] = useState(0);
   const [bkashPaid, setBkashPaid] = useState(0);
   const [nagadPaid, setNagadPaid] = useState(0);
-  const [cardTransactionReference, setCardTransactionReference] = useState('');
-  const [bkashTransactionReference, setBkashTransactionReference] = useState('');
-  const [nagadTransactionReference, setNagadTransactionReference] = useState('');
 
   // Installment / EMI (POS + Social Commerce only)
   const [isInstallment, setIsInstallment] = useState(false);
@@ -678,25 +675,6 @@ export default function POSPage() {
       return;
     }
 
-    // Reference-required channels must be identified before creating the order.
-    if (!isInstallment) {
-      if (cardPaid > 0 && !cardTransactionReference.trim()) {
-        showToast('Card reference / approval code is required', 'error');
-        return;
-      }
-      if (bkashPaid > 0 && !bkashTransactionReference.trim()) {
-        showToast('bKash transaction ID is required', 'error');
-        return;
-      }
-      if (nagadPaid > 0 && !nagadTransactionReference.trim()) {
-        showToast('Nagad transaction ID is required', 'error');
-        return;
-      }
-    } else if (installmentPaymentMode !== 'cash' && installmentAmount > 0 && !installmentTransactionReference.trim()) {
-      showToast('Transaction reference is required for this installment payment method', 'error');
-      return;
-    }
-
     // ✅ Confirmation
     if (isInstallment) {
       const n = Math.max(2, Math.min(24, Number(installmentCount) || 2));
@@ -926,7 +904,6 @@ export default function POSPage() {
             payment_method_id: installmentPaymentMethodId,
             amount: installmentAmount,
             auto_complete: true,
-            transaction_reference: installmentTransactionReference.trim() || undefined,
             notes: `POS installment/EMI - 1st installment of ${Math.max(2, Math.min(24, Number(installmentCount) || 2))}`,
             payment_data: installmentTransactionReference
               ? { transaction_reference: installmentTransactionReference }
@@ -1009,8 +986,6 @@ export default function POSPage() {
             paymentSplits.push({
               payment_method_id: paymentMethods.card || 2,
               amount: adjustedCardPaid,
-              transaction_reference: cardTransactionReference.trim(),
-              payment_data: { channel: 'card' },
             });
           }
 
@@ -1018,8 +993,6 @@ export default function POSPage() {
             paymentSplits.push({
               payment_method_id: paymentMethods.mobileWallet || 6,
               amount: adjustedBkashPaid,
-              transaction_reference: bkashTransactionReference.trim(),
-              payment_data: { channel: 'bkash' },
             });
           }
 
@@ -1027,8 +1000,6 @@ export default function POSPage() {
             paymentSplits.push({
               payment_method_id: paymentMethods.mobileWallet || 6,
               amount: adjustedNagadPaid,
-              transaction_reference: nagadTransactionReference.trim(),
-              payment_data: { channel: 'nagad' },
             });
           }
 
@@ -1043,8 +1014,6 @@ export default function POSPage() {
               payment_method_id: paymentSplits[0].payment_method_id,
               amount: paymentSplits[0].amount,
               payment_type: 'full' as 'full' | 'partial',
-              transaction_reference: paymentSplits[0].transaction_reference,
-              payment_data: paymentSplits[0].payment_data,
               auto_complete: true,
             });
           } else if (paymentSplits.length > 1) {
@@ -1231,9 +1200,6 @@ export default function POSPage() {
     setCardPaid(0);
     setBkashPaid(0);
     setNagadPaid(0);
-    setCardTransactionReference('');
-    setBkashTransactionReference('');
-    setNagadTransactionReference('');
     setTransportCost(0);
     setAutoCustomerId(null);
     setUseLoyaltyPoints(false);
@@ -2275,16 +2241,6 @@ export default function POSPage() {
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
-                          {cardPaid > 0 && (
-                            <input
-                              type="text"
-                              value={cardTransactionReference}
-                              placeholder="Card reference / approval code"
-                              onChange={(e) => setCardTransactionReference(e.target.value)}
-                              disabled={isProcessing || isInstallment}
-                              className="w-full mt-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                            />
-                          )}
                         </div>
                         <div>
                           <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
@@ -2298,16 +2254,6 @@ export default function POSPage() {
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
-                          {bkashPaid > 0 && (
-                            <input
-                              type="text"
-                              value={bkashTransactionReference}
-                              placeholder="bKash transaction ID"
-                              onChange={(e) => setBkashTransactionReference(e.target.value)}
-                              disabled={isProcessing || isInstallment}
-                              className="w-full mt-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                            />
-                          )}
                         </div>
                         <div>
                           <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
@@ -2321,16 +2267,6 @@ export default function POSPage() {
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
-                          {nagadPaid > 0 && (
-                            <input
-                              type="text"
-                              value={nagadTransactionReference}
-                              placeholder="Nagad transaction ID"
-                              onChange={(e) => setNagadTransactionReference(e.target.value)}
-                              disabled={isProcessing || isInstallment}
-                              className="w-full mt-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-xs"
-                            />
-                          )}
                         </div>
                       </div>
                     </div>

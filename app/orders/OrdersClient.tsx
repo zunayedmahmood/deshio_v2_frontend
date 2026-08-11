@@ -1832,6 +1832,88 @@ export default function OrdersDashboard() {
 
   const handleEditOrder = async (order: Order) => {
     setActiveMenu(null);
+
+    // Social Commerce edit flow: reopen the real Social Commerce order page
+    // with the existing order prefilled, then continue through Amount Details.
+    const orderTypeLower = String(order.orderType || '').toLowerCase();
+    if (orderTypeLower === 'social_commerce' || orderTypeLower === 'social') {
+      setIsLoadingDetails(true);
+
+      try {
+        const fullOrder = await orderService.getById(order.id);
+        const fo: any = fullOrder as any;
+        const shippingAddress: any =
+          fo.shipping_address && typeof fo.shipping_address === 'object'
+            ? fo.shipping_address
+            : (fo.delivery_address && typeof fo.delivery_address === 'object' ? fo.delivery_address : {});
+
+        const countryValue = String(shippingAddress.country || '').trim();
+        const isIntl = !!countryValue && countryValue.toLowerCase() !== 'bangladesh';
+        const cityId = shippingAddress.pathao_city_id ?? shippingAddress.city_id ?? '';
+        const zoneId = shippingAddress.pathao_zone_id ?? shippingAddress.zone_id ?? '';
+        const areaId = shippingAddress.pathao_area_id ?? shippingAddress.area_id ?? '';
+        const usePathaoAuto = !cityId && !zoneId && !areaId;
+
+        const prefillPayload = {
+          editOrderId: fo.id,
+          editOrderNumber: fo.order_number,
+          storeId: String(fo.store?.id || fo.store_id || ''),
+          salesmanId: fo.salesman?.id ?? fo.salesman_id ?? null,
+          salesBy: fo.salesman?.name || '',
+          userName: fo.customer_name ?? fo.customer?.name ?? '',
+          userPhone: fo.customer_phone ?? fo.customer?.phone ?? '',
+          userEmail: fo.customer_email ?? fo.customer?.email ?? '',
+          socialId: fo.social_id ?? fo.customer?.social_id ?? '',
+          orderNotes: fo.notes || fo.customer_notes || '',
+          isInternational: isIntl,
+          usePathaoAutoLocation: usePathaoAuto,
+          pathaoCityId: cityId ? String(cityId) : '',
+          pathaoZoneId: zoneId ? String(zoneId) : '',
+          pathaoAreaId: areaId ? String(areaId) : '',
+          streetAddress:
+            shippingAddress.address_line1 || shippingAddress.street || shippingAddress.address || '',
+          postalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
+          country: shippingAddress.country || '',
+          state: shippingAddress.state || '',
+          internationalCity: shippingAddress.city || '',
+          internationalPostalCode: shippingAddress.postal_code || shippingAddress.postalCode || '',
+          deliveryAddress:
+            shippingAddress.address_line1 || shippingAddress.street || shippingAddress.address || '',
+          cart: [
+            ...(fo.items || []),
+            ...(fo.services || []).map((service: any) => ({
+              ...service,
+              isService: true,
+              serviceId: service.service_id,
+              serviceCategory: service.category,
+              productName: service.service_name,
+              amount: service.total_price ?? service.total_amount,
+              unit_price: service.unit_price,
+              discount_amount: service.discount_amount,
+              quantity: service.quantity,
+            })),
+          ],
+          paidAmount: parseMoney(fo.paid_amount),
+          totalAmount: parseMoney(fo.total_amount),
+          outstandingAmount: parseMoney(fo.outstanding_amount),
+          discountAmount: parseMoney(fo.discount_amount),
+          shippingAmount: parseMoney(fo.shipping_amount),
+          loyaltyPointsUsed: parseMoney(fo.loyalty_points_used),
+          loyaltyPointsDiscountAmount: parseMoney(fo.loyalty_points_discount_amount),
+        };
+
+        sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefillPayload));
+        window.location.href = '/social-commerce';
+      } catch (error: any) {
+        console.error('Failed to load social order for editing:', error);
+        alert('Failed to load order details: ' + (error?.message || 'Unknown error'));
+      } finally {
+        setIsLoadingDetails(false);
+      }
+      return;
+    }
+
+    // Keep the current modal editor for non-Social-Commerce order types.
     setIsLoadingDetails(true);
 
     try {
@@ -1966,25 +2048,11 @@ export default function OrdersDashboard() {
       await productReturnService.complete(returnId);
 
       if (returnData.refundMethods.total > 0) {
-        const activeRefundTenders = [
-          returnData.refundMethods.cash,
-          returnData.refundMethods.card,
-          returnData.refundMethods.bkash,
-          returnData.refundMethods.nagad,
-        ].filter((amount) => Number(amount) > 0).length;
-        const refundMethod: CreateRefundRequest['refund_method'] = activeRefundTenders > 1
-          ? 'other'
-          : returnData.refundMethods.card > 0
-            ? 'card_refund'
-            : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0)
-              ? 'digital_wallet'
-              : 'cash';
-
         const refundRequest: CreateRefundRequest = {
           return_id: returnId,
           refund_type: 'partial_amount',
           refund_amount: returnData.refundMethods.total,
-          refund_method: refundMethod,
+          refund_method: 'cash',
           refund_method_details: {
             cash: returnData.refundMethods.cash,
             card: returnData.refundMethods.card,

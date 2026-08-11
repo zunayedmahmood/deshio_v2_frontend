@@ -45,7 +45,6 @@ export interface BackendTransaction {
     name: string;
     account_code: string;
     type: string;
-    sub_type?: string;
   };
   store?: {
     id: number;
@@ -57,7 +56,7 @@ export interface Transaction {
   id: number;
   name: string;
   description?: string;
-  type: 'income' | 'expense' | 'adjustment';
+  type: 'income' | 'expense';
   amount: number;
   category: string;
   transactionDate: string;
@@ -94,148 +93,116 @@ export interface CategoryCreate {
   type: 'income' | 'expense';
 }
 
-// The backend stores double-entry journal rows. The transaction screen must never
-// treat each debit/credit row as a separate business activity; doing so double-counts
-// every sale/refund/expense. We collapse each journal group into one cash movement.
-const CASH_NAME_PATTERN = /(cash|bank|wallet|bkash|nagad|rocket)/i;
+// Helper function to convert backend transaction to frontend UI format
+function mapTransactionToUI(transaction: BackendTransaction): Transaction {
+  // Determine the actual type based on reference type
+  // Order payments, sales, and order-related transactions should be INCOME (money coming in)
+  // Even if backend incorrectly marks them as debit
+  let actualType: 'income' | 'expense';
 
-function isCashLike(transaction: BackendTransaction): boolean {
-  const account = transaction.account;
-  if (!account) return false;
-
-  if (String(account.account_code) === '1001') return true;
-  return account.type === 'asset' && CASH_NAME_PATTERN.test(account.name || '');
-}
-
-function getJournalGroupKey(transaction: BackendTransaction): string {
+  const refType = transaction.reference_type?.toLowerCase() || '';
   const metadata = transaction.metadata || {};
-  if (metadata.group_id) return `group:${metadata.group_id}`;
 
-  if (transaction.reference_type && transaction.reference_id != null) {
-    const event = metadata.event || (/refund/i.test(transaction.description || '') ? 'refund' : 'base');
-    return [
-      'ref',
-      transaction.reference_type,
-      transaction.reference_id,
-      transaction.transaction_date,
-      event,
-    ].join(':');
+  // If it's an order payment or sale, it's income (money received from customer)
+  if (refType.includes('orderpayment') || refType.includes('order') || refType.includes('sale')) {
+    actualType = 'income';
+  }
+  // If it's a purchase order or vendor payment or expense, it's expense (money paid out)
+  else if (refType.includes('purchaseorder') || refType.includes('vendor') || refType.includes('batch') || refType.includes('expense')) {
+    actualType = 'expense';
+  }
+  // Otherwise use the backend type
+  else {
+    actualType = transaction.type === 'credit' ? 'income' : 'expense';
   }
 
-  return `row:${transaction.id}`;
-}
+  // Determine source label based on order_type from metadata
+  let source = 'manual';
 
-function normalizeSource(entries: BackendTransaction[]): string {
-  const first = entries[0];
-  const metadata = first?.metadata || {};
-  const combined = entries
-    .map(entry => `${entry.reference_type || ''} ${entry.description || ''} ${entry.metadata?.event || ''}`)
-    .join(' ')
-    .toLowerCase();
+  if (refType.includes('orderpayment') || refType.includes('order')) {
+    // Check order_type from metadata (best way)
+    const orderType = metadata.order_type;
 
-  // Refund/return must be checked before OrderPayment because payment refunds still
-  // carry an OrderPayment reference type.
-  if (/refund|return/.test(combined)) return 'return';
-  if (/exchange/.test(combined)) return 'exchange';
-  if (/expense/.test(combined)) return 'expense';
-  if (/vendor|purchaseorder|inventory purchase/.test(combined)) return 'batch';
+    if (orderType === 'counter') {
+      source = 'sale'; // Counter/POS Sale
+    } else if (orderType === 'social_commerce') {
+      source = 'order'; // Social Commerce Order
+    } else if (orderType === 'ecommerce') {
+      source = 'order'; // E-commerce Order (can use different badge if needed)
+    } else {
+      // Fallback: try to determine from order number or other indicators
+      const orderNumber = metadata.order_number || '';
+      const hasShipping = metadata.shipping_amount || metadata.shipping_address;
 
-  if (/serviceorderpayment|service order payment/.test(combined)) return 'order';
-  if (/orderpayment|app\\models\\order|\border\b/.test(combined)) {
-    return metadata.order_type === 'counter' ? 'sale' : 'order';
-  }
-  if (/sale/.test(combined)) return 'sale';
-  return first?.reference_type && first.reference_type !== 'manual'
-    ? first.reference_type
-    : 'manual';
-}
-
-function buildActivityName(entries: BackendTransaction[], source: string): string {
-  const first = entries[0];
-  const metadata = first?.metadata || {};
-
-  if (metadata.original_name) return metadata.original_name;
-  if (source === 'return') {
-    const order = metadata.order_number ? ` - ${metadata.order_number}` : '';
-    return `Refund / Return${order}`;
-  }
-  if (source === 'exchange') return `Exchange Adjustment${metadata.new_order_number ? ` - ${metadata.new_order_number}` : ''}`;
-  if (source === 'expense') return metadata.expense_description || `Expense Payment${metadata.expense_number ? ` - ${metadata.expense_number}` : ''}`;
-  if (source === 'batch') return `Vendor / Inventory Payment${metadata.vendor_name ? ` - ${metadata.vendor_name}` : ''}`;
-  if (metadata.order_number) return `Order Payment - ${metadata.order_number}`;
-  if (metadata.service_order_number) return `Service Payment - ${metadata.service_order_number}`;
-
-  return first?.description || 'Accounting Adjustment';
-}
-
-function mapJournalGroupToUI(entries: BackendTransaction[]): Transaction {
-  if (!entries.length) {
-    throw new Error('Cannot map an empty journal group');
+      // Counter orders typically don't have shipping
+      if (hasShipping) {
+        source = 'order'; // Likely social commerce or ecommerce
+      } else {
+        source = 'sale'; // Likely counter sale
+      }
+    }
+  } else if (refType.includes('sale')) {
+    source = 'sale'; // Direct POS sale
+  } else if (refType.includes('batch') || refType.includes('purchaseorder')) {
+    source = 'batch'; // Inventory Purchase
+  } else if (refType.includes('expense')) {
+    source = 'expense'; // Company Expense / Payroll
+  } else if (refType.includes('return')) {
+    source = 'return'; // Return Refund
+  } else if (refType.includes('exchange')) {
+    source = 'exchange'; // Exchange Adjustment
+  } else if (transaction.reference_type) {
+    source = transaction.reference_type;
   }
 
-  const first = entries[0];
-  const cashRows = entries.filter(isCashLike);
-  const cashNet = cashRows.reduce((sum, row) => {
-    const amount = Number(row.amount) || 0;
-    return sum + (row.type === 'debit' ? amount : -amount);
-  }, 0);
+  // Extract category from metadata or use default
+  let category = metadata.category || 'Uncategorized';
+  if (actualType === 'income' && category === 'Uncategorized') {
+    category = 'Product Sales';
+  }
 
-  const epsilon = 0.005;
-  const actualType: Transaction['type'] = cashNet > epsilon
-    ? 'income'       // cash in
-    : cashNet < -epsilon
-      ? 'expense'    // cash out
-      : 'adjustment'; // non-cash accounting movement
+  // Extract transaction name from metadata
+  let name = metadata.original_name || transaction.description || 'Transaction';
 
-  const totalDebits = entries
-    .filter(row => row.type === 'debit')
-    .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-  const totalCredits = entries
-    .filter(row => row.type === 'credit')
-    .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  // For order payments, use a more descriptive name
+  if (refType.includes('orderpayment')) {
+    const orderNum = metadata.order_number || '';
+    name = `Order Payment - ${orderNum}`;
+  }
 
-  const representative = cashRows[0] || first;
-  const metadata = representative.metadata || first.metadata || {};
-  const source = normalizeSource(entries);
-  const category = actualType === 'adjustment'
-    ? 'Accounting Adjustment'
-    : metadata.expense_category || metadata.category || (actualType === 'income' ? 'Cash Inflow' : 'Cash Outflow');
+  // Normalize source to strings, ensuring 'manual' is default for unknowns
+  let normalizedSource = source || 'manual';
+  if (!normalizedSource || normalizedSource === '' || normalizedSource === 'null' || normalizedSource === 'undefined') {
+    normalizedSource = 'manual';
+  }
 
   return {
-    id: representative.id,
-    name: buildActivityName(entries, source),
-    description: representative.description || first.description || undefined,
+    id: transaction.id,
+    name: name,
+    description: transaction.description || undefined,
     type: actualType,
-    amount: actualType === 'adjustment'
-      ? Math.max(totalDebits, totalCredits)
-      : Math.abs(cashNet),
-    category,
-    source: source || 'manual',
-    transactionDate: representative.transaction_date || first.transaction_date || representative.created_at || representative.createdAt || new Date().toISOString(),
-    createdAt: representative.created_at || representative.createdAt || representative.transaction_date || new Date().toISOString(),
+    amount: parseFloat(String(transaction.amount)) || 0, // Ensure it's a number
+    category: category,
+    source: normalizedSource,
+    transactionDate: transaction.transaction_date || transaction.createdAt || transaction.created_at || new Date().toISOString(),
+    createdAt: transaction.created_at || transaction.createdAt || transaction.transaction_date || new Date().toISOString(),
     comment: metadata.comment || metadata.note || undefined,
-    receiptImage: metadata.receiptImage || metadata.attachments?.[0]?.url || undefined,
-    referenceId: representative.display_id || (representative.reference_id != null
-      ? `${representative.reference_type}-${representative.reference_id}`
-      : representative.transaction_number),
-    referenceLabel: representative.reference_label || source,
-    store_id: representative.store_id,
-    store_name: representative.store?.name,
-    createdBy: (representative as any).created_by?.name || 'System',
+    receiptImage: metadata.receiptImage || (metadata.attachments && metadata.attachments[0]?.url) || undefined,
+    referenceId: transaction.display_id || (transaction.reference_id ? `${transaction.reference_type}-${transaction.reference_id}` : transaction.transaction_number),
+    referenceLabel: transaction.reference_label || normalizedSource,
+    store_id: transaction.store_id,
+    store_name: transaction.store?.name,
+    createdBy: (transaction as any).created_by?.name || 'System',
   };
 }
 
-function mapTransactionToUI(transaction: BackendTransaction): Transaction {
-  return mapJournalGroupToUI([transaction]);
-}
-
 const transactionService = {
-  // Get all journal rows and collapse each balanced group into one business activity.
+  // Get all transactions with order details
   async getTransactions(params?: {
     account_id?: number;
     type?: string;
     status?: string;
-    store_id?: number | string;
+    store_id?: number;
     date_from?: string;
     date_to?: string;
     search?: string;
@@ -244,63 +211,66 @@ const transactionService = {
     per_page?: number;
     page?: number;
   }) {
-    const requestParams = {
-      ...params,
-      // The activity screen is a posted-ledger view. Pending/failed rows remain
-      // available through the backend API but must not pollute cash totals.
-      status: params?.status || 'completed',
-    };
-    const firstResponse = await api.get('/transactions', {
-      params: { ...requestParams, per_page: Math.max(Number(params?.per_page || 1000), 1000), page: 1 },
-    });
-    const responseData = firstResponse.data.data;
-    const rows: BackendTransaction[] = Array.isArray(responseData)
-      ? [...responseData]
-      : [...(responseData?.data || [])];
+    const response = await api.get('/transactions', { params });
 
-    // A journal group can straddle a pagination boundary. Pull the remaining pages
-    // before grouping so the activity screen never shows half of a double-entry event.
-    const lastPage = Number(responseData?.last_page || 1) || 1;
-    // Never silently truncate the ledger activity list; every page is required before
-    // grouping or a debit/credit pair can be split out of the UI.
-    for (let page = 2; page <= lastPage; page++) {
-      const nextResponse = await api.get('/transactions', {
-        params: { ...requestParams, per_page: Math.max(Number(params?.per_page || 1000), 1000), page },
-      });
-      const nextData = nextResponse.data.data;
-      rows.push(...(Array.isArray(nextData) ? nextData : (nextData?.data || [])));
+    // Map backend transactions to frontend UI format
+    const responseData = response.data.data;
+    const transactions = Array.isArray(responseData) ? responseData : (responseData?.data || []);
+
+    // Extract unique order IDs from order payments
+    const orderPaymentTransactions = transactions.filter((t: any) =>
+      t.reference_type?.includes('OrderPayment') && t.metadata?.order_number
+    );
+
+    // Extract order numbers to fetch order details in bulk
+    const orderNumbers = [...new Set(
+      orderPaymentTransactions
+        .map((t: any) => t.metadata?.order_number)
+        .filter(Boolean)
+    )];
+
+    // Fetch all orders in one request if we have order numbers
+    let ordersMap: Record<string, any> = {};
+    if (orderNumbers.length > 0) {
+      try {
+        const ordersResponse = await api.get('/orders', {
+          params: { per_page: 1000 } // Get all orders
+        });
+        const orders = ordersResponse.data.data?.data || ordersResponse.data.data || [];
+
+        // Create a map of order_number -> order
+        ordersMap = orders.reduce((acc: any, order: any) => {
+          acc[order.order_number] = order;
+          return acc;
+        }, {});
+      } catch (error) {
+        console.warn('Could not fetch orders:', error);
+      }
     }
 
-    const groups = new Map<string, BackendTransaction[]>();
-    rows.forEach((row) => {
-      const key = getJournalGroupKey(row);
-      const group = groups.get(key) || [];
-      group.push(row);
-      groups.set(key, group);
+    // Enrich transactions with order data
+    const enrichedTransactions = transactions.map((transaction: any) => {
+      if (transaction.metadata?.order_number && ordersMap[transaction.metadata.order_number]) {
+        const order = ordersMap[transaction.metadata.order_number];
+        if (!transaction.metadata) transaction.metadata = {};
+        transaction.metadata.order_type = order.order_type;
+      }
+      return mapTransactionToUI(transaction);
     });
 
-    const activities = Array.from(groups.values())
-      .map(mapJournalGroupToUI)
-      .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
-
     return {
-      transactions: activities,
+      transactions: enrichedTransactions,
       pagination: responseData?.meta || null,
     };
   },
 
-  // Get one journal activity. The header is derived from the complete journal
-  // group, while related_transactions remains raw for the debit/credit detail table.
+  // Get single transaction
   async getTransaction(id: number) {
     const response = await api.get(`/transactions/${id}`);
     const data = response.data.data;
-    const primary: BackendTransaction = data.transaction || data;
-    const related: BackendTransaction[] = data.related_transactions || [];
-    const groupRows = related.length ? related : [primary];
-
     return {
-      transaction: mapJournalGroupToUI(groupRows),
-      related_transactions: related,
+      transaction: mapTransactionToUI(data.transaction || data),
+      related_transactions: data.related_transactions || [],
       group_id: data.group_id,
       attachments: data.attachments || [],
       additional_references: data.additional_references || [],
@@ -350,7 +320,7 @@ const transactionService = {
     const transactionData = {
       transaction_date: data.transaction_date || data.date,
       amount: data.amount,
-      type: data.type === 'income' || data.type === 'debit' ? 'debit' : 'credit',
+      type: data.type === 'income' || data.type === 'credit' ? 'credit' : 'debit',
       account_id: data.account_id || 1, // Default cash account
       counter_account_id: data.counter_account_id, // Required for double-entry
       description: data.description || `${data.name}${data.description_extra ? ' - ' + data.description_extra : ''}`,
@@ -381,7 +351,7 @@ const transactionService = {
 
     if (data.date) transactionData.transaction_date = data.date;
     if (data.amount) transactionData.amount = data.amount;
-    if (data.type) transactionData.type = data.type === 'income' ? 'debit' : 'credit';
+    if (data.type) transactionData.type = data.type === 'income' ? 'credit' : 'debit';
 
     // Build metadata
     const metadata: any = {};
@@ -422,7 +392,7 @@ const transactionService = {
   async getStatistics(params?: {
     date_from?: string;
     date_to?: string;
-    store_id?: number | string;
+    store_id?: number;
   }) {
     const response = await api.get('/transactions/statistics', { params });
     return response.data;
