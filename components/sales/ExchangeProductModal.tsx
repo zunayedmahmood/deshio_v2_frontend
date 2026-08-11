@@ -450,7 +450,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
   const calculateTotals = () => {
     const returnTotal = removedItems.reduce((sum, item) => sum + item.total_price, 0);
     const replacementTotal = replacementItems.reduce((sum, item) => sum + item.total_price, 0);
-    const difference = replacementTotal - returnTotal;
+    const difference = Math.round((replacementTotal - returnTotal) * 100) / 100;
 
     return {
       returnTotal,
@@ -460,6 +460,18 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
   };
 
   const totals = calculateTotals();
+  const isEvenExchange = Math.abs(totals.difference) < 0.01;
+
+  // Payment/refund inputs are irrelevant for an even exchange. Clear any values
+  // left from an earlier replacement selection so they cannot reappear if the
+  // exchange moves away from and back to an even settlement.
+  useEffect(() => {
+    if (!isEvenExchange) return;
+
+    setPaymentDetails({ cash: 0, card: 0, bkash: 0, nagad: 0, transactionFee: 0 });
+    setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 });
+    setShowNoteCounter(false);
+  }, [isEvenExchange]);
 
   const cashFromNotes = Object.entries(notes).reduce((sum, [val, count]) => sum + (Number(val) * Number(count)), 0);
   const effectiveCash = cashFromNotes > 0 ? cashFromNotes : paymentDetails.cash;
@@ -514,12 +526,22 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
         exchangeAtStoreId: exchangeAtStoreId,
         removedProducts: removedItems,
         replacementProducts: replacementItems,
-        paymentRefund: {
-          type: totals.difference > 0 ? 'payment' : totals.difference < 0 ? 'refund' : 'none',
-          ...paymentDetails,
-          cash: effectiveCash,
-          total: totalPaid
-        },
+        paymentRefund: isEvenExchange
+          ? {
+              type: 'none',
+              cash: 0,
+              card: 0,
+              bkash: 0,
+              nagad: 0,
+              transactionFee: 0,
+              total: 0,
+            }
+          : {
+              type: totals.difference > 0 ? 'payment' : 'refund',
+              ...paymentDetails,
+              cash: effectiveCash,
+              total: totalPaid
+            },
         isOnlineExchange,
         defer_return_receipt: deferReturnReceipt,
         pending_return_receipt: deferReturnReceipt,
