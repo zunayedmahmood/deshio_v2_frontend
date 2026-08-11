@@ -7,6 +7,7 @@ export interface BarcodeLocation {
     id: number;
     name: string;
     sku: string | null;
+    image_url?: string | null;
   };
   current_store: {
     id: number;
@@ -22,6 +23,14 @@ export interface BarcodeLocation {
   is_active: boolean;
   is_defective: boolean;
   is_available_for_sale: boolean;
+  relabel?: {
+    id: number;
+    role: 'replacement' | 'retired_original';
+    status?: string | null;
+    reason?: string | null;
+    original_barcode?: { id: number; barcode: string; current_status?: string | null; is_active?: boolean } | null;
+    replacement_barcode?: { id: number; barcode: string; current_status?: string | null; is_active?: boolean } | null;
+  } | null;
   location_updated_at: string;
   location_metadata?: any;
   created_at: string;
@@ -37,8 +46,12 @@ export interface BatchBarcodesResponse {
         id: number;
         name: string;
         sku: string | null;
+        image_url?: string | null;
       };
       original_quantity: number;
+      cost_price?: number | string | null;
+      sell_price?: number | string | null;
+      selling_price?: number | string | null;
     };
     summary: {
       total_units: number;
@@ -110,9 +123,12 @@ export interface BarcodeHistoryResponse {
       id: number;
       name: string;
       sku: string | null;
+      image_url?: string | null;
     };
     current_location: any;
+    relabel?: BarcodeLocation['relabel'];
     total_movements: number;
+    total_events?: number;
     history: any[];
   };
 }

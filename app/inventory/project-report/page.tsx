@@ -515,7 +515,7 @@ export default function ViewInventoryPage() {
     setCsvPoBusy(true);
     setPreviewError('');
     try {
-      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/detail`, new URLSearchParams());
+      await downloadExternalCsv(`${getApiBase()}/purchase-orders/${encodeURIComponent(poId)}/csv`, `purchase-order-${poId}.csv`);
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO CSV');
     } finally {
@@ -529,7 +529,7 @@ export default function ViewInventoryPage() {
     setCsvPoBarcodeBusy(true);
     setPreviewError('');
     try {
-      await downloadCsv(`/api/reporting/csv/purchase-orders/${poId}/barcodes`, new URLSearchParams());
+      await downloadExternalCsv(`${getApiBase()}/purchase-orders/${encodeURIComponent(poId)}/barcodes/csv`, `purchase-order-barcodes-${poId}.csv`);
     } catch (e: any) {
       setPreviewError(e?.message || 'Failed to download PO Barcodes CSV');
     } finally {
@@ -1633,7 +1633,7 @@ export default function ViewInventoryPage() {
                   <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-3 uppercase tracking-wide">Purchase Order Exports</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Purchase Order ID <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Purchase Order ID / PO Number <span className="text-red-500">*</span></label>
                       <input
                         value={csvPoId}
                         onChange={(e) => setCsvPoId(e.target.value)}

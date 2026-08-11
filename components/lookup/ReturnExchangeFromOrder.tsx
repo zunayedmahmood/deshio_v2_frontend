@@ -1,7 +1,6 @@
 'use client';
 
 import { RotateCcw, ArrowRightLeft, Barcode, Package } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface Props {
   order: any;
@@ -12,17 +11,10 @@ interface Props {
 }
 
 export default function ReturnExchangeFromOrder({ order, onInitiateReturn, onInitiateExchange, onReceivePendingExchangeReturn, onAssignServiceOnlyStore }: Props) {
-  const { role, isSuperAdmin } = useAuth();
-
-  // Check roles: admin, branch-manager and POS (pos-salesman)
-  const allowedRoles = ['super-admin', 'admin', 'branch-manager', 'pos-salesman'];
-  const canInitiate = isSuperAdmin || (role && allowedRoles.includes(role));
   const activeReturn = order?.active_return || order?.activeReturn || (Array.isArray(order?.active_returns) ? order.active_returns[0] : null);
   const hasActiveReturn = Boolean(activeReturn || order?.has_active_return || order?.hasActiveReturn);
   const pendingExchangeReturn = Boolean(activeReturn?.pending_exchange_return_receipt || activeReturn?.pendingExchangeReturnReceipt);
   const hasPickupStore = Boolean(order?.store?.id || order?.store_id || order?.storeId);
-
-  if (!canInitiate) return null;
 
   return (
     <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">

@@ -311,9 +311,11 @@ type BarcodeHistoryItem = {
 
 type BarcodeHistoryData = {
   barcode: string;
-  product: { id: number; name: string; sku: string | null };
+  product: { id: number; name: string; sku: string | null; image_url?: string | null };
   current_location: any; // backend-dependent
+  relabel?: any;
   total_movements: number;
+  total_events?: number;
   history: BarcodeHistoryItem[];
 };
 
@@ -321,7 +323,7 @@ type BatchLookupData = {
   batch: {
     id: number;
     batch_number: string;
-    product: { id: number; name: string; sku: string | null };
+    product: { id: number; name: string; sku: string | null; image_url?: string | null };
     original_quantity: number;
     // some backends may include pricing:
     cost_price?: string | number | null;
@@ -357,6 +359,7 @@ type BatchLookupData = {
     is_replacement?: boolean;
     replacement_status?: string | null;
     relabel_reason?: string | null;
+    relabel?: any;
     location_updated_at: string;
 
     // optional fields your backend may have:
@@ -870,6 +873,8 @@ export default function LookupPage() {
     if (after === 'employee_use' || type === 'employee_use') {
       return 'Employee use';
     }
+    if (type === 'relabel_retired') return 'Relabelled / retired';
+    if (type === 'relabel_created') return 'Replacement barcode created';
 
     return h?.movement_type || '—';
   };
@@ -930,6 +935,7 @@ export default function LookupPage() {
       inactive: 'Inactive',
       returned: 'Returned',
       exchanged: 'Exchanged',
+      relabelled: 'Retired After Relabelling',
     };
     return map[k] || (key ? String(key) : 'Unknown Status');
   };
@@ -1754,7 +1760,7 @@ export default function LookupPage() {
     let poId: number | null = null;
     let poNumber: string | undefined;
     let vendorName: string | undefined;
-    let resolvedImageUrl: string | null = null;
+    let resolvedImageUrl: string | null = toAbsoluteAssetUrl(historyData?.product?.image_url) || null;
 
     try {
       // Primary source: enhanced lookup endpoint (includes purchase_order + vendor)
@@ -2218,7 +2224,8 @@ export default function LookupPage() {
       }
       const enriched = await enrichBarcodeHistoryWithBatchPrices(res.data as any);
       setBarcodeData(enriched as any);
-      await resolveBarcodePurchaseInfo(code, enriched as any);
+      setBarcodeProductImageUrl(toAbsoluteAssetUrl((enriched as any)?.product?.image_url));
+      void resolveBarcodePurchaseInfo(code, enriched as any);
     } catch (err: any) {
       const message = err?.response?.data?.message || err?.message || 'Failed to fetch barcode history';
       const lockDetection = readOpenOrderLockError(err, code);
@@ -2277,21 +2284,6 @@ export default function LookupPage() {
         return;
       }
       const data: any = res.data as any;
-
-      // Pricing is often missing from the barcode tracking batch endpoint.
-      // Fetch it from /batches/{id} and merge for display.
-      try {
-        const br = await batchService.getBatch(finalBatchId);
-        if (br?.success && br?.data) {
-          data.batch = data.batch || {};
-          data.batch.cost_price = (br.data as any).cost_price ?? data.batch.cost_price;
-          // batches API uses sell_price; UI expects selling_price
-          data.batch.selling_price = ((br.data as any).sell_price ?? (br.data as any).selling_price) ?? data.batch.selling_price;
-        }
-      } catch {
-        // non-blocking
-      }
-
       setBatchData(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch batch history');
@@ -3096,7 +3088,7 @@ export default function LookupPage() {
                                     src={finalImage}
                                     alt={barcodeData?.product?.name || 'Product image'}
                                     className="w-12 h-12 rounded border border-gray-200 dark:border-gray-700 object-cover"
-                                    loading="lazy"
+                                    loading="eager"
                                   />
                                   <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px] text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                     View
@@ -3109,7 +3101,7 @@ export default function LookupPage() {
                               );
                             })()}
                             <span className="text-[10px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300">
-                              {barcodeData.total_movements} movements
+                              {barcodeData.total_events ?? barcodeData.total_movements} history events
                             </span>
                           </div>
                         </div>
@@ -3153,6 +3145,26 @@ export default function LookupPage() {
                                   })()}
                                 </span>
                               </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {barcodeData.relabel && (
+                          <div className="mt-3 border border-amber-200 dark:border-amber-800 rounded p-2 bg-amber-50 dark:bg-amber-900/10">
+                            <p className="text-[9px] text-amber-700 dark:text-amber-300 uppercase font-semibold mb-1">Relabel lifecycle</p>
+                            <p className="text-xs font-semibold text-black dark:text-white">
+                              {barcodeData.relabel.role === 'retired_original' ? 'Retired after relabelling' : 'Replacement barcode'}
+                            </p>
+                            <div className="mt-1 text-[10px] text-gray-700 dark:text-gray-300 space-y-0.5">
+                              {barcodeData.relabel.original_barcode?.barcode && (
+                                <p>Original: <span className="font-semibold">{barcodeData.relabel.original_barcode.barcode}</span></p>
+                              )}
+                              {barcodeData.relabel.replacement_barcode?.barcode && (
+                                <p>Replacement: <span className="font-semibold">{barcodeData.relabel.replacement_barcode.barcode}</span></p>
+                              )}
+                              <p>Relabel status: <span className="font-semibold">{barcodeData.relabel.status || '—'}</span></p>
+                              {barcodeData.relabel.reason && <p>Reason: <span className="font-semibold">{barcodeData.relabel.reason}</span></p>}
+                              {barcodeData.relabel.store?.name && <p>Location at relabel: <span className="font-semibold">{barcodeData.relabel.store.name}</span></p>}
                             </div>
                           </div>
                         )}
@@ -3534,7 +3546,16 @@ export default function LookupPage() {
                     <div className="space-y-3">
                       <div className="border border-gray-200 dark:border-gray-800 rounded-md p-3">
                         <div className="flex items-start justify-between gap-3">
-                          <div>
+                          <div className="flex items-start gap-3">
+                            {batchData.batch.product.image_url ? (
+                              <img
+                                src={toAbsoluteAssetUrl(batchData.batch.product.image_url) || batchData.batch.product.image_url}
+                                alt={batchData.batch.product.name || 'Product image'}
+                                className="w-12 h-12 rounded border border-gray-200 dark:border-gray-700 object-cover"
+                                loading="eager"
+                              />
+                            ) : null}
+                            <div>
                             <p className="text-xs font-semibold text-black dark:text-white">
                               Batch: {batchData.batch.batch_number} <span className="text-gray-500 text-[10px]"> (ID: {batchData.batch.id})</span>
                             </p>
@@ -3560,6 +3581,7 @@ export default function LookupPage() {
                                   return p.sell != null ? formatCurrency(p.sell) : '—';
                                 })()}
                               </span>
+                            </div>
                             </div>
                           </div>
                         </div>
@@ -3657,6 +3679,7 @@ export default function LookupPage() {
                               {batchData.barcodes.map((b) => {
                                 const sold = isSoldBarcodeRow(b);
                                 const statusLabel = getBatchRowStatusLabel(b);
+                                const retiredByRelabel = normalizeStatusKey(b.current_status) === 'relabelled' || b.relabel?.role === 'retired_original';
 
                                 return (
                                   <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/40">
@@ -3678,14 +3701,22 @@ export default function LookupPage() {
                                         {sold && getStatusPill('sold')}
 
                                         {/* only show inactive if NOT sold */}
-                                        {!sold && !b.is_active && <span className="text-[9px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800">inactive</span>}
+                                        {!sold && !b.is_active && !retiredByRelabel && <span className="text-[9px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800">inactive</span>}
+
+                                        {retiredByRelabel && (
+                                          <span className="text-[9px] px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                                            retired{b.relabel?.replacement_barcode?.barcode ? ` → ${b.relabel.replacement_barcode.barcode}` : ''}
+                                          </span>
+                                        )}
 
                                         {b.is_defective && (
                                           <span className="text-[9px] px-2 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">defective</span>
                                         )}
 
                                         {b.is_replacement && (
-                                          <span className="text-[9px] px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">relabel {b.replacement_status || ''}</span>
+                                          <span className="text-[9px] px-2 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300">
+                                            replacement{b.relabel?.original_barcode?.barcode ? ` ← ${b.relabel.original_barcode.barcode}` : ''} {b.replacement_status || ''}
+                                          </span>
                                         )}
 
                                         {!sold && b.is_reserved && (
@@ -3756,19 +3787,29 @@ export default function LookupPage() {
                             <div className="space-y-3">
                               <div className="border border-gray-200 dark:border-gray-800 rounded p-3">
                                 <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="text-xs font-semibold text-black dark:text-white">
-                                      {batchBarcodeData.product?.name}{' '}
-                                      <span className="text-gray-500 text-[10px]">
-                                        {batchBarcodeData.product?.sku ? `(${batchBarcodeData.product.sku})` : ''}
-                                      </span>
-                                    </p>
-                                    <p className="text-[10px] text-gray-600 dark:text-gray-400">
-                                      Barcode: <span className="font-semibold text-black dark:text-white">{batchBarcodeData.barcode}</span>
-                                    </p>
+                                  <div className="flex items-start gap-3">
+                                    {batchBarcodeData.product?.image_url ? (
+                                      <img
+                                        src={toAbsoluteAssetUrl(batchBarcodeData.product.image_url) || batchBarcodeData.product.image_url}
+                                        alt={batchBarcodeData.product?.name || 'Product image'}
+                                        className="w-12 h-12 rounded border border-gray-200 dark:border-gray-700 object-cover"
+                                        loading="eager"
+                                      />
+                                    ) : null}
+                                    <div>
+                                      <p className="text-xs font-semibold text-black dark:text-white">
+                                        {batchBarcodeData.product?.name}{' '}
+                                        <span className="text-gray-500 text-[10px]">
+                                          {batchBarcodeData.product?.sku ? `(${batchBarcodeData.product.sku})` : ''}
+                                        </span>
+                                      </p>
+                                      <p className="text-[10px] text-gray-600 dark:text-gray-400">
+                                        Barcode: <span className="font-semibold text-black dark:text-white">{batchBarcodeData.barcode}</span>
+                                      </p>
+                                    </div>
                                   </div>
                                   <span className="text-[10px] px-2 py-1 rounded bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300">
-                                    {batchBarcodeData.total_movements} movements
+                                    {batchBarcodeData.total_events ?? batchBarcodeData.total_movements} history events
                                   </span>
                                 </div>
 
@@ -3812,6 +3853,25 @@ export default function LookupPage() {
                                           })()}
                                         </span>
                                       </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {batchBarcodeData.relabel && (
+                                  <div className="mt-3 border border-amber-200 dark:border-amber-800 rounded p-2 bg-amber-50 dark:bg-amber-900/10">
+                                    <p className="text-[9px] text-amber-700 dark:text-amber-300 uppercase font-semibold mb-1">Relabel lifecycle</p>
+                                    <p className="text-xs font-semibold text-black dark:text-white">
+                                      {batchBarcodeData.relabel.role === 'retired_original' ? 'Retired after relabelling' : 'Replacement barcode'}
+                                    </p>
+                                    <div className="mt-1 text-[10px] text-gray-700 dark:text-gray-300 space-y-0.5">
+                                      {batchBarcodeData.relabel.original_barcode?.barcode && (
+                                        <p>Original: <span className="font-semibold">{batchBarcodeData.relabel.original_barcode.barcode}</span></p>
+                                      )}
+                                      {batchBarcodeData.relabel.replacement_barcode?.barcode && (
+                                        <p>Replacement: <span className="font-semibold">{batchBarcodeData.relabel.replacement_barcode.barcode}</span></p>
+                                      )}
+                                      {batchBarcodeData.relabel.reason && <p>Reason: <span className="font-semibold">{batchBarcodeData.relabel.reason}</span></p>}
+                                      {batchBarcodeData.relabel.store?.name && <p>Location at relabel: <span className="font-semibold">{batchBarcodeData.relabel.store.name}</span></p>}
                                     </div>
                                   </div>
                                 )}

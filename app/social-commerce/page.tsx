@@ -2303,8 +2303,8 @@ export default function SocialCommercePage() {
       : pathaoAreas.find((a) => String(a.area_id) === String(pathaoAreaId));
 
     const parts = usePathaoAutoLocation
-      ? [streetAddress, 'Dhaka', postalCode, 'Bangladesh']
-      : [streetAddress, areaObj?.area_name, zoneObj?.zone_name, cityObj?.city_name || 'Dhaka', postalCode, 'Bangladesh'];
+      ? [streetAddress, postalCode]
+      : [streetAddress, areaObj?.area_name, zoneObj?.zone_name, cityObj?.city_name, postalCode];
 
     return parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
   };
@@ -2487,24 +2487,26 @@ export default function SocialCommercePage() {
               name: userName,
               phone: cleanPhone,
               address_line1: streetAddress,
+              address_line_1: streetAddress,
               street: streetAddress,
-              city: cityObj?.city_name || 'Dhaka',
-              country: 'Bangladesh',
               postal_code: postalCode || undefined,
             };
 
-            // Manual: include IDs + names
+            // Manual: include the real selected location. Auto mode deliberately
+            // keeps only the customer's free-text address so no city is guessed.
             if (!isDomesticAuto) {
               return {
                 ...base,
                 area: areaObj?.area_name || '',
+                zone: zoneObj?.zone_name || '',
+                city: cityObj?.city_name || '',
                 pathao_city_id: pathaoCityId ? Number(pathaoCityId) : undefined,
                 pathao_zone_id: pathaoZoneId ? Number(pathaoZoneId) : undefined,
                 pathao_area_id: pathaoAreaId ? Number(pathaoAreaId) : undefined,
               };
             }
 
-            // Auto: no IDs (Pathao will map from text)
+            // Auto: no IDs/city/country (Pathao maps from the exact address text).
             return base;
           })();
 

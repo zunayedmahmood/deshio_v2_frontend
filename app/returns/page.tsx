@@ -523,7 +523,7 @@ function DetailModal({ ret, onClose, onIssueRefund }: DetailModalProps) {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500">Order #{ret.order_id} • {fmtDate(ret.return_date)}</p>
+                <p className="text-xs text-gray-500">Order {ret.order?.order_number || `#${ret.order_id}`} • {fmtDate(ret.return_date)}</p>
               </div>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><X className="w-5 h-5" /></button>
@@ -889,7 +889,7 @@ export default function ReturnsPage() {
                                 <span className="ml-1 text-[8px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">X-Store</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">#{ret.order_id}</td>
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-300">{ret.order?.order_number || `#${ret.order_id}`}</td>
                             <td className="px-3 py-2 text-gray-700 dark:text-gray-300">
                               <p className="font-medium">{ret.customer?.name || `#${ret.customer_id}`}</p>
                               {ret.customer?.phone && <p className="text-[9px] text-gray-500">{ret.customer.phone}</p>}

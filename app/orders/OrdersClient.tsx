@@ -820,7 +820,6 @@ export default function OrdersDashboard() {
       s.area || s.thana || s.upazila,
       s.city || s.district,
       s.postal_code || s.postalCode || s.zip,
-      s.country,
     ];
     return parts.map((part) => String(part || '').trim()).filter(Boolean).join(', ');
   };
@@ -1844,7 +1843,6 @@ export default function OrdersDashboard() {
         'assigned_to_store',
         'picking',
         'ready_for_shipment',
-        'confirmed',
         'service_only',
       ];
       const pricingOnlyEdit = ['social_commerce', 'ecommerce'].includes(orderType)
@@ -1857,7 +1855,7 @@ export default function OrdersDashboard() {
           ? fo.shipping_address
           : {};
         const sa: any = normalizeShippingObject(rawShipping) || {};
-        const countryName = String(sa.country || 'Bangladesh').trim();
+        const countryName = String(sa.country || '').trim();
         const isInternational = countryName !== '' && !['bangladesh', 'bd'].includes(countryName.toLowerCase());
         const hasManualPathaoLocation = Boolean(sa.pathao_city_id && sa.pathao_zone_id && sa.pathao_area_id);
         const streetAddress = sa.street || sa.address_line1 || sa.address_line_1 || sa.address || '';
@@ -3331,6 +3329,24 @@ When the courier brings back the original product, open this order/lookup and cl
     }
   };
 
+  const handleMoveConfirmedToAssigned = async (order: Order) => {
+    if (!confirm(`Move confirmed order ${order.orderNumber} back to Assigned to Store for editing? Existing payments, scanned barcodes and deducted stock will be preserved.`)) return;
+
+    setSingleActionLoading({ orderId: order.id, action: 'reopen-confirmed' });
+    setActiveMenu(null);
+
+    try {
+      await orderManagementService.reopenConfirmedForEdit(order.id, 'move_confirmed_to_assigned_store');
+      alert('✅ Order moved to Assigned to Store. It can now be edited through the normal online-order workflow.');
+      await loadOrders();
+    } catch (error: any) {
+      console.error('Move confirmed order to assigned_to_store error:', error);
+      alert(`Failed to move order: ${error.message || 'Unknown error'}`);
+    } finally {
+      setSingleActionLoading(null);
+    }
+  };
+
   const handleMarkPendingAssignment = async (orderId: number) => {
     if (!confirm('Move this pending online order to Pending Assignment so it appears in Store Assignment?')) return;
 
@@ -3827,13 +3843,10 @@ When the courier brings back the original product, open this order/lookup and cl
 
     const previewShipping = scUsePathaoAutoLocation
       ? {
-        ...currentShipping,
         street: scStreetAddress,
         address_line1: scStreetAddress,
         address_line_1: scStreetAddress,
-        city: currentShipping.city || scCity || 'Dhaka',
         postal_code: scPostalCode || undefined,
-        country: currentShipping.country || 'Bangladesh',
       }
       : {
         ...currentShipping,
@@ -3844,7 +3857,7 @@ When the courier brings back the original product, open this order/lookup and cl
         zone: zoneObj?.zone_name || currentShipping.zone || '',
         city: cityObj?.city_name || currentShipping.city || '',
         postal_code: scPostalCode || undefined,
-        country: currentShipping.country || 'Bangladesh',
+        country: currentShipping.country || undefined,
       };
 
     return formatPathaoRecipientAddress(previewShipping);
@@ -3905,14 +3918,11 @@ When the courier brings back the original product, open this order/lookup and cl
           if (isAuto) {
             // ✅ Auto mode: no city/zone/area IDs (Pathao will infer from address text)
             shipping_address = {
-              ...shipping_address,
-              name: customerName ?? shipping_address.name ?? '',
-              phone: customerPhone ?? shipping_address.phone ?? '',
+              name: customerName ?? '',
+              phone: customerPhone ?? '',
               street: scStreetAddress,
               address_line1: scStreetAddress,
               address_line_1: scStreetAddress,
-              city: shipping_address.city || cityObj?.city_name || scCity || 'Dhaka',
-              country: shipping_address.country || 'Bangladesh',
               postal_code: scPostalCode || undefined,
             };
 
@@ -3932,12 +3942,12 @@ When the courier brings back the original product, open this order/lookup and cl
               area: areaObj?.area_name || shipping_address.area || '',
               zone: zoneObj?.zone_name || shipping_address.zone || '',
               city: cityObj?.city_name || shipping_address.city || '',
-              country: shipping_address.country || 'Bangladesh',
               pathao_city_id: cityIdNum,
               pathao_zone_id: zoneIdNum,
               pathao_area_id: areaIdNum,
               postal_code: scPostalCode || undefined,
             };
+            delete shipping_address.country;
 
             const parts = [scStreetAddress, areaObj?.area_name || '', zoneObj?.zone_name || '', cityObj?.city_name || ''].filter(Boolean);
             customer_address_text = parts.join(', ') + (scPostalCode ? ` - ${scPostalCode}` : '');
@@ -3976,15 +3986,15 @@ When the courier brings back the original product, open this order/lookup and cl
 
         const normalizedCity = cleanText(
           shipping_address.city ||
-          (orderType === 'ecommerce' ? ecCity : scCity) ||
-          pathaoCities.find((c) => String(c.city_id) === String(pathaoCityId))?.city_name ||
-          'Dhaka'
+          (orderType === 'ecommerce' ? ecCity : '') ||
+          (!scUsePathaoAutoLocation
+            ? pathaoCities.find((c) => String(c.city_id) === String(pathaoCityId))?.city_name
+            : '')
         );
 
         const normalizedCountry = cleanText(
           shipping_address.country ||
-          (orderType === 'ecommerce' ? ecCountry : scCountry) ||
-          'Bangladesh'
+          (orderType === 'ecommerce' ? ecCountry : '')
         );
 
         if (normalizedLine1) {
@@ -3993,8 +4003,10 @@ When the courier brings back the original product, open this order/lookup and cl
           shipping_address.street = shipping_address.street || normalizedLine1;
         }
 
-        shipping_address.city = normalizedCity;
-        shipping_address.country = normalizedCountry;
+        if (normalizedCity) shipping_address.city = normalizedCity;
+        else delete shipping_address.city;
+        if (normalizedCountry) shipping_address.country = normalizedCountry;
+        else delete shipping_address.country;
       }
 
       if (orderType === 'social_commerce' && !scIsInternational) {
@@ -5302,13 +5314,14 @@ When the courier brings back the original product, open this order/lookup and cl
               'assigned_to_store',
               'picking',
               'ready_for_shipment',
-              'confirmed',
               'service_only',
             ];
+            const orderStatus = normalize(order.status);
             const isOnlineOrder = ['social_commerce', 'ecommerce'].includes(normalize(order.orderType));
             const canEdit = isOnlineOrder
-              ? normalize(order.status) !== 'delivered'
-              : editableStatuses.includes(normalize(order.status));
+              ? !['delivered', 'confirmed'].includes(orderStatus)
+              : editableStatuses.includes(orderStatus);
+            const canMoveConfirmedToAssigned = isOnlineOrder && orderStatus === 'confirmed';
             const canForceConfirm =
               ['social_commerce', 'ecommerce'].includes(normalize(order.orderType)) &&
               ['pending', 'pending_assignment', 'assigned_to_store', 'picking', 'ready_for_shipment'].includes(normalize(order.status));
@@ -5325,6 +5338,20 @@ When the courier brings back the original product, open this order/lookup and cl
                   >
                     <Edit className="h-5 w-5 flex-shrink-0" />
                     <span>Edit Order</span>
+                  </button>
+                )}
+
+                {canMoveConfirmedToAssigned && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMoveConfirmedToAssigned(order);
+                    }}
+                    disabled={isSingleLoading(order.id, 'reopen-confirmed')}
+                    className="w-full px-4 py-3 text-left text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-50"
+                  >
+                    <RefreshCw className="h-5 w-5 flex-shrink-0" />
+                    <span>{isSingleLoading(order.id, 'reopen-confirmed') ? 'Moving...' : 'Move to Assigned to Store'}</span>
                   </button>
                 )}
 

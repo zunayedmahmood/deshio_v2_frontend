@@ -104,16 +104,6 @@ const normalizeShippingPayload = (addr: any) => {
     normalized.address_line_1 = normalized.address_line1 || normalized.street || normalized.address || '';
   }
 
-  // 2. city is mandatory
-  if (!normalized.city) {
-    normalized.city = 'Dhaka'; // Default domestic fallback
-  }
-
-  // 3. country is mandatory
-  if (!normalized.country) {
-    normalized.country = 'Bangladesh'; // Default domestic fallback
-  }
-
   return normalized;
 };
 
