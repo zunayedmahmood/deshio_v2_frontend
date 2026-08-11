@@ -164,6 +164,7 @@ export default function AmountDetailsPage() {
   const [outstandingAmountState, setOutstandingAmountState] = useState<number>(0);
   const [originalDiscountAmount, setOriginalDiscountAmount] = useState<number>(0);
   const [originalShippingAmount, setOriginalShippingAmount] = useState<number>(0);
+  const [refundConfirmed, setRefundConfirmed] = useState(false);
 
   // Store assignment choice for new social-commerce orders.
   // Auto keeps the order in pending_assignment. Manual assigns it immediately if one store can fulfill the whole cart.
@@ -178,6 +179,26 @@ export default function AmountDetailsPage() {
     setToastMessage(message);
     setToastType(type);
     setShowToast(true);
+  };
+
+  const updateProductItemDiscount = (index: number, rawValue: string) => {
+    setOrderData((current: any) => {
+      if (!current || !Array.isArray(current.items) || !current.items[index]) return current;
+
+      const items = [...current.items];
+      const item = items[index];
+      const gross = Math.max(0, parseNumber(item.unit_price) * (parseNumber(item.quantity) || 1));
+      const requested = Math.max(0, parseNumber(rawValue));
+      const discount = Math.min(gross, requested);
+
+      items[index] = {
+        ...item,
+        discount_amount: discount,
+        amount: Math.max(0, gross - discount),
+      };
+
+      return { ...current, items };
+    });
   };
 
   const handleBackToCartAndStore = () => {
@@ -381,6 +402,19 @@ export default function AmountDetailsPage() {
     () => ceilTaka(Math.max(0, payableBeforeLoyalty - loyaltyDiscountAmount)),
     [payableBeforeLoyalty, loyaltyDiscountAmount]
   );
+  const refundRequired = useMemo(
+    () => Math.max(0, Number((alreadyPaid - total).toFixed(2))),
+    [alreadyPaid, total]
+  );
+
+  useEffect(() => {
+    if (refundRequired > 0.009) {
+      setPaymentOption('none');
+      setRefundConfirmed(false);
+    } else {
+      setRefundConfirmed(false);
+    }
+  }, [refundRequired]);
 
   useEffect(() => {
     if (!useLoyaltyPoints || persistedLoyaltyPoints > 0) return;
@@ -461,6 +495,7 @@ export default function AmountDetailsPage() {
     const contextId = Number(orderData?.editOrderId || 0) || 0;
     return contextId > 0;
   }, [orderData]);
+  const isPricingOnlyEdit = Boolean(orderData?.pricingOnlyEdit);
 
   const productItemsForStoreAssignment = useMemo(() => {
     return (orderData?.items || [])
@@ -539,6 +574,11 @@ export default function AmountDetailsPage() {
   }
 
   const handlePlaceOrder = async () => {
+    if (isEditingExistingOrder && refundRequired > 0.009 && !refundConfirmed) {
+      displayToast(`Confirm that the customer has been refunded ৳${refundRequired.toFixed(2)} before saving this edit.`, 'error');
+      return;
+    }
+
     // Validation: payment methods
     if (paymentOption === 'full' || paymentOption === 'partial' || paymentOption === 'installment') {
       if (!selectedPaymentMethod) {
@@ -650,6 +690,29 @@ export default function AmountDetailsPage() {
           throw new Error(updateBody?.message || 'Failed to update preorder');
         }
         createdOrder = updateBody?.data ?? updateBody;
+      } else if (isEditMode && isPricingOnlyEdit) {
+        const targetOrderId = Number(effectiveEditOrderId);
+        if (!targetOrderId) {
+          throw new Error('Edit order id missing');
+        }
+
+        const pricingPayload = {
+          discount_amount: orderDiscount,
+          items: itemPayloads.map((item: any) => ({
+            id: Number(item.id),
+            discount_amount: Number(item.discount_amount) || 0,
+          })),
+          customer_refunded_excess: refundConfirmed,
+          customer_refunded_excess_amount: refundConfirmed ? refundRequired : 0,
+        };
+
+        console.log('✏️ Updating online-order pricing only:', targetOrderId, pricingPayload);
+        const updateResponse = await axios.patch(`/orders/${targetOrderId}/pricing-adjustment`, pricingPayload);
+        const updateBody: any = updateResponse.data;
+        if (updateBody?.success === false) {
+          throw new Error(updateBody?.message || 'Failed to update order pricing');
+        }
+        createdOrder = updateBody?.data ?? updateBody;
       } else if (isEditMode) {
         const targetOrderId = Number(effectiveEditOrderId);
         if (!targetOrderId) {
@@ -727,6 +790,8 @@ export default function AmountDetailsPage() {
           ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
           discount_amount: orderDiscount,
           shipping_amount: transport,
+          customer_refunded_excess: refundConfirmed,
+          customer_refunded_excess_amount: refundConfirmed ? refundRequired : 0,
           ...(loyaltyPointsToUse > 0 && persistedLoyaltyPoints <= 0
             ? {
                 use_loyalty_points: true,
@@ -876,7 +941,7 @@ export default function AmountDetailsPage() {
       }
 
       // 2) Set intended courier marker (optional)
-      if (!isPreorderFlow && intendedCourier && intendedCourier.trim()) {
+      if (!isPreorderFlow && !isPricingOnlyEdit && intendedCourier && intendedCourier.trim()) {
         try {
           await axios.patch(`/orders/${createdOrder.id}/set-courier`, {
             intended_courier: intendedCourier.trim(),
@@ -1072,8 +1137,22 @@ export default function AmountDetailsPage() {
       }, 2000);
     } catch (error: any) {
       console.error('❌ Order placement failed:', error);
-      const errMsg = error.response?.data?.message || error.message || 'Error placing order. Please try again.';
-      displayToast(errMsg, 'error');
+      const responseData = error.response?.data;
+      if (responseData?.code === 'overpayment_refund_required') {
+        const serverPaid = parseNumber(responseData?.data?.net_collected);
+        if (serverPaid > 0) {
+          setAlreadyPaid(serverPaid);
+        }
+        setRefundConfirmed(false);
+        const serverRefund = parseNumber(responseData?.data?.refund_required);
+        displayToast(
+          `Customer refund confirmation is required${serverRefund > 0 ? ` for ৳${serverRefund.toFixed(2)}` : ''}.`,
+          'error'
+        );
+      } else {
+        const errMsg = responseData?.message || error.message || 'Error placing order. Please try again.';
+        displayToast(errMsg, 'error');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -1225,16 +1304,20 @@ export default function AmountDetailsPage() {
                     <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700/40 rounded border border-gray-200 dark:border-gray-700">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-[11px] text-gray-600 dark:text-gray-300">
-                          Store assignment is preserved while editing this existing order. Use the previous page to adjust the cart details.
+                          {isPricingOnlyEdit
+                            ? 'This order is in a late status. Only product/item discounts and the whole-order discount can be changed here; fulfillment and stock are preserved.'
+                            : 'Store assignment is preserved while editing this existing order. Use the previous page to adjust the cart details.'}
                         </p>
-                        <button
-                          type="button"
-                          onClick={handleBackToCartAndStore}
-                          disabled={isProcessing}
-                          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
-                        >
-                          Edit cart
-                        </button>
+                        {!isPricingOnlyEdit && (
+                          <button
+                            type="button"
+                            onClick={handleBackToCartAndStore}
+                            disabled={isProcessing}
+                            className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+                          >
+                            Edit cart
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1255,11 +1338,25 @@ export default function AmountDetailsPage() {
                                 <p className="text-xs text-gray-600 dark:text-gray-400">
                                   Qty: {item.quantity} × ৳{parseNumber(item.unit_price).toFixed(2)}
                                 </p>
-                                {parseNumber(item.discount_amount) > 0 && (
+                                {isEditingExistingOrder ? (
+                                  <label className="mt-1 flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                    <span>Item discount (৳)</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={Math.max(0, parseNumber(item.unit_price) * (parseNumber(item.quantity) || 1))}
+                                      step="0.01"
+                                      value={parseNumber(item.discount_amount)}
+                                      onChange={(e) => updateProductItemDiscount(idx, e.target.value)}
+                                      disabled={isProcessing}
+                                      className="w-28 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    />
+                                  </label>
+                                ) : parseNumber(item.discount_amount) > 0 ? (
                                   <p className="text-xs text-red-600 dark:text-red-400">
                                     Discount: -৳{parseNumber(item.discount_amount).toFixed(2)}
                                   </p>
-                                )}
+                                ) : null}
                               </div>
                               <p className="text-sm font-medium text-gray-900 dark:text-white sm:ml-2 self-end sm:self-auto">৳{itemAmount.toFixed(2)}</p>
                             </div>
@@ -1363,7 +1460,8 @@ export default function AmountDetailsPage() {
                     <input
                       value={transportCost}
                       onChange={(e) => setTransportCost(e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={isProcessing || isPricingOnlyEdit}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60"
                     />
                   </div>
 
@@ -1398,7 +1496,7 @@ export default function AmountDetailsPage() {
                         <input
                           type="checkbox"
                           checked={useLoyaltyPoints}
-                          disabled={isProcessing || persistedLoyaltyPoints > 0 || loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0 || loyaltyMaxUsefulPoints <= 0}
+                          disabled={isProcessing || isPricingOnlyEdit || persistedLoyaltyPoints > 0 || loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0 || loyaltyMaxUsefulPoints <= 0}
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setUseLoyaltyPoints(checked);
@@ -1445,30 +1543,32 @@ export default function AmountDetailsPage() {
                   </div>
 
                   {/* Intended Courier Marker */}
-                  <div className="mb-4">
-                    <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
-                      Add Order Marker
-                    </label>
-                    <div className="relative">
-                      <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <select
-                        value={intendedCourier}
-                        onChange={(e) => setIntendedCourier(e.target.value)}
-                        disabled={isProcessing}
-                        className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      >
-                        <option value="">Select marker (optional)</option>
-                        {courierOptions.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
+                  {!isPricingOnlyEdit && (
+                    <div className="mb-4">
+                      <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
+                        Add Order Marker
+                      </label>
+                      <div className="relative">
+                        <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <select
+                          value={intendedCourier}
+                          onChange={(e) => setIntendedCourier(e.target.value)}
+                          disabled={isProcessing}
+                          className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        >
+                          <option value="">Select marker (optional)</option>
+                          {courierOptions.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        This will be saved as an order marker and you can edit it later from the Orders page.
+                      </p>
                     </div>
-                    <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                      This will be saved as an order marker and you can edit it later from the Orders page.
-                    </p>
-                  </div>
+                  )}
 
                   {/* Payment Option */}
                   <div className="mb-4">
@@ -1482,6 +1582,27 @@ export default function AmountDetailsPage() {
                           This order already has recorded payments. The "Final Due" below accounts for these. 
                           Selecting a payment option now will add a NEW payment record.
                         </p>
+                      </div>
+                    )}
+
+                    {isEditingExistingOrder && refundRequired > 0.009 && (
+                      <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/20">
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                          Refund required: ৳{refundRequired.toFixed(2)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
+                          The edited order value is below the amount already collected. Saving will post this exact amount as a refund against the existing payment ledger.
+                        </p>
+                        <label className="mt-3 flex items-start gap-2 text-sm font-medium text-amber-950 dark:text-amber-100">
+                          <input
+                            type="checkbox"
+                            checked={refundConfirmed}
+                            onChange={(e) => setRefundConfirmed(e.target.checked)}
+                            disabled={isProcessing}
+                            className="mt-0.5 h-4 w-4"
+                          />
+                          <span>Customer has been refunded ৳{refundRequired.toFixed(2)}</span>
+                        </label>
                       </div>
                     )}
 

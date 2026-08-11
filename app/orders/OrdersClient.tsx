@@ -1838,6 +1838,17 @@ export default function OrdersDashboard() {
       const fullOrder = await orderService.getById(order.id);
       const fo = fullOrder as any;
       const orderType = normalize(fo.order_type || order.orderType);
+      const onlineFullEditStatuses = [
+        'pending',
+        'pending_assignment',
+        'assigned_to_store',
+        'picking',
+        'ready_for_shipment',
+        'confirmed',
+        'service_only',
+      ];
+      const pricingOnlyEdit = ['social_commerce', 'ecommerce'].includes(orderType)
+        && !onlineFullEditStatuses.includes(normalize(fo.status || order.status));
 
       // All online-order edits use Social Commerce edit mode. This keeps product
       // search, payment collection and barcode-aware removals in one workflow.
@@ -1915,7 +1926,57 @@ export default function OrdersDashboard() {
           shippingAmount: parseMoney(fo.shipping_amount),
           loyaltyPointsUsed: Number(fo.loyalty_points_used || 0),
           loyaltyPointsDiscountAmount: parseMoney(fo.loyalty_points_discount_amount),
+          pricingOnlyEdit,
         };
+
+        if (pricingOnlyEdit) {
+          const pendingOrder = {
+            order_type: orderType,
+            editOrderId: order.id,
+            editOrderNumber: fo.order_number || order.orderNumber,
+            pricingOnlyEdit: true,
+            salesman_id: fo.salesman?.id ?? null,
+            customer: {
+              name: fo.customer?.name || fo.customer_name || '',
+              email: fo.customer?.email || fo.customer_email || undefined,
+              phone: fo.customer?.phone || fo.customer_phone || '',
+              address: fo.customer?.address || fo.customer_address || '',
+            },
+            shipping_address: rawShipping,
+            items: productCart,
+            services: serviceCart.map((service: any) => ({
+              id: service.id,
+              service_id: service.serviceId,
+              service_name: service.productName,
+              quantity: service.quantity,
+              unit_price: service.unit_price,
+              discount_amount: service.discount_amount,
+              total_amount: service.amount,
+              category: service.serviceCategory,
+            })),
+            shipping_amount: parseMoney(fo.shipping_amount),
+            discount_amount: parseMoney(fo.discount_amount),
+            notes: fo.notes || '',
+            paid_amount: parseMoney(fo.paid_amount),
+            outstanding_amount: parseMoney(fo.outstanding_amount),
+            total_amount: parseMoney(fo.total_amount),
+            original_discount_amount: parseMoney(fo.discount_amount),
+            original_shipping_amount: parseMoney(fo.shipping_amount),
+            loyalty_points_used: Number(fo.loyalty_points_used || 0),
+            loyalty_points_discount_amount: parseMoney(fo.loyalty_points_discount_amount),
+          };
+
+          sessionStorage.setItem('pendingOrder', JSON.stringify(pendingOrder));
+          sessionStorage.setItem(
+            'socialCommerceEditContextV1',
+            JSON.stringify({
+              editOrderId: order.id,
+              editOrderNumber: fo.order_number || order.orderNumber,
+            })
+          );
+          window.location.href = '/social-commerce/amount-details';
+          return;
+        }
 
         sessionStorage.setItem('socialCommerceEditPrefillV1', JSON.stringify(prefill));
         window.location.href = '/social-commerce';
@@ -5244,7 +5305,10 @@ When the courier brings back the original product, open this order/lookup and cl
               'confirmed',
               'service_only',
             ];
-            const canEdit = editableStatuses.includes(normalize(order.status));
+            const isOnlineOrder = ['social_commerce', 'ecommerce'].includes(normalize(order.orderType));
+            const canEdit = isOnlineOrder
+              ? normalize(order.status) !== 'delivered'
+              : editableStatuses.includes(normalize(order.status));
             const canForceConfirm =
               ['social_commerce', 'ecommerce'].includes(normalize(order.orderType)) &&
               ['pending', 'pending_assignment', 'assigned_to_store', 'picking', 'ready_for_shipment'].includes(normalize(order.status));
