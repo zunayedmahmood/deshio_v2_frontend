@@ -184,6 +184,8 @@ export default function BatchBarcodePrintPage() {
             <div class="barcode-card">
               <img src="${dataUrl}" alt="${escapeHtml(code)}" />
               <div class="barcode-number">${escapeHtml(code)}</div>
+              <div class="barcode-product">${escapeHtml(productName)}</div>
+              <div class="barcode-store">${escapeHtml(storeName)}</div>
             </div>`
         )
         .join('');
@@ -203,9 +205,12 @@ export default function BatchBarcodePrintPage() {
     .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5mm 8mm; font-size: 9.5pt; }
     .meta strong { font-weight: 700; }
     .barcode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4mm 3mm; align-items: start; }
-    .barcode-card { height: 30mm; border: 0.25mm solid #cfcfcf; border-radius: 1.5mm; padding: 2.5mm 2mm; display: flex; flex-direction: column; align-items: center; justify-content: center; break-inside: avoid; page-break-inside: avoid; overflow: hidden; }
-    .barcode-card img { width: 100%; height: 18mm; object-fit: contain; display: block; }
-    .barcode-number { margin-top: 1.5mm; max-width: 100%; text-align: center; font-family: "Courier New", monospace; font-weight: 700; font-size: 9pt; overflow-wrap: anywhere; }
+    .barcode-card { height: 38mm; border: 0.25mm solid #cfcfcf; border-radius: 1.5mm; padding: 2mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; break-inside: avoid; page-break-inside: avoid; overflow: hidden; }
+    .barcode-card img { width: 100%; height: 17mm; object-fit: contain; display: block; flex-shrink: 0; }
+    .barcode-number { margin-top: 1mm; max-width: 100%; text-align: center; font-family: "Courier New", monospace; font-weight: 700; font-size: 8.5pt; line-height: 1.15; overflow-wrap: anywhere; }
+    .barcode-product, .barcode-store { width: 100%; margin-top: 0.8mm; text-align: center; font-size: 7.5pt; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .barcode-product { font-weight: 700; }
+    .barcode-store { color: #333; }
     @media print { .barcode-card { break-inside: avoid; page-break-inside: avoid; } }
   </style>
 </head>
@@ -246,7 +251,7 @@ export default function BatchBarcodePrintPage() {
       const columns = 3;
       const gapX = 3;
       const cardWidth = (contentWidth - gapX * (columns - 1)) / columns;
-      const cardHeight = 30;
+      const cardHeight = 38;
       const gapY = 3;
       const startY = 31;
       const bottomY = 287;
@@ -292,16 +297,41 @@ export default function BatchBarcodePrintPage() {
         const png = await renderBarcodePng(code);
         doc.setDrawColor(205);
         doc.roundedRect(x, y, cardWidth, cardHeight, 1.5, 1.5, 'S');
-        doc.addImage(png, 'PNG', x + 2.5, y + 2.5, cardWidth - 5, 18);
+        doc.addImage(png, 'PNG', x + 2.5, y + 2, cardWidth - 5, 17);
 
-        let fontSize = 8;
-        doc.setFont('courier', 'bold');
-        doc.setFontSize(fontSize);
-        while (fontSize > 5 && doc.getTextWidth(code) > cardWidth - 5) {
-          fontSize -= 0.5;
+        const drawFittedLine = (
+          text: string,
+          centerX: number,
+          baselineY: number,
+          font: 'helvetica' | 'courier',
+          style: 'normal' | 'bold',
+          initialSize: number,
+          minSize: number
+        ) => {
+          let display = String(text || '');
+          let fontSize = initialSize;
+          const maxWidth = cardWidth - 5;
+
+          doc.setFont(font, style);
           doc.setFontSize(fontSize);
-        }
-        doc.text(code, x + cardWidth / 2, y + 25, { align: 'center' });
+          while (fontSize > minSize && doc.getTextWidth(display) > maxWidth) {
+            fontSize -= 0.5;
+            doc.setFontSize(fontSize);
+          }
+
+          if (doc.getTextWidth(display) > maxWidth) {
+            while (display.length > 1 && doc.getTextWidth(`${display}…`) > maxWidth) {
+              display = display.slice(0, -1);
+            }
+            display = `${display}…`;
+          }
+
+          doc.text(display, centerX, baselineY, { align: 'center' });
+        };
+
+        drawFittedLine(code, x + cardWidth / 2, y + 23.5, 'courier', 'bold', 8, 5);
+        drawFittedLine(productName, x + cardWidth / 2, y + 29, 'helvetica', 'bold', 7.5, 5);
+        drawFittedLine(storeName, x + cardWidth / 2, y + 34, 'helvetica', 'normal', 7, 5);
       }
 
       doc.save(`batch_${safeFileName(batch.batch_number)}_barcodes.pdf`);
@@ -441,7 +471,7 @@ export default function BatchBarcodePrintPage() {
                     ) : barcodes.length > 0 ? (
                       <>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                          A4 output uses three columns. The list below is a lightweight preview of the barcode numbers; print/PDF renders the actual CODE128 graphics with the number underneath.
+                          A4 output uses three columns. The list below is a lightweight preview of the barcode numbers; print/PDF renders the actual CODE128 graphic with the barcode number, product name, and store name underneath.
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                           {barcodes.map((barcode, index) => (
