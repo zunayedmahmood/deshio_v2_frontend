@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Search, ArrowRightLeft, Calculator, ChevronDown, Barcode, Trash2, CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react';
 import axiosInstance from '@/lib/axios';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 interface ExchangeProductModalProps {
   order: any;
   onClose: () => void;
   onExchange: (exchangeData: any) => Promise<void>;
+  enableMobileScan?: boolean;
 }
 
-export default function ExchangeProductModal({ order, onClose, onExchange }: ExchangeProductModalProps) {
+export default function ExchangeProductModal({ order, onClose, onExchange, enableMobileScan = false }: ExchangeProductModalProps) {
   // Items being removed/returned from the original order
   const [removedItems, setRemovedItems] = useState<any[]>([]);
   // Items being taken as replacement
@@ -42,9 +44,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     if (returnInputRef.current) returnInputRef.current.focus();
   }, []);
 
-  const handleReturnScan = async (e?: React.FormEvent) => {
+  const handleReturnScan = async (e?: React.FormEvent, scannedCode?: string) => {
     if (e) e.preventDefault();
-    const code = barcodeInput.trim();
+    const code = (scannedCode ?? barcodeInput).trim();
     if (!code) return;
 
     setError(null);
@@ -87,9 +89,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     setBarcodeInput('');
   };
 
-  const handleReplacementScan = async (e?: React.FormEvent) => {
+  const handleReplacementScan = async (e?: React.FormEvent, scannedCode?: string) => {
     if (e) e.preventDefault();
-    const code = replacementBarcodeInput.trim();
+    const code = (scannedCode ?? replacementBarcodeInput).trim();
     if (!code) return;
 
     setError(null);
@@ -237,6 +239,18 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <p className="text-sm font-bold">{error}</p>
             </div>
+          )}
+
+          {enableMobileScan && (
+            <MobileCameraBarcodeScanner
+              enabled
+              disabled={isProcessing}
+              scannerId="lookup-exchange-mobile-camera-scanner"
+              onScan={(code) => scanningMode === 'return' ? handleReturnScan(undefined, code) : handleReplacementScan(undefined, code)}
+              buttonLabel={scanningMode === 'return' ? 'Scan Return with Mobile Camera' : 'Scan Replacement with Mobile Camera'}
+              activeLabel={scanningMode === 'return' ? 'Lookup exchange return camera active' : 'Lookup exchange replacement camera active'}
+              helperText={`Temporary mobile-camera input for Lookup exchange. Current target: ${scanningMode === 'return' ? 'returned item' : 'replacement item'}. Tap the relevant input to switch target.`}
+            />
           )}
 
           <div className="grid grid-cols-12 gap-6">

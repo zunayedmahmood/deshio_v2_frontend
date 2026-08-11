@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Scan, Keyboard, Loader2 } from 'lucide-react';
 import barcodeService from '@/services/barcodeService';
 import { readOpenOrderLockError } from '@/components/barcode/OpenOrderLockRescueWidget';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 interface BarcodeScannerProps {
   isEnabled: boolean;
@@ -307,6 +308,16 @@ export default function BarcodeScanner({
           </p>
         </div>
       </div>
+
+      <MobileCameraBarcodeScanner
+        enabled={isEnabled && Boolean(selectedOutlet)}
+        disabled={!selectedOutlet}
+        scannerId="pos-mobile-camera-scanner"
+        onScan={processBarcode}
+        buttonLabel="Scan with Mobile Camera"
+        activeLabel="POS mobile camera active"
+        helperText="Temporary mobile-camera input. It submits to the same POS barcode handler as the existing scanner."
+      />
 
       {/* Warning if outlet not selected */}
       {!selectedOutlet && (

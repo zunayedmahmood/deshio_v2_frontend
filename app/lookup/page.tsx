@@ -4012,6 +4012,7 @@ export default function LookupPage() {
                 onClose={() => setShowReturnModal(false)}
                 order={selectedOrderForAction}
                 onReturn={handleReturnSubmit}
+                enableMobileScan
               />
             )}
             {showExchangeModal && selectedOrderForAction && (
@@ -4019,6 +4020,7 @@ export default function LookupPage() {
                 order={selectedOrderForAction}
                 onClose={() => setShowExchangeModal(false)}
                 onExchange={handleExchangeSubmit}
+                enableMobileScan
               />
             )}
 

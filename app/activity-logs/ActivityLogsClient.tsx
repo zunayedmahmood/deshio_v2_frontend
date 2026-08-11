@@ -37,6 +37,17 @@ function toYmd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function activityDateYmd(entry: ActivityLogEntry): string | null {
+  const raw = entry.when?.timestamp || entry.when?.formatted || '';
+  if (!raw) return null;
+
+  const isoDate = String(raw).match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (isoDate) return isoDate;
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : toYmd(parsed);
+}
+
 export default function ActivityLogsClient() {
   const searchParams = useSearchParams();
 
@@ -50,10 +61,8 @@ export default function ActivityLogsClient() {
   const [event, setEvent] = useState<string>(searchParams.get('event') || '');
   const [employeeId, setEmployeeId] = useState<string>(searchParams.get('employee_id') || '');
   const [q, setQ] = useState<string>(searchParams.get('q') || '');
-  const [dateFrom, setDateFrom] = useState<string>(
-    searchParams.get('date_from') || toYmd(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-  );
-  const [dateTo, setDateTo] = useState<string>(searchParams.get('date_to') || toYmd(new Date()));
+  const [dateFrom, setDateFrom] = useState<string>(searchParams.get('date_from') || '');
+  const [dateTo, setDateTo] = useState<string>(searchParams.get('date_to') || '');
   const [perPage, setPerPage] = useState<number>(50);
 
   // Data
@@ -95,6 +104,7 @@ export default function ActivityLogsClient() {
         date_to: dateTo,
         event: event || undefined,
         per_page: perPage,
+        fetch_all: true,
       });
       setEntries(res.data || []);
     } catch (e: any) {
@@ -113,9 +123,18 @@ export default function ActivityLogsClient() {
   const filtered = useMemo(() => {
     const empIdNum = employeeId ? Number(employeeId) : null;
     const needle = q.trim().toLowerCase();
+
     return (entries || []).filter((e) => {
+      if (dateFrom || dateTo) {
+        const activityDate = activityDateYmd(e);
+        if (!activityDate) return false;
+        if (dateFrom && activityDate < dateFrom) return false;
+        if (dateTo && activityDate > dateTo) return false;
+      }
+
       if (empIdNum && Number(e.who?.id) !== empIdNum) return false;
       if (!needle) return true;
+
       const hay = [
         e.what?.description,
         e.what?.action,
@@ -129,7 +148,7 @@ export default function ActivityLogsClient() {
         .toLowerCase();
       return hay.includes(needle);
     });
-  }, [entries, employeeId, q]);
+  }, [entries, employeeId, q, dateFrom, dateTo]);
 
   return (
   <div className={darkMode ? 'dark' : ''}>

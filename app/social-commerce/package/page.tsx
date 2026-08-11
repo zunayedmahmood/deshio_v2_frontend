@@ -23,6 +23,7 @@ import storeFulfillmentService from '@/services/storeFulfillmentService';
 import Toast from '@/components/Toast';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
 import OpenOrderLockRescueWidget, { readOpenOrderLockError } from '@/components/barcode/OpenOrderLockRescueWidget';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 interface ScannedItemTracking {
   required: number;
@@ -1029,6 +1030,16 @@ export default function WarehouseFulfillmentPage() {
                         </div>
                       )}
                     </div>
+
+                    <MobileCameraBarcodeScanner
+                      enabled={isScanning && Boolean(orderDetails)}
+                      disabled={!orderDetails}
+                      scannerId="online-order-packing-mobile-camera-scanner"
+                      onScan={handleBarcodeScan}
+                      buttonLabel="Scan with Mobile Camera"
+                      activeLabel="Online packing mobile camera active"
+                      helperText="Temporary mobile-camera input. Scans are validated and saved through the same packing flow as the existing scanner."
+                    />
 
                   </div>
 

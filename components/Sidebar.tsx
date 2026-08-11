@@ -118,6 +118,7 @@ export default function Sidebar({
         { label: 'Product List', href: '/product/list' },
         { label: 'Archived Products', href: '/product/archived' },
         { label: 'Batch', href: '/product/batch' },
+        { label: 'Batch Barcode Print', href: '/product/batch-barcode-print' },
       ],
     },
     {

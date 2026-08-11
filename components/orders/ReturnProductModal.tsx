@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, RotateCcw, Calculator, ChevronDown, Barcode, Trash2, AlertCircle, Info } from 'lucide-react';
 import axiosInstance from '@/lib/axios';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 interface ReturnProductModalProps {
   order: any;
   onClose: () => void;
   onReturn: (returnData: any) => Promise<void>;
+  enableMobileScan?: boolean;
 }
 
-export default function ReturnProductModal({ order, onClose, onReturn }: ReturnProductModalProps) {
+export default function ReturnProductModal({ order, onClose, onReturn, enableMobileScan = false }: ReturnProductModalProps) {
   const [returnedItems, setReturnedItems] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -33,9 +35,9 @@ export default function ReturnProductModal({ order, onClose, onReturn }: ReturnP
     if (barcodeInputRef.current) barcodeInputRef.current.focus();
   }, []);
 
-  const handleBarcodeScan = (e?: React.FormEvent) => {
+  const handleBarcodeScan = (e?: React.FormEvent, scannedCode?: string) => {
     if (e) e.preventDefault();
-    const code = barcodeInput.trim();
+    const code = (scannedCode ?? barcodeInput).trim();
     if (!code) return;
 
     setError(null);
@@ -207,6 +209,18 @@ export default function ReturnProductModal({ order, onClose, onReturn }: ReturnP
                     <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Awaiting Scan</span>
                   </div>
                 </form>
+
+                {enableMobileScan && (
+                  <MobileCameraBarcodeScanner
+                    enabled
+                    disabled={isProcessing}
+                    scannerId="lookup-return-mobile-camera-scanner"
+                    onScan={(code) => handleBarcodeScan(undefined, code)}
+                    buttonLabel="Scan Return with Mobile Camera"
+                    activeLabel="Lookup return mobile camera active"
+                    helperText="Temporary mobile-camera input for Lookup returns. The same order-barcode validation is used."
+                  />
+                )}
 
                 <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2 scrollbar-thin">
                   {returnedItems.map((item, index) => (

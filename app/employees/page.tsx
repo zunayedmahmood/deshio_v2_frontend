@@ -49,6 +49,7 @@ export default function EmployeeManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [allStores, setAllStores] = useState<Store[]>([]);
   
   // Filters
@@ -155,7 +156,7 @@ export default function EmployeeManagement() {
   };
 
   const handleDeleteEmployee = async (id: number) => {
-    if (!confirm('Are you sure you want to deactivate this employee?')) return;
+    if (!confirm('Are you sure you want to delete this employee? It can be restored from the Recycle Bin.')) return;
     
     try {
       await employeeService.deleteEmployee(id);
@@ -210,6 +211,73 @@ export default function EmployeeManagement() {
     } catch (error) {
       console.error('Failed to update employee status:', error);
       alert('Failed to update employee status');
+    }
+  };
+
+  const handleExportEmployees = async () => {
+    if (exporting) return;
+
+    setExporting(true);
+    try {
+      const allEmployees: Employee[] = [];
+      let page = 1;
+      let lastPage = 1;
+
+      do {
+        const response = await employeeService.getEmployees({
+          ...filters,
+          page,
+          per_page: 100,
+        });
+
+        if (!response.success) throw new Error('Failed to load employee data for export');
+
+        allEmployees.push(...response.data.data);
+        lastPage = response.data.last_page;
+        page += 1;
+      } while (page <= lastPage);
+
+      if (allEmployees.length === 0) {
+        alert('No employee data found to export.');
+        return;
+      }
+
+      const csvCell = (value: unknown) => {
+        let text = value == null ? '' : String(value);
+        if (/^[=+\-@]/.test(text)) text = `'${text}`;
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+
+      const rows = [
+        ['Employee Code', 'Name', 'Email', 'Phone', 'Department', 'Role', 'Store', 'Status', 'In Service', 'Hire Date'],
+        ...allEmployees.map((employee) => [
+          employee.employee_code || '',
+          employee.name || '',
+          employee.email || '',
+          employee.phone || '',
+          employee.department || '',
+          employee.role?.title || '',
+          employee.store?.name || '',
+          employee.is_active ? 'Active' : 'Inactive',
+          employee.is_in_service ? 'Yes' : 'No',
+          employee.hire_date ? employee.hire_date.slice(0, 10) : '',
+        ]),
+      ];
+
+      const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `employees_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export employees:', error);
+      alert('Failed to export employee information');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -333,9 +401,13 @@ export default function EmployeeManagement() {
           </button>
 
           {/* Export/Import Buttons */}
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+          <button
+            onClick={handleExportEmployees}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <Download className="w-5 h-5" />
-            Export
+            {exporting ? 'Exporting...' : 'Export'}
           </button>
         </div>
 

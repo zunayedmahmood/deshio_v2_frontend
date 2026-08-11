@@ -56,6 +56,7 @@ export interface ActivityLogParams {
   event?: string; // created|updated|deleted
   per_page?: number;
   page?: number;
+  fetch_all?: boolean;
   /** Allow endpoint-specific filters (order_id, product_id, dispatch_id, etc.) */
   [key: string]: any;
 }
@@ -161,28 +162,25 @@ function normalizeEntry(category: Exclude<BusinessHistoryCategory, 'all'>, e: an
   };
 }
 
-async function fetchCategory(
+async function fetchCategoryPage(
   category: Exclude<BusinessHistoryCategory, 'all'>,
   params: ActivityLogParams
 ): Promise<Paginated<ActivityLogEntry>> {
   const url = endpointForCategory[category];
 
   // Pass through endpoint-specific filters (e.g., order_id, product_id, dispatch_id, etc.)
-  const { category: _cat, ...rest } = params as any;
+  // fetch_all is frontend-only and must not be sent to Laravel.
+  const { category: _cat, fetch_all: _fetchAll, ...rest } = params as any;
 
-  // Your backend controllers currently use start_date/end_date
-  // Your docs/front use date_from/date_to
-  // So send BOTH to be safe.
-  const date_from = params.date_from;
-  const date_to = params.date_to;
+  // Backend versions in this project use both naming conventions.
+  const date_from = params.date_from || undefined;
+  const date_to = params.date_to || undefined;
 
   const res = await axios.get(url, {
     params: {
       ...rest,
       per_page: params.per_page ?? 50,
       page: params.page ?? 1,
-
-      // both naming conventions
       date_from,
       date_to,
       start_date: date_from,
@@ -200,11 +198,44 @@ async function fetchCategory(
   };
 }
 
+async function fetchCategory(
+  category: Exclude<BusinessHistoryCategory, 'all'>,
+  params: ActivityLogParams
+): Promise<Paginated<ActivityLogEntry>> {
+  if (!params.fetch_all) {
+    return fetchCategoryPage(category, params);
+  }
+
+  const perPage = Math.max(params.per_page ?? 50, 100);
+  const rows: ActivityLogEntry[] = [];
+  let page = 1;
+  let lastPage = 1;
+
+  do {
+    const result = await fetchCategoryPage(category, { ...params, per_page: perPage, page });
+    rows.push(...result.data);
+
+    const metaLastPage = Number(result.meta?.last_page ?? result.meta?.total_pages ?? 0);
+    if (metaLastPage > 0) {
+      lastPage = metaLastPage;
+    } else if (result.data.length >= perPage) {
+      // Fallback for endpoints that do not return pagination metadata.
+      lastPage = page + 1;
+    } else {
+      lastPage = page;
+    }
+
+    page += 1;
+  } while (page <= lastPage);
+
+  return { data: rows, meta: { fetched_all_pages: true, fetched_count: rows.length } };
+}
+
 const activityService = {
   /**
    * Fetch business history entries.
    *
-   * - If category is omitted or "all", it fetches the first page from all supported categories and merges them.
+   * - If category is omitted or "all", it fetches the requested pages from all supported categories and merges them.
    * - If a specific category is provided, it fetches that endpoint only.
    */
   async getLogs(params: ActivityLogParams): Promise<Paginated<ActivityLogEntry>> {

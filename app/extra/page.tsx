@@ -17,6 +17,7 @@ import type { Store } from '@/services/storeService';
 import type { Vendor } from '@/services/vendorService';
 import ImageLightboxModal from '@/components/ImageLightboxModal';
 import { toAbsoluteAssetUrl } from '@/lib/assetUrl';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 interface DefectItem {
   id: string;
@@ -847,6 +848,15 @@ export default function DefectsPage() {
                         onChange={(e) => handleBarcodeCheck(e.target.value)}
                         placeholder="Scan or enter barcode..."
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <MobileCameraBarcodeScanner
+                        enabled
+                        disabled={loading}
+                        scannerId="extra-panel-mobile-camera-scanner"
+                        onScan={handleBarcodeCheck}
+                        buttonLabel="Scan with Mobile Camera"
+                        activeLabel="Extra Panel mobile camera active"
+                        helperText="Temporary mobile-camera input. The scanned code uses the same Extra Panel lookup as manual/hardware input."
                       />
                       {scannedProduct && (
                         <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded flex items-center gap-3">

@@ -7,6 +7,7 @@ import dispatchService, {
   ScannedBarcodesResponse,
   ReceivedBarcodesResponse,
 } from '@/services/dispatchService';
+import MobileCameraBarcodeScanner from '@/components/barcode/mobile-quarantine/MobileCameraBarcodeScanner';
 
 export type DispatchScanMode = 'send' | 'receive';
 
@@ -658,6 +659,18 @@ export default function DispatchBarcodeScanModal({
                     {mode === 'send' ? 'Add Scan' : 'Receive'}
                   </button>
                 </div>
+
+                <MobileCameraBarcodeScanner
+                  enabled={Boolean(dispatch) && (mode === 'send' || Boolean(selectedItemId))}
+                  disabled={!dispatch || (mode === 'receive' && !selectedItemId)}
+                  scannerId={`dispatch-${mode}-mobile-camera-scanner`}
+                  onScan={(code) => enqueueScan(code)}
+                  buttonLabel={mode === 'send' ? 'Scan Send Barcode with Mobile' : 'Scan Received Barcode with Mobile'}
+                  activeLabel={mode === 'send' ? 'Dispatch send mobile camera active' : 'Dispatch receive mobile camera active'}
+                  helperText={mode === 'send'
+                    ? 'Temporary mobile-camera input. Each code is added to the same dispatch send queue as the existing scanner.'
+                    : 'Temporary mobile-camera input. Select the dispatch item first; each code uses the same receive queue as the existing scanner.'}
+                />
 
                 {(loading || queuedScanCount > 0) && (
                   <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
