@@ -81,6 +81,7 @@ const normalizeTransaction = (txn: any): Transaction => {
     type,
     status: (txn?.status ?? 'completed') as any,
     account_id: toNumber(txn?.account_id, 0),
+    group_id: txn?.group_id ?? txn?.metadata?.group_id,
   };
 
   // Ensure account object exists for UI (journal requires it)
@@ -869,7 +870,7 @@ class FinancialReportsService {
 
     const fetchPage = async (page: number) => {
       const response = await axiosInstance.get('/transactions', {
-        params: { ...params, per_page: perPage, page },
+        params: { ...params, status: 'completed', per_page: perPage, page },
       });
       return response.data;
     };
@@ -892,9 +893,9 @@ class FinancialReportsService {
 
     let allRows: any[] = [...firstPageRows];
 
-    // Load remaining pages (cap to avoid runaway if backend misreports last_page)
-    const maxPages = Math.min(lastPage, 20);
-    for (let p = 2; p <= maxPages; p++) {
+    // Load every reported page. A silent page cap truncates the journal and can make
+    // complete double-entry groups disappear from the accounting view.
+    for (let p = 2; p <= lastPage; p++) {
       const next = await fetchPage(p);
       if (!next?.success) break;
 
@@ -920,7 +921,12 @@ class FinancialReportsService {
       const refType = txn.reference_type || 'Manual';
       const refId = txn.reference_id || txn.id;
       const date = txn.transaction_date;
-      const key = `${refType}-${refId}-${date}`;
+      const event = txn.metadata?.event || (/refund/i.test(txn.description || '') ? 'refund' : 'base');
+      // Prefer the backend journal group UUID. Falling back to reference+date alone used
+      // to merge a payment and its same-day refund into one misleading journal event.
+      const key = txn.group_id
+        ? `group-${txn.group_id}`
+        : `${refType}-${refId}-${date}-${event}`;
 
       if (!entriesMap.has(key)) {
         entriesMap.set(key, {

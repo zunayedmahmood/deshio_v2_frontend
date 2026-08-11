@@ -1998,9 +1998,17 @@ export default function LookupPage() {
 
       // Handle refund if needed
       if (returnData.refundMethods && returnData.refundMethods.total > 0) {
-        const refundMethod = returnData.refundMethods.card > 0
-          ? 'card_refund'
-          : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0 ? 'digital_wallet' : 'cash');
+        const activeRefundTenders = [
+          returnData.refundMethods.cash,
+          returnData.refundMethods.card,
+          returnData.refundMethods.bkash,
+          returnData.refundMethods.nagad,
+        ].filter((amount: number) => Number(amount) > 0).length;
+        const refundMethod: CreateRefundRequest['refund_method'] = activeRefundTenders > 1
+          ? 'other'
+          : returnData.refundMethods.card > 0
+            ? 'card_refund'
+            : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0 ? 'digital_wallet' : 'cash');
         const refundRequest: CreateRefundRequest = {
           return_id: returnId,
           refund_type: 'partial_amount',

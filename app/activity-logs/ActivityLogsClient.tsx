@@ -37,19 +37,6 @@ function toYmd(d: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function activityDateYmd(entry: ActivityLogEntry): string | null {
-  const raw = entry.when?.timestamp || entry.when?.formatted || '';
-  if (!raw) return null;
-
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) return toYmd(parsed);
-
-  // Laravel timestamps are sometimes returned without a timezone. The leading
-  // YYYY-MM-DD is still safe for an inclusive calendar-date filter.
-  const match = String(raw).match(/^(\d{4}-\d{2}-\d{2})/);
-  return match?.[1] || null;
-}
-
 export default function ActivityLogsClient() {
   const searchParams = useSearchParams();
 
@@ -63,9 +50,10 @@ export default function ActivityLogsClient() {
   const [event, setEvent] = useState<string>(searchParams.get('event') || '');
   const [employeeId, setEmployeeId] = useState<string>(searchParams.get('employee_id') || '');
   const [q, setQ] = useState<string>(searchParams.get('q') || '');
-  // No date filter by default: opening Activity Log should show the full available history.
-  const [dateFrom, setDateFrom] = useState<string>(searchParams.get('date_from') || '');
-  const [dateTo, setDateTo] = useState<string>(searchParams.get('date_to') || '');
+  const [dateFrom, setDateFrom] = useState<string>(
+    searchParams.get('date_from') || toYmd(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+  );
+  const [dateTo, setDateTo] = useState<string>(searchParams.get('date_to') || toYmd(new Date()));
   const [perPage, setPerPage] = useState<number>(50);
 
   // Data
@@ -107,7 +95,6 @@ export default function ActivityLogsClient() {
         date_to: dateTo,
         event: event || undefined,
         per_page: perPage,
-        fetch_all: true,
       });
       setEntries(res.data || []);
     } catch (e: any) {
@@ -126,20 +113,9 @@ export default function ActivityLogsClient() {
   const filtered = useMemo(() => {
     const empIdNum = employeeId ? Number(employeeId) : null;
     const needle = q.trim().toLowerCase();
-
     return (entries || []).filter((e) => {
-      // Enforce the selected date range in the UI as well as on the API request.
-      // This protects the page from backend versions that ignore one/both date params.
-      if (dateFrom || dateTo) {
-        const activityYmd = activityDateYmd(e);
-        if (!activityYmd) return false;
-        if (dateFrom && activityYmd < dateFrom) return false;
-        if (dateTo && activityYmd > dateTo) return false;
-      }
-
       if (empIdNum && Number(e.who?.id) !== empIdNum) return false;
       if (!needle) return true;
-
       const hay = [
         e.what?.description,
         e.what?.action,
@@ -153,7 +129,7 @@ export default function ActivityLogsClient() {
         .toLowerCase();
       return hay.includes(needle);
     });
-  }, [entries, employeeId, q, dateFrom, dateTo]);
+  }, [entries, employeeId, q]);
 
   return (
   <div className={darkMode ? 'dark' : ''}>

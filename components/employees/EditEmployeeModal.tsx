@@ -50,7 +50,7 @@ export default function EditEmployeeModal({ isOpen, onClose, onSuccess, employee
         address: employee.address || '',
         department: employee.department || '',
         salary: employee.salary || undefined,
-        hire_date: employee.hire_date ? employee.hire_date.slice(0, 10) : '',
+        hire_date: employee.hire_date || '',
       });
       fetchStoresAndRoles();
     }

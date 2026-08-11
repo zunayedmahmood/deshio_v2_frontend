@@ -17,7 +17,7 @@ export default function TransactionsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense' | 'adjustment'>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
@@ -85,7 +85,8 @@ export default function TransactionsPage() {
     if (transaction.source === 'return') return <RefreshCw className="w-4 h-4" />;
     if (transaction.source === 'exchange') return <ArrowUpDown className="w-4 h-4" />;
     if (transaction.type === 'income') return <TrendingUp className="w-4 h-4" />;
-    return <TrendingDown className="w-4 h-4" />;
+    if (transaction.type === 'expense') return <TrendingDown className="w-4 h-4" />;
+    return <ArrowUpDown className="w-4 h-4" />;
   };
 
   const getSourceBadge = (source: string) => {
@@ -126,7 +127,7 @@ export default function TransactionsPage() {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
       filtered = filtered.filter(t => {
-        const transDate = new Date(t.createdAt);
+        const transDate = new Date(t.transactionDate || t.createdAt);
         
         switch (dateFilter) {
           case 'today':
@@ -150,17 +151,17 @@ export default function TransactionsPage() {
 
   const filteredTransactions = filterTransactions();
 
-  const totalIncome = filteredTransactions
+  const totalCashIn = filteredTransactions
     .filter(t => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  const totalExpense = filteredTransactions
+  const totalCashOut = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  const netBalance = totalIncome - totalExpense;
+  const netCashMovement = totalCashIn - totalCashOut;
 
-  const uniqueSources = ['all', ...new Set(transactions.map(t => {
+  const uniqueSources: string[] = ['all', ...new Set<string>(transactions.map(t => {
     const s = t.source?.toLowerCase() || 'manual';
     return (s === 'null' || s === 'undefined' || s === '') ? 'manual' : s;
   }))];
@@ -185,7 +186,7 @@ export default function TransactionsPage() {
                     Transactions
                   </h1>
                   <p className="text-gray-500 dark:text-gray-400 text-xs">
-                    All financial activities from your ERP system
+                    Posted journal activity grouped by cash movement
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -245,51 +246,51 @@ export default function TransactionsPage() {
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Total Income
+                      Cash In
                     </span>
                     <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-md">
                       <TrendingUp className="w-4 h-4 text-gray-900 dark:text-white" />
                     </div>
                   </div>
                   <div className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                    {formatCurrency(totalIncome)}
+                    {formatCurrency(totalCashIn)}
                   </div>
                   <p className="text-[10px] text-gray-500 dark:text-gray-500">
-                    From sales, orders & other sources
+                    Customer receipts and other cash inflows
                   </p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Total Expense
+                      Cash Out
                     </span>
                     <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-md">
                       <TrendingDown className="w-4 h-4 text-gray-900 dark:text-white" />
                     </div>
                   </div>
                   <div className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                    {formatCurrency(totalExpense)}
+                    {formatCurrency(totalCashOut)}
                   </div>
                   <p className="text-[10px] text-gray-500 dark:text-gray-500">
-                    Inventory, returns & operating costs
+                    Vendor, expense, refund and other cash outflows
                   </p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Net Balance
+                      Net Cash Movement
                     </span>
                     <div className="p-1.5 bg-gray-100 dark:bg-gray-800 rounded-md">
                       <Receipt className="w-4 h-4 text-gray-900 dark:text-white" />
                     </div>
                   </div>
                   <div className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                    {netBalance >= 0 ? '+' : '-'}{formatCurrency(netBalance)}
+                    {netCashMovement >= 0 ? '+' : '-'}{formatCurrency(netCashMovement)}
                   </div>
                   <p className="text-[10px] text-gray-500 dark:text-gray-500">
-                    {netBalance >= 0 ? 'Profit' : 'Loss'} for selected period
+                    {netCashMovement >= 0 ? 'Cash increased' : 'Cash decreased'} for selected period
                   </p>
                 </div>
               </div>
@@ -313,8 +314,9 @@ export default function TransactionsPage() {
                     className="px-3 py-2 text-sm border border-gray-200 dark:border-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900 dark:focus:ring-white focus:border-transparent bg-white dark:bg-black text-gray-900 dark:text-white transition-all duration-200"
                   >
                     <option value="all">All Types</option>
-                    <option value="income">Income Only</option>
-                    <option value="expense">Expenses Only</option>
+                    <option value="income">Cash In Only</option>
+                    <option value="expense">Cash Out Only</option>
+                    <option value="adjustment">Non-cash Adjustments</option>
                   </select>
 
                   <select
@@ -348,7 +350,7 @@ export default function TransactionsPage() {
                     <div className="flex flex-wrap gap-1.5">
                       {filterType !== 'all' && (
                         <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white text-[10px] font-medium rounded-full">
-                          {filterType === 'income' ? 'Income' : 'Expense'}
+                          {filterType === 'income' ? 'Cash In' : filterType === 'expense' ? 'Cash Out' : 'Adjustment'}
                         </span>
                       )}
                       {filterSource !== 'all' && (
@@ -460,7 +462,7 @@ export default function TransactionsPage() {
 
                                 <div className="text-right flex-shrink-0">
                                   <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                                    {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : '±'}{formatCurrency(transaction.amount)}
                                   </div>
                                 </div>
                               </div>
@@ -487,13 +489,13 @@ export default function TransactionsPage() {
                     </span>
                     <div className="flex items-center gap-4">
                       <span className="text-gray-900 dark:text-white font-semibold">
-                        Income: {formatCurrency(totalIncome)}
+                        Income: {formatCurrency(totalCashIn)}
                       </span>
                       <span className="text-gray-900 dark:text-white font-semibold">
-                        Expense: {formatCurrency(totalExpense)}
+                        Expense: {formatCurrency(totalCashOut)}
                       </span>
                       <span className="text-gray-900 dark:text-white font-bold">
-                        Net: {netBalance >= 0 ? '+' : '-'}{formatCurrency(netBalance)}
+                        Net: {netCashMovement >= 0 ? '+' : '-'}{formatCurrency(netCashMovement)}
                       </span>
                     </div>
                   </div>

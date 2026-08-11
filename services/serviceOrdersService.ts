@@ -112,6 +112,11 @@ class ServiceOrdersService {
     return res.data;
   }
 
+  async refundPayment(id: number, paymentId: number, payload: { amount: number; reason?: string }) {
+    const res = await axiosInstance.patch(`/service-orders/${id}/payments/${paymentId}/refund`, payload);
+    return res.data;
+  }
+
   async statistics(params: any = {}) {
     const res = await axiosInstance.get('/service-orders/statistics', { params });
     return res.data;

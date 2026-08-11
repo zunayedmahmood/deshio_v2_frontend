@@ -210,8 +210,6 @@ export default function SocialCommercePage() {
   const [totalAmountState, setTotalAmountState] = useState<number>(0);
   const [discountAmountState, setDiscountAmountState] = useState<number>(0);
   const [shippingAmountState, setShippingAmountState] = useState<number>(0);
-  const [loyaltyPointsUsed, setLoyaltyPointsUsed] = useState<number>(0);
-  const [loyaltyPointsDiscountAmount, setLoyaltyPointsDiscountAmount] = useState<number>(0);
 
   // 🔎 Order preview (from Last 5 Orders)
   const [orderPreviewOpen, setOrderPreviewOpen] = useState(false);
@@ -379,8 +377,6 @@ export default function SocialCommercePage() {
         outstandingAmount,
         discountAmountState,
         shippingAmountState,
-        loyaltyPointsUsed,
-        loyaltyPointsDiscountAmount,
       };
       sessionStorage.setItem(SC_DRAFT_STORAGE_KEY, JSON.stringify(draft));
       if (selectedStore) persistSelectedStore(selectedStore);
@@ -528,8 +524,6 @@ export default function SocialCommercePage() {
     setTotalAmountState(0);
     setDiscountAmountState(0);
     setShippingAmountState(0);
-    setLoyaltyPointsUsed(0);
-    setLoyaltyPointsDiscountAmount(0);
     setSearchQuery('');
     setMinPrice('');
     setMaxPrice('');
@@ -1517,8 +1511,6 @@ export default function SocialCommercePage() {
           if (ep.outstandingAmount !== undefined) setOutstandingAmount(parseAmount(ep.outstandingAmount));
           if (ep.discountAmount !== undefined) setDiscountAmountState(parseAmount(ep.discountAmount));
           if (ep.shippingAmount !== undefined) setShippingAmountState(parseAmount(ep.shippingAmount));
-          if (ep.loyaltyPointsUsed !== undefined) setLoyaltyPointsUsed(parseAmount(ep.loyaltyPointsUsed));
-          if (ep.loyaltyPointsDiscountAmount !== undefined) setLoyaltyPointsDiscountAmount(parseAmount(ep.loyaltyPointsDiscountAmount));
         }
         draftHydratedRef.current = true;
         return;
@@ -1582,8 +1574,6 @@ export default function SocialCommercePage() {
         if (d.outstandingAmount !== undefined) setOutstandingAmount(parseAmount(d.outstandingAmount));
         if (d.discountAmountState !== undefined) setDiscountAmountState(parseAmount(d.discountAmountState));
         if (d.shippingAmountState !== undefined) setShippingAmountState(parseAmount(d.shippingAmountState));
-        if (d.loyaltyPointsUsed !== undefined) setLoyaltyPointsUsed(parseAmount(d.loyaltyPointsUsed));
-        if (d.loyaltyPointsDiscountAmount !== undefined) setLoyaltyPointsDiscountAmount(parseAmount(d.loyaltyPointsDiscountAmount));
       }
     } catch (e) {
       console.warn('Failed to restore social commerce draft', e);
@@ -1631,8 +1621,6 @@ export default function SocialCommercePage() {
     outstandingAmount,
     discountAmountState,
     shippingAmountState,
-    loyaltyPointsUsed,
-    loyaltyPointsDiscountAmount,
   ]);
 
   useEffect(() => {
@@ -2588,8 +2576,6 @@ export default function SocialCommercePage() {
           total_amount: totalAmountState,
           original_discount_amount: discountAmountState,
           original_shipping_amount: shippingAmountState,
-          loyalty_points_used: loyaltyPointsUsed,
-          loyalty_points_discount_amount: loyaltyPointsDiscountAmount,
         })
       );
 

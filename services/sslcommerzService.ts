@@ -1,4 +1,4 @@
-import axiosInstance from '@/lib/axios';
+import axiosInstance, { createIdempotencyKey } from '@/lib/axios';
 
 export interface SSLCommerzInitResponse {
   success: boolean;
@@ -32,52 +32,32 @@ class SSLCommerzService {
     loyalty_points_requested?: number;
     loyalty_rate_id?: number;
   }): Promise<SSLCommerzInitResponse> {
-    const basePayload = {
+    const payload = {
       ...orderData,
       payment_method: 'sslcommerz',
-      // Keep order unassigned for manual store assignment
       store_id: null,
       assigned_store_id: null,
+      status: 'pending',
+      order_status: 'pending',
+      assignment_status: 'unassigned',
+      auto_assign_store: false,
+      requires_store_assignment: true,
     };
 
-    const payloadVariants = [
-      {
-        ...basePayload,
-        status: 'pending',
-        order_status: 'pending',
-        assignment_status: 'unassigned',
-        auto_assign_store: false,
-        requires_store_assignment: true,
-      },
-      {
-        ...basePayload,
-        status: 'pending',
-      },
-      {
-        ...basePayload,
-      },
-    ];
+    const idempotencyKey = createIdempotencyKey('sslcommerz-checkout');
 
-    let lastError: any = null;
-
-    for (const body of payloadVariants) {
-      try {
-        const response = await axiosInstance.post('/customer/orders/create-from-cart', body);
-        return response.data as SSLCommerzInitResponse;
-      } catch (error: any) {
-        lastError = error;
-        console.warn('⚠️ SSLCommerz init attempt failed, trying fallback payload...', {
-          status: error?.response?.status,
-          message: error?.response?.data?.message || error?.message,
-        });
-      }
+    try {
+      const response = await axiosInstance.post('/customer/orders/create-from-cart', payload, {
+        headers: { 'Idempotency-Key': idempotencyKey },
+      });
+      return response.data as SSLCommerzInitResponse;
+    } catch (error: any) {
+      console.error('SSLCommerz initialization failed:', error?.response?.data || error);
+      throw {
+        message: error?.response?.data?.message || 'Failed to initialize payment',
+        errors: error?.response?.data?.errors || {},
+      };
     }
-
-    console.error('SSLCommerz initialization failed:', lastError);
-    throw {
-      message: lastError?.response?.data?.message || 'Failed to initialize payment',
-      errors: lastError?.response?.data?.errors || {},
-    };
   }
 
   /**

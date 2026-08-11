@@ -23,7 +23,6 @@ import {
 import employeeService, { Employee, EmployeeHierarchy } from '@/services/employeeService2';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import EditEmployeeModal from '@/components/employees/EditEmployeeModal';
 
 export default function EmployeeDetailPage() {
   const { id } = useParams();
@@ -35,7 +34,6 @@ export default function EmployeeDetailPage() {
   const [sessions, setSessions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'hierarchy' | 'sessions' | 'activity'>('overview');
-  const [showEditModal, setShowEditModal] = useState(false);
 
   // Layout states
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -184,7 +182,7 @@ export default function EmployeeDetailPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setShowEditModal(true)}
+                    onClick={() => router.push(`/employees/${employee.id}/edit`)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
                     <Edit className="w-4 h-4" />
@@ -439,13 +437,6 @@ export default function EmployeeDetailPage() {
           </main>
         </div>
       </div>
-
-      <EditEmployeeModal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        onSuccess={fetchEmployeeDetails}
-        employee={employee}
-      />
     </div>
   );
 }
