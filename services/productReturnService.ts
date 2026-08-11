@@ -41,6 +41,10 @@ export interface ProductReturn {
   rejectedBy?: any;
   refunds?: any[];
   exchange_credit_applied_amount?: number;
+  refund_entitlement_amount?: number;
+  completed_refund_amount?: number;
+  reserved_refund_amount?: number;
+  remaining_refund_due_amount?: number;
   remaining_refund_amount?: number;
   exchange_linked_order_id?: number | null;
   pending_exchange_return_receipt?: boolean;

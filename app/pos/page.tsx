@@ -41,6 +41,7 @@ import CustomerFormModal from '@/components/pos/CustomerFormModal';
 
 import { useCustomerLookup } from '@/lib/hooks/useCustomerLookup';
 import { checkQZStatus, printReceipt } from '@/lib/qz-tray';
+import { calculateLoyaltyRedemption } from '@/lib/loyaltyPricing';
 import DailyCashReportModal from '@/components/pos/DailyCashReportModal';
 import OpenOrderLockRescueWidget from '@/components/barcode/OpenOrderLockRescueWidget';
 
@@ -180,6 +181,7 @@ export default function POSPage() {
   const customerLookup = useCustomerLookup({ debounceMs: 500, minLength: 6 });
   const [autoCustomerId, setAutoCustomerId] = useState<number | null>(null);
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [loyaltyPointsRequested, setLoyaltyPointsRequested] = useState('');
 
   // ✅ Customer create/edit modal
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -227,6 +229,7 @@ export default function POSPage() {
 
   useEffect(() => {
     setUseLoyaltyPoints(false);
+    setLoyaltyPointsRequested('');
   }, [(customerLookup.customer as any)?.id]);
 
   // Payment
@@ -618,11 +621,26 @@ export default function POSPage() {
   const loyaltyPointsBalance = Number(loyalty?.points_balance || 0);
   const loyaltyTakaPerPoint = Number(loyalty?.taka_per_point || 0);
   const payableBeforeLoyalty = Math.max(0, subtotal + transportCost);
-  const loyaltyPointsToUse = useLoyaltyPoints && loyaltyTakaPerPoint > 0
-    ? Math.min(loyaltyPointsBalance, Math.ceil(payableBeforeLoyalty / loyaltyTakaPerPoint))
-    : 0;
-  const loyaltyDiscount = Math.min(payableBeforeLoyalty, loyaltyPointsToUse * loyaltyTakaPerPoint);
-  const total = Math.max(0, payableBeforeLoyalty - loyaltyDiscount);
+  const loyaltyRedemption = calculateLoyaltyRedemption({
+    enabled: useLoyaltyPoints,
+    requestedPoints: Number(loyaltyPointsRequested || 0),
+    pointsBalance: loyaltyPointsBalance,
+    takaPerPoint: loyaltyTakaPerPoint,
+    payableBeforeLoyalty,
+  });
+  const loyaltyPointsToUse = loyaltyRedemption.pointsToUse;
+  const loyaltyMaxUsefulPoints = loyaltyRedemption.maxUsefulPoints;
+  const loyaltyDiscount = loyaltyRedemption.discountAmount;
+  const total = loyaltyRedemption.finalPayable;
+
+  useEffect(() => {
+    if (!useLoyaltyPoints) return;
+    setLoyaltyPointsRequested((current) => {
+      if (current === '') return current;
+      const selected = Math.max(0, Math.floor(Number(current) || 0));
+      return String(Math.min(selected, loyaltyMaxUsefulPoints));
+    });
+  }, [useLoyaltyPoints, loyaltyMaxUsefulPoints]);
 
   // Installment amount (ceil to 2 decimals so collected amount is not less than required per installment)
   const installmentAmount = useMemo(() => {
@@ -1237,6 +1255,7 @@ export default function POSPage() {
     setTransportCost(0);
     setAutoCustomerId(null);
     setUseLoyaltyPoints(false);
+    setLoyaltyPointsRequested('');
     setOrderNotes('');
 
     // ✅ Clear lookup input + last order UI as well
@@ -2060,16 +2079,49 @@ export default function POSPage() {
                                     <input
                                       type="checkbox"
                                       checked={useLoyaltyPoints}
-                                      disabled={loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0}
-                                      onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                                      disabled={loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0 || loyaltyMaxUsefulPoints <= 0}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setUseLoyaltyPoints(checked);
+                                        setLoyaltyPointsRequested(checked ? String(loyaltyMaxUsefulPoints) : '');
+                                      }}
                                       className="h-4 w-4"
                                     />
                                     Use points
                                   </label>
                                 </div>
-                                {useLoyaltyPoints && loyaltyPointsToUse > 0 && (
-                                  <div className="mt-1 font-medium text-emerald-800 dark:text-emerald-300">
-                                    Using {loyaltyPointsToUse} point{loyaltyPointsToUse === 1 ? '' : 's'} → discount ৳{loyaltyDiscount.toFixed(2)}
+                                {useLoyaltyPoints && (
+                                  <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={loyaltyMaxUsefulPoints}
+                                        step={1}
+                                        value={loyaltyPointsRequested}
+                                        onChange={(e) => {
+                                          const next = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                                          setLoyaltyPointsRequested(String(Math.min(next, loyaltyMaxUsefulPoints)));
+                                        }}
+                                        className="w-28 rounded border border-emerald-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-emerald-700 dark:bg-gray-800 dark:text-white"
+                                        placeholder="Points"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => setLoyaltyPointsRequested(String(loyaltyMaxUsefulPoints))}
+                                        className="rounded border border-emerald-300 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                                      >
+                                        Use maximum
+                                      </button>
+                                    </div>
+                                    <div className="font-medium text-emerald-800 dark:text-emerald-300">
+                                      Maximum useful: {loyaltyMaxUsefulPoints} point{loyaltyMaxUsefulPoints === 1 ? '' : 's'}
+                                    </div>
+                                    {loyaltyPointsToUse > 0 && (
+                                      <div className="font-medium text-emerald-800 dark:text-emerald-300">
+                                        Using {loyaltyPointsToUse} point{loyaltyPointsToUse === 1 ? '' : 's'} → discount ৳{loyaltyDiscount.toFixed(2)}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

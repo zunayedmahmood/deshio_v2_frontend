@@ -319,18 +319,19 @@ export default function ReturnProductModal({ order, onClose, onReturn }: ReturnP
 
   const calculateTotals = () => {
     const returnAmount = returnedItems.reduce((sum, item) => sum + item.total_price, 0);
-    const originalTotal = parseFloat(order.total_amount || order.amounts?.total || '0');
     const totalPaid = parseFloat(order.paid_amount || order.payments?.totalPaid || '0');
-    
-    // Simplification for ROI calculation
-    const newTotal = Math.max(0, originalTotal - returnAmount);
-    const refundToCustomer = totalPaid > newTotal ? totalPaid - newTotal : 0;
+    const currentOutstanding = parseFloat(String(order.outstanding_amount ?? order.payments?.remainingAmount ?? '0'));
+
+    // A return first cancels any amount the customer still owes. Only the portion
+    // above the current outstanding balance is cash/value that must go back now/later.
+    // This remains correct after earlier partial returns because outstanding_amount is
+    // recalculated by the backend when each accepted return completes.
+    const refundToCustomer = Math.max(0, returnAmount - currentOutstanding);
 
     return {
       returnAmount,
-      originalTotal,
       totalPaid,
-      newTotal,
+      currentOutstanding,
       refundToCustomer
     };
   };

@@ -12,6 +12,7 @@ import guestCheckoutService, { GuestPaymentMethod } from '@/services/guestChecko
 import campaignService, { CouponValidationResult, CouponErrorCode } from '@/services/campaignService';
 import { usePromotion } from '@/contexts/PromotionContext';
 import customerRewardService from '@/services/customerRewardService';
+import { calculateLoyaltyRedemption } from '@/lib/loyaltyPricing';
 
 export default function CheckoutClient() {
   const router = useRouter();
@@ -63,6 +64,7 @@ export default function CheckoutClient() {
   const [shippingCharge, setShippingCharge] = useState(60);
   const [loyaltySummary, setLoyaltySummary] = useState<any>(null);
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [loyaltyPointsRequested, setLoyaltyPointsRequested] = useState('');
   const [isLoadingLoyalty, setIsLoadingLoyalty] = useState(false);
 
   // Guest checkout state
@@ -340,6 +342,7 @@ export default function CheckoutClient() {
     const phone = guestPhone.trim();
 
     setUseLoyaltyPoints(false);
+    setLoyaltyPointsRequested('');
     if (!authenticated && phone.replace(/\D/g, '').length < 7) {
       setLoyaltySummary(null);
       setIsLoadingLoyalty(false);
@@ -391,10 +394,26 @@ export default function CheckoutClient() {
   const summary = checkoutService.calculateOrderSummary(orderItems, shippingCharge, couponDiscount);
   const loyaltyBalance = Math.max(0, Number(loyaltySummary?.points_balance || 0));
   const loyaltyTakaPerPoint = Math.max(0, Number(loyaltySummary?.taka_per_point || 0));
-  const loyaltyPointsNeeded = loyaltyTakaPerPoint > 0 ? Math.ceil(summary.total_amount / loyaltyTakaPerPoint) : 0;
-  const loyaltyPointsToUse = useLoyaltyPoints ? Math.min(loyaltyBalance, loyaltyPointsNeeded) : 0;
-  const loyaltyDiscount = Math.min(summary.total_amount, loyaltyPointsToUse * loyaltyTakaPerPoint);
-  const finalPayable = Math.max(0, summary.total_amount - loyaltyDiscount);
+  const loyaltyRedemption = calculateLoyaltyRedemption({
+    enabled: useLoyaltyPoints,
+    requestedPoints: Number(loyaltyPointsRequested || 0),
+    pointsBalance: loyaltyBalance,
+    takaPerPoint: loyaltyTakaPerPoint,
+    payableBeforeLoyalty: summary.total_amount,
+  });
+  const loyaltyPointsToUse = loyaltyRedemption.pointsToUse;
+  const loyaltyMaxUsefulPoints = loyaltyRedemption.maxUsefulPoints;
+  const loyaltyDiscount = loyaltyRedemption.discountAmount;
+  const finalPayable = loyaltyRedemption.finalPayable;
+
+  useEffect(() => {
+    if (!useLoyaltyPoints) return;
+    setLoyaltyPointsRequested((current) => {
+      if (current === '') return current;
+      const selected = Math.max(0, Math.floor(Number(current) || 0));
+      return String(Math.min(selected, loyaltyMaxUsefulPoints));
+    });
+  }, [useLoyaltyPoints, loyaltyMaxUsefulPoints]);
 
   const renderLoyaltyPanel = () => {
     if (isLoadingLoyalty) {
@@ -418,17 +437,50 @@ export default function CheckoutClient() {
             <input
               type="checkbox"
               checked={useLoyaltyPoints}
-              onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
-              disabled={loyaltyBalance <= 0 || loyaltyTakaPerPoint <= 0}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setUseLoyaltyPoints(checked);
+                setLoyaltyPointsRequested(checked ? String(loyaltyMaxUsefulPoints) : '');
+              }}
+              disabled={loyaltyBalance <= 0 || loyaltyTakaPerPoint <= 0 || loyaltyMaxUsefulPoints <= 0}
               className="h-4 w-4"
             />
             Use points
           </label>
         </div>
-        {useLoyaltyPoints && loyaltyPointsToUse > 0 && (
-          <p className="text-[11px] text-[var(--status-success)] font-semibold mt-3">
-            {loyaltyPointsToUse.toLocaleString()} points will give ৳{loyaltyDiscount.toLocaleString()} discount.
-          </p>
+        {useLoyaltyPoints && (
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={loyaltyMaxUsefulPoints}
+                step={1}
+                value={loyaltyPointsRequested}
+                onChange={(e) => {
+                  const next = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                  setLoyaltyPointsRequested(String(Math.min(next, loyaltyMaxUsefulPoints)));
+                }}
+                className="w-28 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] px-2 py-1.5 text-xs text-[var(--text-primary)]"
+                placeholder="Points"
+              />
+              <button
+                type="button"
+                onClick={() => setLoyaltyPointsRequested(String(loyaltyMaxUsefulPoints))}
+                className="rounded-lg border border-[var(--border-default)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
+              >
+                Use maximum
+              </button>
+            </div>
+            <p className="text-[10px] text-[var(--text-muted)]">
+              Maximum useful: {loyaltyMaxUsefulPoints.toLocaleString()} points
+            </p>
+            {loyaltyPointsToUse > 0 && (
+              <p className="text-[11px] text-[var(--status-success)] font-semibold">
+                {loyaltyPointsToUse.toLocaleString()} points will give ৳{loyaltyDiscount.toLocaleString()} discount.
+              </p>
+            )}
+          </div>
         )}
       </div>
     );

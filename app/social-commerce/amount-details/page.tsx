@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import axios from '@/lib/axios';
 import defectIntegrationService from '@/services/defectIntegrationService';
 import Toast from '@/components/Toast';
+import { calculateLoyaltyRedemption, ceilTaka } from '@/lib/loyaltyPricing';
 
 const SC_EDIT_CONTEXT_KEY = 'socialCommerceEditContextV1';
 const SC_DRAFT_STORAGE_KEY = 'socialCommerceDraftV1';
@@ -127,6 +128,7 @@ export default function AmountDetailsPage() {
   const [orderDiscountAmount, setOrderDiscountAmount] = useState('0');
   const [loyaltySummary, setLoyaltySummary] = useState<any>(null);
   const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
+  const [loyaltyPointsRequested, setLoyaltyPointsRequested] = useState('');
   const [isLoadingLoyalty, setIsLoadingLoyalty] = useState(false);
   const [persistedLoyaltyPoints, setPersistedLoyaltyPoints] = useState(0);
   const [persistedLoyaltyDiscount, setPersistedLoyaltyDiscount] = useState(0);
@@ -360,15 +362,35 @@ export default function AmountDetailsPage() {
   const payableBeforeLoyalty = useMemo(() => Math.max(0, subtotal - orderDiscount + transport), [subtotal, orderDiscount, transport]);
   const loyaltyPointsBalance = Number(loyaltySummary?.points_balance || 0);
   const loyaltyTakaPerPoint = Number(loyaltySummary?.taka_per_point || 0);
+  const loyaltyRedemption = calculateLoyaltyRedemption({
+    enabled: useLoyaltyPoints && persistedLoyaltyPoints <= 0,
+    requestedPoints: Number(loyaltyPointsRequested || 0),
+    pointsBalance: loyaltyPointsBalance,
+    takaPerPoint: loyaltyTakaPerPoint,
+    payableBeforeLoyalty,
+    minimumFinalPayable: alreadyPaid,
+  });
+  const loyaltyMaxUsefulPoints = loyaltyRedemption.maxUsefulPoints;
   const loyaltyPointsToUse = persistedLoyaltyPoints > 0
     ? persistedLoyaltyPoints
-    : (useLoyaltyPoints && loyaltyTakaPerPoint > 0
-      ? Math.min(loyaltyPointsBalance, Math.ceil(payableBeforeLoyalty / loyaltyTakaPerPoint))
-      : 0);
+    : loyaltyRedemption.pointsToUse;
   const loyaltyDiscountAmount = persistedLoyaltyPoints > 0
     ? persistedLoyaltyDiscount
-    : Math.min(payableBeforeLoyalty, loyaltyPointsToUse * loyaltyTakaPerPoint);
-  const total = useMemo(() => Math.max(0, payableBeforeLoyalty - loyaltyDiscountAmount), [payableBeforeLoyalty, loyaltyDiscountAmount]);
+    : loyaltyRedemption.discountAmount;
+  const total = useMemo(
+    () => ceilTaka(Math.max(0, payableBeforeLoyalty - loyaltyDiscountAmount)),
+    [payableBeforeLoyalty, loyaltyDiscountAmount]
+  );
+
+  useEffect(() => {
+    if (!useLoyaltyPoints || persistedLoyaltyPoints > 0) return;
+    setLoyaltyPointsRequested((current) => {
+      if (current === '') return current;
+      const selected = Math.max(0, Math.floor(Number(current) || 0));
+      return String(Math.min(selected, loyaltyMaxUsefulPoints));
+    });
+  }, [useLoyaltyPoints, persistedLoyaltyPoints, loyaltyMaxUsefulPoints]);
+
   const remainingBeforeNewPayment = useMemo(() => Math.max(0, total - alreadyPaid), [total, alreadyPaid]);
 
   const selectedMethod = useMemo(
@@ -705,6 +727,13 @@ export default function AmountDetailsPage() {
           ...(orderData.salesman_id ? { salesman_id: Number(orderData.salesman_id) } : {}),
           discount_amount: orderDiscount,
           shipping_amount: transport,
+          ...(loyaltyPointsToUse > 0 && persistedLoyaltyPoints <= 0
+            ? {
+                use_loyalty_points: true,
+                loyalty_points_requested: loyaltyPointsToUse,
+                loyalty_rate_id: Number(loyaltySummary?.rate_id || 0) || undefined,
+              }
+            : {}),
           items: finalItemPayloads,
           ...(removedBarcodeIds.length > 0 ? { remove_barcode_ids: removedBarcodeIds } : {}),
           services: orderData.services || [],
@@ -1369,13 +1398,45 @@ export default function AmountDetailsPage() {
                         <input
                           type="checkbox"
                           checked={useLoyaltyPoints}
-                          disabled={isProcessing || persistedLoyaltyPoints > 0 || loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0}
-                          onChange={(e) => setUseLoyaltyPoints(e.target.checked)}
+                          disabled={isProcessing || persistedLoyaltyPoints > 0 || loyaltyPointsBalance <= 0 || payableBeforeLoyalty <= 0 || loyaltyMaxUsefulPoints <= 0}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setUseLoyaltyPoints(checked);
+                            setLoyaltyPointsRequested(checked ? String(loyaltyMaxUsefulPoints) : '');
+                          }}
                           className="h-4 w-4"
                         />
                         Use points
                       </label>
                     </div>
+                    {useLoyaltyPoints && persistedLoyaltyPoints <= 0 && (
+                      <div className="mt-2 space-y-1.5 text-xs text-emerald-800 dark:text-emerald-300">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={loyaltyMaxUsefulPoints}
+                            step={1}
+                            value={loyaltyPointsRequested}
+                            onChange={(e) => {
+                              const next = Math.max(0, Math.floor(Number(e.target.value) || 0));
+                              setLoyaltyPointsRequested(String(Math.min(next, loyaltyMaxUsefulPoints)));
+                            }}
+                            className="w-28 rounded border border-emerald-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-emerald-700 dark:bg-gray-800 dark:text-white"
+                            placeholder="Points"
+                          />
+                          <button
+                            type="button"
+                            disabled={isProcessing}
+                            onClick={() => setLoyaltyPointsRequested(String(loyaltyMaxUsefulPoints))}
+                            className="rounded border border-emerald-300 px-2 py-1 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-700 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                          >
+                            Use maximum
+                          </button>
+                        </div>
+                        <div>Maximum useful: {loyaltyMaxUsefulPoints} point{loyaltyMaxUsefulPoints === 1 ? '' : 's'}{alreadyPaid > 0 ? ` after ৳${alreadyPaid.toFixed(2)} already paid` : ''}</div>
+                      </div>
+                    )}
                     {loyaltyPointsToUse > 0 && (
                       <div className="mt-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
                         {persistedLoyaltyPoints > 0 ? 'Persistent redemption' : `Using ${loyaltyPointsToUse} point${loyaltyPointsToUse === 1 ? '' : 's'}`} → discount ৳{loyaltyDiscountAmount.toFixed(2)}

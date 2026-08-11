@@ -283,27 +283,60 @@ const getCompletedRefundedAmount = (ret: ProductReturn) => (ret.refunds || [])
   .filter((refund: any) => refund.status === 'completed')
   .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
 
+const getActiveRefund = (ret: ProductReturn) => (ret.refunds || [])
+  .find((refund: any) => ['pending', 'processing'].includes(refund.status));
+
+const getReservedRefundAmount = (ret: ProductReturn) => {
+  if (ret.reserved_refund_amount !== undefined && ret.reserved_refund_amount !== null) {
+    return Math.max(0, parseFloat(String(ret.reserved_refund_amount)) || 0);
+  }
+
+  return (ret.refunds || [])
+    .filter((refund: any) => ['pending', 'processing'].includes(refund.status))
+    .reduce((sum: number, refund: any) => sum + (parseFloat(String(refund.refund_amount ?? 0)) || 0), 0);
+};
+
+const getRefundEntitlementAmount = (ret: ProductReturn) => Math.max(0, parseFloat(String(
+  ret.refund_entitlement_amount ?? ret.total_refund_amount ?? 0
+)) || 0);
+
+const getRemainingRefundDueAmount = (ret: ProductReturn) => {
+  if (ret.remaining_refund_due_amount !== undefined && ret.remaining_refund_due_amount !== null) {
+    return Math.max(0, parseFloat(String(ret.remaining_refund_due_amount)) || 0);
+  }
+
+  return Math.max(0, getRefundEntitlementAmount(ret) - getCompletedRefundedAmount(ret));
+};
+
 const getRemainingRefundAmount = (ret: ProductReturn) => {
   if (ret.remaining_refund_amount !== undefined && ret.remaining_refund_amount !== null) {
     return Math.max(0, parseFloat(String(ret.remaining_refund_amount)) || 0);
   }
 
-  return Math.max(0, (parseFloat(String(ret.total_refund_amount ?? 0)) || 0) - getCompletedRefundedAmount(ret));
+  return Math.max(0, getRefundEntitlementAmount(ret) - getCompletedRefundedAmount(ret) - getReservedRefundAmount(ret));
 };
 
-const canIssueReturnRefund = (ret: ProductReturn) => !['rejected'].includes(ret.status) && getRemainingRefundAmount(ret) > 0.01;
+const canIssueReturnRefund = (ret: ProductReturn) =>
+  ['completed', 'refunded'].includes(ret.status) && (getRemainingRefundAmount(ret) > 0.01 || !!getActiveRefund(ret));
 
 function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateRefundModalProps) {
   const alreadyRefundedAmount = getCompletedRefundedAmount(ret);
+  const reservedRefundAmount = getReservedRefundAmount(ret);
+  const refundEntitlementAmount = getRefundEntitlementAmount(ret);
+  const remainingRefundDueAmount = getRemainingRefundDueAmount(ret);
   const remainingRefundAmount = getRemainingRefundAmount(ret);
-  const [method, setMethod] = useState<RefundMethod>('cash');
-  const [amount, setAmount] = useState(String(remainingRefundAmount || ret.total_refund_amount || ret.total_return_value || 0));
+  const existingActiveRefund = getActiveRefund(ret);
+  const [resumeRefund, setResumeRefund] = useState<any>(existingActiveRefund || null);
+  const [method, setMethod] = useState<RefundMethod>((existingActiveRefund?.refund_method as RefundMethod) || 'cash');
+  const [amount, setAmount] = useState(String(existingActiveRefund?.refund_amount ?? remainingRefundAmount ?? 0));
   const [txRef, setTxRef] = useState('');
   const [bkashNumber, setBkashNumber] = useState('');
   const [bankAccount, setBankAccount] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
+  const resumeRefundAmount = Math.max(0, parseFloat(String(resumeRefund?.refund_amount ?? 0)) || 0);
+  const staleActiveRefund = !!resumeRefund && resumeRefundAmount - remainingRefundDueAmount > 0.01;
 
   const METHODS: { value: RefundMethod; label: string }[] = [
     { value: 'cash', label: 'Cash' },
@@ -313,35 +346,67 @@ function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateR
     { value: 'store_credit', label: 'Store Credit' },
   ];
 
-  const handle = async () => {
-    const refundAmount = parseFloat(amount) || 0;
-    if (refundAmount <= 0) { setErr('Refund amount must be greater than zero'); return; }
-    if (refundAmount - remainingRefundAmount > 0.01) { setErr(`Refund amount cannot exceed remaining amount ${fmt(remainingRefundAmount)}`); return; }
-    if (!allowPartialRefund && remainingRefundAmount - refundAmount > 0.01) { setErr(`Partial refunds are disabled. Issue the full remaining refund of ${fmt(remainingRefundAmount)}.`); return; }
+  const cancelStaleRefund = async () => {
+    if (!resumeRefund?.id || !staleActiveRefund) return;
 
     setLoading(true); setErr('');
     try {
-      const data: CreateRefundRequest = {
-        return_id: ret.id,
-        order_id: ret.order_id,
-        customer_id: ret.customer_id,
-        refund_type: 'partial_amount',
-        refund_amount: refundAmount,
-        refund_method: method,
-        internal_notes: notes || 'Refund issued from returns page',
-        refund_method_details: method === 'digital_wallet' ? { provider: 'bKash/Nagad', account_number: bkashNumber }
-          : method === 'bank_transfer' ? { account_number: bankAccount }
-          : undefined,
-      };
-      const refundRes = await refundService.create(data);
-      const refundId = refundRes?.data?.id;
-      if (refundId) {
-        await refundService.process(refundId);
-        await refundService.complete(refundId, { transaction_reference: txRef || `RETURN-REFUND-${Date.now()}` });
-      }
+      await refundService.cancel(resumeRefund.id, {
+        cancel_reason: 'Cancelled from Returns page because the reserved refund exceeded the recalculated refundable balance.',
+      });
       onDone();
     } catch (e: any) {
-      setErr(e?.response?.data?.message || e?.message || 'Failed to create refund');
+      setErr(e?.response?.data?.message || e?.message || 'Failed to cancel stale refund');
+    } finally { setLoading(false); }
+  };
+
+  const handle = async () => {
+    if (staleActiveRefund) {
+      setErr('This pending refund is larger than the current refundable balance. Cancel the stale reservation first.');
+      return;
+    }
+
+    const refundAmount = parseFloat(amount) || 0;
+    if (refundAmount <= 0) { setErr('Refund amount must be greater than zero'); return; }
+    if (!resumeRefund && refundAmount - remainingRefundAmount > 0.01) { setErr(`Refund amount cannot exceed remaining amount ${fmt(remainingRefundAmount)}`); return; }
+    if (!resumeRefund && !allowPartialRefund && remainingRefundAmount - refundAmount > 0.01) { setErr(`Partial refunds are disabled. Issue the full remaining refund of ${fmt(remainingRefundAmount)}.`); return; }
+
+    setLoading(true); setErr('');
+    try {
+      let refund = resumeRefund;
+
+      if (!refund) {
+        const data: CreateRefundRequest = {
+          return_id: ret.id,
+          order_id: ret.order_id,
+          customer_id: ret.customer_id,
+          refund_type: 'partial_amount',
+          refund_amount: refundAmount,
+          refund_method: method,
+          internal_notes: notes || 'Refund issued from returns page',
+          refund_method_details: method === 'digital_wallet' ? { provider: 'bKash/Nagad', account_number: bkashNumber }
+            : method === 'bank_transfer' ? { account_number: bankAccount }
+            : undefined,
+        };
+        const refundRes = await refundService.create(data);
+        refund = refundRes?.data;
+        if (!refund?.id) throw new Error('Refund was created without an ID');
+        setResumeRefund(refund);
+      }
+
+      if (refund.status === 'pending') {
+        await refundService.process(refund.id);
+        refund = { ...refund, status: 'processing' };
+        setResumeRefund(refund);
+      }
+
+      if (refund.status === 'processing') {
+        await refundService.complete(refund.id, { transaction_reference: txRef || `RETURN-REFUND-${Date.now()}` });
+      }
+
+      onDone();
+    } catch (e: any) {
+      setErr(e?.response?.data?.message || e?.message || 'Failed to issue refund');
     } finally { setLoading(false); }
   };
 
@@ -362,18 +427,25 @@ function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateR
         </div>
         <div className="p-6 space-y-4">
           {err && <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">{err}</div>}
+          {resumeRefund && (
+            <div className={`text-xs p-3 rounded-lg ${staleActiveRefund ? 'text-red-700 bg-red-50 dark:bg-red-900/20' : 'text-amber-700 bg-amber-50 dark:bg-amber-900/20'}`}>
+              {staleActiveRefund
+                ? `A ${resumeRefund.status} refund of ${fmt(resumeRefund.refund_amount)} exceeds the current remaining entitlement of ${fmt(remainingRefundDueAmount)}. Cancel this stale reservation, then issue the corrected amount.`
+                : `A ${resumeRefund.status} refund of ${fmt(resumeRefund.refund_amount)} already exists. This action will resume and complete it instead of creating a duplicate.`}
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Refund Method</label>
-            <select value={method} onChange={e => setMethod(e.target.value as RefundMethod)}
+            <select value={method} onChange={e => setMethod(e.target.value as RefundMethod)} disabled={!!resumeRefund}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
               {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Refund Amount (৳)</label>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)} disabled={!!resumeRefund}
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500" />
-            <p className="text-[10px] text-gray-500 mt-1">Approved: {fmt(ret.total_refund_amount)} • Already refunded: {fmt(alreadyRefundedAmount)} • Remaining: {fmt(remainingRefundAmount)}</p>
+            <p className="text-[10px] text-gray-500 mt-1">Entitlement: {fmt(refundEntitlementAmount)} • Refunded: {fmt(alreadyRefundedAmount)} • Due: {fmt(remainingRefundDueAmount)} • Reserved: {fmt(reservedRefundAmount)} • Available: {fmt(remainingRefundAmount)}</p>
           </div>
           {method === 'digital_wallet' && (
             <div>
@@ -408,10 +480,17 @@ function CreateRefundModal({ ret, allowPartialRefund, onClose, onDone }: CreateR
         </div>
         <div className="px-6 pb-6 flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
-          <button onClick={handle} disabled={loading || remainingRefundAmount <= 0}
-            className="flex-1 px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg disabled:opacity-50 font-medium">
-            {loading ? 'Processing...' : 'Issue Refund'}
-          </button>
+          {staleActiveRefund ? (
+            <button onClick={cancelStaleRefund} disabled={loading}
+              className="flex-1 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 font-medium">
+              {loading ? 'Cancelling...' : 'Cancel Stale Refund'}
+            </button>
+          ) : (
+            <button onClick={handle} disabled={loading || (!resumeRefund && remainingRefundAmount <= 0)}
+              className="flex-1 px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg disabled:opacity-50 font-medium">
+              {loading ? 'Processing...' : (resumeRefund ? 'Resume Refund' : 'Issue Refund')}
+            </button>
+          )}
         </div>
       </div>
     </div>
