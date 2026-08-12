@@ -4,7 +4,8 @@ export type RelabelStatus = 'open' | 'used' | 'reconciled' | 'cancelled';
 
 export interface CreateRelabelPayload {
   quantity?: number;
-  batch_number: string;
+  batch_id?: number;
+  batch_number?: string;
   product_id?: number;
   store_id?: number;
   barcode?: string;

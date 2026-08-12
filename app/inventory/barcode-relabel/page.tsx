@@ -33,6 +33,7 @@ export default function BarcodeRelabelPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lookupBarcode, setLookupBarcode] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
+  const [batchId, setBatchId] = useState('');
   const [productId, setProductId] = useState('');
   const [storeId, setStoreId] = useState('');
   const [customBarcode, setCustomBarcode] = useState('');
@@ -78,6 +79,7 @@ export default function BarcodeRelabelPage() {
       const response = await barcodeService.scanBarcode(lookupBarcode.trim());
       const data: any = response.data;
       if (data?.product?.id) setProductId(String(data.product.id));
+      if (data?.current_batch?.id) setBatchId(String(data.current_batch.id));
       if (data?.current_batch?.batch_number) setBatchNumber(data.current_batch.batch_number);
       if (data?.current_location?.id) setStoreId(String(data.current_location.id));
       setMessage('Product, batch, and store were filled from the scanned barcode. Stock was not changed.');
@@ -107,6 +109,7 @@ export default function BarcodeRelabelPage() {
     setIsCreating(true);
     try {
       const response = await barcodeRelabelService.createRelabel({
+        batch_id: batchId ? Number(batchId) : undefined,
         batch_number: batchNumber.trim(),
         product_id: productId ? Number(productId) : undefined,
         store_id: storeId ? Number(storeId) : undefined,
@@ -272,15 +275,15 @@ export default function BarcodeRelabelPage() {
             <div className="grid md:grid-cols-3 gap-4">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Product ID</span>
-                <input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder="Optional" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+                <input value={productId} onChange={(e) => { setProductId(e.target.value); setBatchId(''); }} placeholder="Optional" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Batch Number *</span>
-                <input value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="Required" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+                <input value={batchNumber} onChange={(e) => { setBatchNumber(e.target.value); setBatchId(''); }} placeholder="Required" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Store ID</span>
-                <input value={storeId} onChange={(e) => setStoreId(e.target.value)} placeholder="Optional" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+                <input value={storeId} onChange={(e) => { setStoreId(e.target.value); setBatchId(''); }} placeholder="Optional" className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
               </label>
             </div>
 
