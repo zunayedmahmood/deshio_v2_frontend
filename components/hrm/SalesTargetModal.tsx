@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Target, AlertCircle } from 'lucide-react';
-import hrmService from '@/services/hrmService';
-import { toast } from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
+import { Target, X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import hrmService from '@/services/hrmService';
 
 interface SalesTargetModalProps {
   isOpen: boolean;
@@ -16,102 +16,125 @@ interface SalesTargetModalProps {
   initialMonth?: string;
 }
 
-export default function SalesTargetModal({ isOpen, onClose, employee, onSuccess, storeId, initialTarget, initialMonth }: SalesTargetModalProps) {
+export default function SalesTargetModal({
+  isOpen,
+  onClose,
+  employee,
+  onSuccess,
+  storeId,
+  initialTarget,
+  initialMonth,
+}: SalesTargetModalProps) {
   const [targetAmount, setTargetAmount] = useState(initialTarget?.toString() || '');
   const [targetMonth, setTargetMonth] = useState(initialMonth || format(new Date(), 'yyyy-MM'));
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (initialTarget) setTargetAmount(initialTarget.toString());
-    if (initialMonth) setTargetMonth(initialMonth);
-  }, [initialTarget, initialMonth]);
+    setTargetAmount(initialTarget && initialTarget > 0 ? initialTarget.toString() : '');
+    setTargetMonth(initialMonth || format(new Date(), 'yyyy-MM'));
+  }, [initialTarget, initialMonth, employee?.id]);
 
   if (!isOpen || !employee) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetAmount || isNaN(Number(targetAmount)) || Number(targetAmount) <= 0) { toast.error('Enter a valid amount'); return; }
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const amount = Number(targetAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Enter a valid target amount');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const res = await hrmService.setSalesTarget({ store_id: storeId, employee_id: employee.id, target_amount: Number(targetAmount), target_month: targetMonth });
-      if (res.success) { toast.success(`Target set for ${employee.name}`); onSuccess(); onClose(); }
-      else toast.error(res.message || 'Failed');
-    } catch (error: any) { toast.error(error.message || 'Error'); }
-    finally { setIsLoading(false); }
+      const response = await hrmService.setSalesTarget({
+        store_id: storeId,
+        employee_id: employee.id,
+        target_amount: amount,
+        target_month: targetMonth,
+      });
+
+      if (!response.success) {
+        toast.error(response.message || 'Failed to save target');
+        return;
+      }
+
+      toast.success(`Sales target saved for ${employee.name}`);
+      onSuccess();
+      onClose();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || error.message || 'Failed to save target');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-      <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl"
-        style={{ background: '#0e0e18', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 40px 100px rgba(0,0,0,0.6)' }}>
-        <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #c9a84c00, #f0d080, #c9a84c00)' }} />
-
-        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.2)' }}>
-              <Target className="w-4 h-4" style={{ color: '#f0d080' }} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
+              <Target className="h-5 w-5" />
             </div>
-            <h3 className="text-white font-700 text-base" style={{ fontFamily: 'Syne, sans-serif' }}>Set Sales Target</h3>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Set monthly sales target</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{employee.name}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.04)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}>
-            <X className="w-3.5 h-3.5 text-muted" />
+          <button onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Employee */}
-          <div className="flex items-center gap-3 p-3.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="avatar-ring w-9 h-9 shrink-0">
-              <div className="w-full h-full rounded-full flex items-center justify-center text-sm font-700"
-                style={{ background: '#0a0a0f', color: '#f0d080', fontFamily: 'Syne, sans-serif' }}>
-                {employee.name.charAt(0)}
-              </div>
-            </div>
-            <div>
-              <p className="text-white text-sm font-600">{employee.name}</p>
-              <p className="text-muted text-[10px]">Sales target assignment</p>
-            </div>
-          </div>
-
-          {/* Month */}
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
           <div>
-            <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">Target Month</label>
-            <input type="month" value={targetMonth} onChange={(e) => setTargetMonth(e.target.value)} required
-              className="input-dark w-full px-4 py-2.5 rounded-xl text-sm font-600" />
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Target month</label>
+            <input
+              type="month"
+              value={targetMonth}
+              onChange={(event) => setTargetMonth(event.target.value)}
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:ring-blue-900/30"
+            />
           </div>
 
-          {/* Amount */}
           <div>
-            <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">Target Amount (৳)</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-700 text-sm gold-shimmer">৳</span>
-              <input type="number" value={targetAmount} onChange={(e) => setTargetAmount(e.target.value)}
-                placeholder="0" required min="1"
-                className="input-dark w-full pl-9 pr-4 py-4 rounded-xl text-3xl font-800 text-center"
-                style={{ fontFamily: 'Syne, sans-serif', color: '#f0d080' }} />
-            </div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Target amount (BDT)</label>
+            <input
+              type="number"
+              min="1"
+              step="0.01"
+              value={targetAmount}
+              onChange={(event) => setTargetAmount(event.target.value)}
+              placeholder="e.g. 100000"
+              required
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:ring-blue-900/30"
+            />
           </div>
 
-          <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.12)' }}>
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#f0d080' }} />
-            <p className="text-[11px]" style={{ color: 'rgba(240,208,128,0.7)' }}>
-              This will overwrite any existing target for the selected month.
-            </p>
-          </div>
+          <p className="rounded-lg bg-gray-50 px-3 py-2.5 text-xs text-gray-500 dark:bg-gray-900/40 dark:text-gray-400">
+            Progress is calculated from the employee&apos;s completed POS and Social Commerce sales for this month.
+          </p>
 
-          <button type="submit" disabled={isLoading}
-            className="w-full py-3.5 rounded-2xl text-sm font-700 disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, #c9a84c 0%, #f0d080 50%, #c9a84c 100%)', color: '#0a0a0f', boxShadow: '0 8px 24px rgba(201,168,76,0.3)' }}>
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(10,10,15,0.3)', borderTopColor: '#0a0a0f' }} />
-                Saving...
-              </span>
-            ) : 'Set Monthly Target'}
-          </button>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoading ? 'Saving…' : 'Save target'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

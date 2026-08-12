@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Clock, Edit3, AlertCircle } from 'lucide-react';
-import hrmService from '@/services/hrmService';
-import { toast } from 'react-hot-toast';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
+import { Clock, Edit3, X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import hrmService from '@/services/hrmService';
 
 interface AttendanceModalProps {
   isOpen: boolean;
@@ -18,174 +18,150 @@ interface AttendanceModalProps {
 
 export default function AttendanceModal({ isOpen, onClose, employee, type, record, storeId, onSuccess }: AttendanceModalProps) {
   const now = new Date();
-  const stripSecs = (t?: string | null) => t ? t.slice(0, 5) : '';
+  const stripSeconds = (value?: string | null) => value ? value.slice(0, 5) : '';
   const [time, setTime] = useState(format(now, 'HH:mm'));
-  const [inTime, setInTime] = useState(stripSecs(record?.clock_in || record?.in_time));
-  const [outTime, setOutTime] = useState(stripSecs(record?.clock_out || record?.out_time));
+  const [inTime, setInTime] = useState(stripSeconds(record?.clock_in || record?.in_time));
+  const [outTime, setOutTime] = useState(stripSeconds(record?.clock_out || record?.out_time));
   const [status, setStatus] = useState(record?.status?.toLowerCase() || 'present');
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState(record?.notes || '');
   const [isLoading, setIsLoading] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setTime(format(new Date(), 'HH:mm'));
+    setInTime(stripSeconds(record?.clock_in || record?.in_time));
+    setOutTime(stripSeconds(record?.clock_out || record?.out_time));
+    setStatus(record?.status?.toLowerCase() || 'present');
+    setReason('');
+    setNotes(record?.notes || '');
+  }, [isOpen, record?.id, type]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const isEdit = type === 'edit';
+  const typeLabel = type === 'check_in' ? 'Clock in' : type === 'check_out' ? 'Clock out' : 'Edit attendance';
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setIsLoading(true);
     try {
-      let res;
-      if (type === 'edit') {
-        if (!reason.trim()) { toast.error('Reason is required for manual edits.'); setIsLoading(false); return; }
-        if (!record?.id) { toast.error('No record found to edit.'); setIsLoading(false); return; }
-        res = await hrmService.updateAttendance(record.id, {
-          status, in_time: inTime ? inTime.slice(0, 5) : null, out_time: outTime ? outTime.slice(0, 5) : null, reason, notes
+      let response;
+      if (isEdit) {
+        if (!reason.trim()) {
+          toast.error('Reason is required for manual edits.');
+          return;
+        }
+        if (!record?.id) {
+          toast.error('No attendance record found to edit.');
+          return;
+        }
+        response = await hrmService.updateAttendance(record.id, {
+          status,
+          in_time: inTime || null,
+          out_time: outTime || null,
+          reason,
+          notes,
         });
       } else {
-        res = await hrmService.markAttendance({
+        response = await hrmService.markAttendance({
           store_id: storeId,
           attendance_date: format(now, 'yyyy-MM-dd'),
           entries: [{
             employee_id: Number(employee.id),
             status: 'present',
-            in_time: type === 'check_in' ? time.slice(0, 5) : stripSecs(record?.clock_in || record?.in_time) || undefined,
-            out_time: type === 'check_out' ? time.slice(0, 5) : undefined,
-          }]
+            in_time: type === 'check_in' ? time : stripSeconds(record?.clock_in || record?.in_time) || undefined,
+            out_time: type === 'check_out' ? time : undefined,
+          }],
         });
       }
-      if (res?.success) { toast.success(`${employee.name}'s attendance updated!`); onSuccess(); onClose(); }
-      else toast.error(res?.message || 'Failed to update attendance');
+
+      if (!response?.success) {
+        toast.error(response?.message || 'Failed to update attendance');
+        return;
+      }
+
+      toast.success(`${employee.name}'s attendance updated`);
+      onSuccess();
+      onClose();
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || 'An error occurred');
-    } finally { setIsLoading(false); }
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to update attendance');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const isCheckIn = type === 'check_in';
-  const isCheckOut = type === 'check_out';
-  const isEdit = type === 'edit';
-
-  const accentColor = isCheckIn ? '#34d399' : isCheckOut ? '#f87171' : '#818cf8';
-  const accentBg = isCheckIn ? 'rgba(52,211,153,0.1)' : isCheckOut ? 'rgba(239,68,68,0.1)' : 'rgba(99,102,241,0.1)';
-  const accentBorder = isCheckIn ? 'rgba(52,211,153,0.2)' : isCheckOut ? 'rgba(239,68,68,0.2)' : 'rgba(99,102,241,0.2)';
-  const btnBg = isCheckIn ? 'linear-gradient(135deg, #059669, #34d399)' : isCheckOut ? 'linear-gradient(135deg, #dc2626, #f87171)' : 'linear-gradient(135deg, #4f46e5, #818cf8)';
-  const typeLabel = isCheckIn ? 'Clock In' : isCheckOut ? 'Clock Out' : 'Edit Attendance';
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-      <div className="w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
-        style={{ background: '#0e0e18', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 40px 100px rgba(0,0,0,0.6)' }}>
-
-        {/* Top accent bar */}
-        <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accentColor}00, ${accentColor}, ${accentColor}00)` }} />
-
-        {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: accentBg, border: `1px solid ${accentBorder}` }}>
-              {isEdit ? <Edit3 className="w-4 h-4" style={{ color: accentColor }} /> : <Clock className="w-4 h-4" style={{ color: accentColor }} />}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className={`rounded-lg p-2 ${type === 'check_out' ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400' : isEdit ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' : 'bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-400'}`}>
+              {isEdit ? <Edit3 className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
             </div>
-            <h3 className="text-white font-700 text-base" style={{ fontFamily: 'Syne, sans-serif' }}>{typeLabel}</h3>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{typeLabel}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{employee.name} · {format(now, 'dd MMM yyyy')}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-            style={{ background: 'rgba(255,255,255,0.04)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}>
-            <X className="w-3.5 h-3.5 text-muted" />
+          <button onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Employee chip */}
-          <div className="flex items-center gap-3 p-3.5 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="avatar-ring w-9 h-9 shrink-0">
-              <div className="w-full h-full rounded-full flex items-center justify-center text-sm font-700"
-                style={{ background: '#0a0a0f', color: '#f0d080', fontFamily: 'Syne, sans-serif' }}>
-                {employee.name.charAt(0).toUpperCase()}
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4 p-5">
+          {!isEdit ? (
             <div>
-              <p className="text-white text-sm font-700">{employee.name}</p>
-              <p className="text-muted text-[10px]">{format(now, 'EEEE, MMM d, yyyy')}</p>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">{type === 'check_in' ? 'Clock-in time' : 'Clock-out time'}</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+                required
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-3 text-center text-2xl font-bold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:ring-blue-900/30"
+              />
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Shift rules will automatically flag late arrivals or early exits.</p>
             </div>
-          </div>
-
-          {/* Time input for check_in / check_out */}
-          {!isEdit && (
-            <div>
-              <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-2">
-                {isCheckIn ? 'Clock In Time' : 'Clock Out Time'}
-              </label>
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required
-                className="w-full text-center text-4xl font-800 py-4 rounded-2xl border-none outline-none focus:ring-2"
-                style={{ background: 'rgba(255,255,255,0.04)', color: accentColor, fontFamily: 'Syne, sans-serif', focusRingColor: accentColor }}
-                onFocus={e => (e.currentTarget.style.boxShadow = `0 0 0 2px ${accentBorder}`)}
-                onBlur={e => (e.currentTarget.style.boxShadow = 'none')} />
-              <p className="text-muted text-[10px] text-center mt-1.5">Now: {format(now, 'hh:mm a')}</p>
-            </div>
-          )}
-
-          {/* Edit fields */}
-          {isEdit && (
-            <div className="space-y-3.5">
+          ) : (
+            <>
               <div>
-                <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
-                  className="select-dark w-full px-4 py-2.5 rounded-xl text-sm">
-                  {['present', 'late', 'absent', 'leave', 'half_day'].map(s => (
-                    <option key={s} value={s}>{s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Status</label>
+                <select value={status} onChange={(event) => setStatus(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                  {['present', 'late', 'absent', 'leave', 'half_day'].map((value) => (
+                    <option key={value} value={value}>{value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}</option>
                   ))}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: 'In Time', value: inTime, setter: setInTime },
-                  { label: 'Out Time', value: outTime, setter: setOutTime },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">{f.label}</label>
-                    <input type="time" value={f.value} onChange={(e) => f.setter(e.target.value)}
-                      className="input-dark w-full px-3 py-2 rounded-xl text-sm" />
-                  </div>
-                ))}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">In time</label>
+                  <input type="time" value={inTime} onChange={(event) => setInTime(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Out time</label>
+                  <input type="time" value={outTime} onChange={(event) => setOutTime(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                </div>
               </div>
               <div>
-                <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">
-                  Reason <span style={{ color: '#f87171' }}>*</span>
-                </label>
-                <input type="text" value={reason} onChange={(e) => setReason(e.target.value)}
-                  placeholder="e.g. Forgot to clock in" required
-                  className="input-dark w-full px-3 py-2.5 rounded-xl text-sm" />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Reason <span className="text-red-500">*</span></label>
+                <input value={reason} onChange={(event) => setReason(event.target.value)} required placeholder="Why is this being edited?" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
               </div>
               <div>
-                <label className="block text-muted text-[10px] uppercase tracking-widest font-600 mb-1.5">Notes</label>
-                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Optional details..." className="input-dark w-full px-3 py-2.5 rounded-xl text-sm" />
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-200">Notes</label>
+                <input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional notes" className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
               </div>
-            </div>
+            </>
           )}
 
-          {/* Info hint */}
-          {!isEdit && (
-            <div className="flex items-start gap-2.5 p-3 rounded-xl" style={{ background: accentBg, border: `1px solid ${accentBorder}` }}>
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: accentColor }} />
-              <p className="text-[11px]" style={{ color: accentColor }}>
-                {isCheckIn ? 'Late arrivals after shift start will be auto-flagged.' : 'Early exits before shift end will be noted.'}
-              </p>
-            </div>
-          )}
-
-          {/* Submit */}
-          <button type="submit" disabled={isLoading}
-            className="w-full py-3.5 rounded-2xl text-sm font-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: btnBg, color: 'white', boxShadow: `0 8px 24px ${accentColor}30` }}
-            onMouseEnter={e => !isLoading && ((e.currentTarget as HTMLElement).style.opacity = '0.9')}
-            onMouseLeave={e => !isLoading && ((e.currentTarget as HTMLElement).style.opacity = '1')}>
-            {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Processing...
-              </span>
-            ) : `Confirm ${typeLabel}`}
-          </button>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Cancel</button>
+            <button type="submit" disabled={isLoading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              {isLoading ? 'Saving…' : typeLabel}
+            </button>
+          </div>
         </form>
       </div>
     </div>

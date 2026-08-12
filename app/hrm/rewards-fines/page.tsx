@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Award, Calendar, ChevronDown, ChevronUp, Edit3, MinusCircle, Plus, PlusCircle, ReceiptText, Search, Wallet } from 'lucide-react';
+import { format } from 'date-fns';
 import { useStore } from '@/contexts/StoreContext';
 import hrmService from '@/services/hrmService';
 import RewardFineDialog from '@/components/hrm/RewardFineDialog';
 import AccessControl from '@/components/AccessControl';
-import { Award, Search, Plus, Calendar, MinusCircle, PlusCircle, ChevronDown, ChevronUp, Edit3, Zap, Wallet, ReceiptText, ShieldAlert } from 'lucide-react';
-import { format } from 'date-fns';
+
+const money = (value: number | string | null | undefined) => `৳${Number(value || 0).toLocaleString()}`;
 
 export default function RewardsFinesPage() {
   const { selectedStoreId } = useStore();
@@ -21,43 +23,64 @@ export default function RewardsFinesPage() {
   const [employeeDetails, setEmployeeDetails] = useState<any[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
-  useEffect(() => { if (selectedStoreId) loadData(); }, [selectedStoreId, selectedMonth]);
+  useEffect(() => {
+    if (selectedStoreId) void loadData();
+  }, [selectedStoreId, selectedMonth]);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
       const data = await hrmService.getCumulatedRewardFine({ store_id: selectedStoreId!, month: selectedMonth, per_page: 200 });
-      const rows = data.rows || [];
+      const rows = Array.isArray(data?.rows) ? data.rows : [];
       setEmployees(rows);
-      const totalReward = rows.reduce((a: number, r: any) => a + Number(r.total_reward || 0), 0);
-      const totalFine = rows.reduce((a: number, r: any) => a + Number(r.total_fine || 0), 0);
-      const totalProjectedSalary = rows.reduce((a: number, r: any) => a + Number(r.employee?.salary || 0) + Number(r.net_adjustment || 0), 0);
+
+      const totalReward = rows.reduce((sum: number, row: any) => sum + Number(row.total_reward || 0), 0);
+      const totalFine = rows.reduce((sum: number, row: any) => sum + Number(row.total_fine || 0), 0);
+      const totalProjectedSalary = rows.reduce(
+        (sum: number, row: any) => sum + Number(row.employee?.salary || 0) + Number(row.net_adjustment || 0),
+        0
+      );
+
       setSummaryData({
         total_reward: totalReward,
         total_fine: totalFine,
         net: totalReward - totalFine,
         count: rows.length,
-        total_entries: rows.reduce((a: number, r: any) => a + Number(r.total_entries || 0), 0),
+        total_entries: rows.reduce((sum: number, row: any) => sum + Number(row.total_entries || 0), 0),
         total_projected_salary: totalProjectedSalary,
       });
-    } catch (error) { console.error(error); }
-    finally { setIsLoading(false); }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const toggleRow = async (employeeId: number) => {
-    if (expandedEmployeeId === employeeId) { setExpandedEmployeeId(null); return; }
+    if (expandedEmployeeId === employeeId) {
+      setExpandedEmployeeId(null);
+      return;
+    }
+
     setExpandedEmployeeId(employeeId);
     setIsLoadingDetails(true);
     try {
       const data = await hrmService.getRewardFineReport({ store_id: selectedStoreId!, employee_id: employeeId, month: selectedMonth });
-      setEmployeeDetails(data?.rows || []);
-    } catch (error) { console.error(error); }
-    finally { setIsLoadingDetails(false); }
+      setEmployeeDetails(Array.isArray(data?.rows) ? data.rows : []);
+    } catch (error) {
+      console.error(error);
+      setEmployeeDetails([]);
+    } finally {
+      setIsLoadingDetails(false);
+    }
   };
 
   const filteredEmployees = useMemo(() => employees.filter((row: any) => {
-    const matchesText = row.employee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      row.employee.employee_code?.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchesText = !query ||
+      row.employee?.name?.toLowerCase().includes(query) ||
+      row.employee?.employee_code?.toLowerCase().includes(query);
+
     if (!matchesText) return false;
     if (entryTypeFilter === 'reward') return Number(row.total_reward || 0) > 0;
     if (entryTypeFilter === 'fine') return Number(row.total_fine || 0) > 0;
@@ -67,41 +90,55 @@ export default function RewardsFinesPage() {
   const topPositive = [...filteredEmployees].sort((a, b) => Number(b.net_adjustment || 0) - Number(a.net_adjustment || 0))[0];
   const topFine = [...filteredEmployees].sort((a, b) => Number(b.total_fine || 0) - Number(a.total_fine || 0))[0];
 
-  if (!selectedStoreId) return (
-    <div className="flex flex-col items-center justify-center h-96 rounded-2xl" style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
-      <Zap className="w-14 h-14 mb-4" style={{ color: 'rgba(201,168,76,0.3)' }} />
-      <h3 className="text-lg font-700 text-white mb-1" style={{ fontFamily: 'Syne, sans-serif' }}>No Store Selected</h3>
-      <p className="text-muted text-sm">Select a store to manage rewards and fines</p>
-    </div>
-  );
+  if (!selectedStoreId) {
+    return (
+      <div className="flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-center dark:border-gray-700 dark:bg-gray-800">
+        <Award className="mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <h3 className="font-semibold text-gray-900 dark:text-white">Select a store</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose a store to manage employee rewards and fines.</p>
+      </div>
+    );
+  }
+
+  const netAdjustment = Number(summaryData?.net || 0);
+  const cards = [
+    { label: 'Total Rewards', value: money(summaryData?.total_reward), note: 'Positive salary adjustments', icon: PlusCircle },
+    { label: 'Total Fines', value: money(summaryData?.total_fine), note: 'Employee deductions', icon: MinusCircle },
+    { label: 'Net Adjustment', value: `${netAdjustment >= 0 ? '+' : '-'}${money(Math.abs(netAdjustment))}`, note: 'Rewards minus fines', icon: Award },
+    { label: 'Entries', value: Number(summaryData?.total_entries || 0).toLocaleString(), note: 'Entries in selected month', icon: ReceiptText },
+  ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h2 className="text-white text-xl font-700" style={{ fontFamily: 'Syne, sans-serif' }}>Rewards & Fines</h2>
-          <p className="text-muted text-xs mt-0.5">Stack monthly bonuses and penalties per employee and preview salary impact before payroll.</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Rewards & fines</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage monthly bonuses and penalties and preview how they affect payroll.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl" style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-            <Calendar className="w-3.5 h-3.5" style={{ color: '#f0d080' }} />
-            <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-white text-xs font-600 border-none outline-none" />
-          </div>
-          <div className="flex items-center gap-1 rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative">
+            <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-900/30"
+            />
+          </label>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-800">
             {[
-              { key: 'all', label: 'All Staff' },
-              { key: 'reward', label: 'Reward Holders' },
-              { key: 'fine', label: 'Fine Holders' },
+              { key: 'all', label: 'All' },
+              { key: 'reward', label: 'Rewards' },
+              { key: 'fine', label: 'Fines' },
             ].map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setEntryTypeFilter(tab.key as any)}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-700 transition-all"
-                style={{
-                  background: entryTypeFilter === tab.key ? 'rgba(201,168,76,0.16)' : 'transparent',
-                  color: entryTypeFilter === tab.key ? '#f0d080' : 'rgba(255,255,255,0.6)',
-                }}
+                onClick={() => setEntryTypeFilter(tab.key as typeof entryTypeFilter)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  entryTypeFilter === tab.key
+                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                    : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'
+                }`}
               >
                 {tab.label}
               </button>
@@ -110,210 +147,200 @@ export default function RewardsFinesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Rewards', value: `৳${Number(summaryData?.total_reward || 0).toLocaleString()}`, icon: PlusCircle, color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.14)' },
-          { label: 'Total Fines', value: `৳${Number(summaryData?.total_fine || 0).toLocaleString()}`, icon: MinusCircle, color: '#f87171', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.14)' },
-          { label: 'Net Adjustment', value: `${Number(summaryData?.net || 0) >= 0 ? '+' : ''}৳${Number(summaryData?.net || 0).toLocaleString()}`, icon: Award, color: Number(summaryData?.net || 0) >= 0 ? '#34d399' : '#f87171', bg: 'rgba(201,168,76,0.08)', border: 'rgba(201,168,76,0.18)' },
-          { label: 'Pending Entries', value: Number(summaryData?.total_entries || 0), icon: ReceiptText, color: '#818cf8', bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.14)' },
-        ].map((card) => (
-          <div key={card.label} className="rounded-2xl p-5" style={{ background: card.bg, border: `1px solid ${card.border}` }}>
-            <div className="flex items-center justify-between gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-2">{card.label}</p>
-                <p className="text-2xl font-800" style={{ fontFamily: 'Syne, sans-serif', color: card.color }}>{card.value}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
+                <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{isLoading ? '—' : card.value}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.note}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <card.icon className="w-5 h-5" style={{ color: card.color }} />
+              <div className="rounded-lg bg-gray-50 p-2.5 text-gray-500 dark:bg-gray-700/60 dark:text-gray-300">
+                <card.icon className="h-5 w-5" />
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="rounded-2xl p-5 hrm-card xl:col-span-2">
-          <div className="flex items-center gap-3 mb-2">
-            <Wallet className="w-5 h-5" style={{ color: '#f0d080' }} />
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 lg:col-span-2 dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <div>
-              <p className="text-white text-sm font-700" style={{ fontFamily: 'Syne, sans-serif' }}>Salary Effect Snapshot</p>
-              <p className="text-muted text-xs">Base salary plus this month&apos;s pending reward/fine stack.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white">Salary impact</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Projected base salary plus this month&apos;s reward/fine stack.</p>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
-            <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-2">Projected payout pool</p>
-              <p className="text-white text-2xl font-800" style={{ fontFamily: 'Syne, sans-serif' }}>৳{Number(summaryData?.total_projected_salary || 0).toLocaleString()}</p>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/40">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Projected payout pool</p>
+              <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">{money(summaryData?.total_projected_salary)}</p>
             </div>
-            <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-2">Top positive impact</p>
-              <p className="text-white text-sm font-700">{topPositive?.employee?.name || '—'}</p>
-              <p className="text-[11px] mt-1" style={{ color: '#34d399' }}>{topPositive ? `+৳${Number(topPositive.net_adjustment || 0).toLocaleString()}` : 'No bonus yet'}</p>
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/40">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Highest positive adjustment</p>
+              <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{topPositive?.employee?.name || '—'}</p>
+              <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                {topPositive && Number(topPositive.net_adjustment || 0) > 0 ? `+${money(topPositive.net_adjustment)}` : 'No positive adjustment'}
+              </p>
             </div>
-            <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-2">Highest deduction</p>
-              <p className="text-white text-sm font-700">{topFine?.employee?.name || '—'}</p>
-              <p className="text-[11px] mt-1" style={{ color: '#f87171' }}>{topFine && Number(topFine.total_fine || 0) > 0 ? `-৳${Number(topFine.total_fine || 0).toLocaleString()}` : 'No fines yet'}</p>
+            <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/40">
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Highest fine</p>
+              <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">{topFine?.employee?.name || '—'}</p>
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                {topFine && Number(topFine.total_fine || 0) > 0 ? `-${money(topFine.total_fine)}` : 'No fines'}
+              </p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center gap-3 mb-4">
-            <ShieldAlert className="w-5 h-5" style={{ color: '#f0d080' }} />
-            <div>
-              <p className="text-white text-sm font-700" style={{ fontFamily: 'Syne, sans-serif' }}>How this stacks</p>
-              <p className="text-muted text-xs">Everything in this month stays pending until payroll marks it applied.</p>
-            </div>
-          </div>
-          <div className="space-y-3 text-xs">
-            {[
-              'Festival bonus, target meet bonus, attendance bonus and other incentives can all be added separately for the same employee.',
-              'Disciplinary fine, cash shortage, damage recovery and other penalties keep stacking in the same month too.',
-              'Payroll will pick the month’s pending reward/fine totals and add or deduct them from salary.',
-            ].map((item) => (
-              <div key={item} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <p className="text-sub leading-5">{item}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      <div className="hrm-card rounded-2xl overflow-hidden">
-        <div className="px-5 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900/60 dark:bg-blue-950/20">
+          <h3 className="font-semibold text-blue-900 dark:text-blue-200">Payroll connection</h3>
+          <p className="mt-2 text-sm leading-6 text-blue-800/80 dark:text-blue-300/80">
+            Pending rewards and fines feed the monthly payroll calculation, so HR can review their salary effect before salary is settled.
+          </p>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
           <div>
-            <h3 className="text-white font-700 text-sm" style={{ fontFamily: 'Syne, sans-serif' }}>Employee Breakdown</h3>
-            <p className="text-muted text-[11px] mt-1">See who is getting extra benefits, who is getting deductions, and what their salary would look like before payroll.</p>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Employee adjustments</h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Expand an employee to review and edit individual entries.</p>
           </div>
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input type="text" placeholder="Search staff..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="input-dark pl-9 pr-3 py-2 text-xs rounded-xl w-56" />
-          </div>
+          <label className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search employee"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="w-full min-w-60 rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-900/30"
+            />
+          </label>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                {['Employee', 'Base Salary', 'Rewards', 'Fines', 'Net Adj.', 'Projected Salary', 'Actions'].map(h => (
-                  <th key={h} className="px-5 py-3 text-left text-[10px] uppercase tracking-widest text-muted font-600 whitespace-nowrap">{h}</th>
+          <table className="w-full min-w-[950px]">
+            <thead className="bg-gray-50 text-left dark:bg-gray-900/40">
+              <tr>
+                {['Employee', 'Base Salary', 'Rewards', 'Fines', 'Net Adjustment', 'Projected Salary', 'Actions'].map((heading) => (
+                  <th key={heading} className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{heading}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {isLoading ? (
-                [...Array(4)].map((_, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    {[...Array(7)].map((_, j) => (
-                      <td key={j} className="px-5 py-4">
-                        <div className="h-4 rounded-lg animate-pulse" style={{ background: 'rgba(255,255,255,0.05)', width: j === 0 ? '140px' : '85px' }} />
-                      </td>
-                    ))}
-                  </tr>
-                ))
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">Loading adjustments…</td></tr>
               ) : filteredEmployees.length === 0 ? (
-                <tr><td colSpan={7} className="px-5 py-12 text-center text-muted text-sm">No data for this period</td></tr>
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">No matching employee adjustments.</td></tr>
               ) : filteredEmployees.map((row) => {
                 const salary = Number(row.employee?.salary || 0);
                 const projectedSalary = salary + Number(row.net_adjustment || 0);
+                const expanded = expandedEmployeeId === row.employee.id;
+
                 return (
                   <React.Fragment key={row.employee.id}>
-                    <tr className="table-row-hover cursor-pointer" style={{ borderBottom: expandedEmployeeId === row.employee.id ? 'none' : '1px solid rgba(255,255,255,0.03)' }}
-                      onClick={() => toggleRow(row.employee.id)}>
+                    <tr className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40" onClick={() => void toggleRow(row.employee.id)}>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="avatar-ring w-7 h-7 shrink-0">
-                            <div className="w-full h-full rounded-full flex items-center justify-center text-[10px] font-700"
-                              style={{ background: '#0a0a0f', color: '#f0d080' }}>
-                              {row.employee.name.charAt(0)}
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                            {row.employee.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-white text-xs font-600">{row.employee.name}</p>
-                            <p className="text-muted text-[10px]">{row.employee.employee_code || '—'} · {row.total_entries} entries</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{row.employee.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{row.employee.employee_code || 'No code'} · {row.total_entries || 0} entries</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-xs font-700 text-sub whitespace-nowrap">৳{salary.toLocaleString()}</td>
-                      <td className="px-5 py-3.5"><span className="text-xs font-700 whitespace-nowrap" style={{ color: '#34d399' }}>+৳{Number(row.total_reward || 0).toLocaleString()}</span></td>
-                      <td className="px-5 py-3.5"><span className="text-xs font-700 whitespace-nowrap" style={{ color: '#f87171' }}>-৳{Number(row.total_fine || 0).toLocaleString()}</span></td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-sm font-800 whitespace-nowrap" style={{ fontFamily: 'Syne, sans-serif', color: Number(row.net_adjustment || 0) >= 0 ? '#34d399' : '#f87171' }}>
-                          {Number(row.net_adjustment || 0) >= 0 ? '+' : ''}৳{Number(row.net_adjustment || 0).toLocaleString()}
-                        </span>
+                      <td className="px-5 py-3.5 text-sm text-gray-700 dark:text-gray-200">{money(salary)}</td>
+                      <td className="px-5 py-3.5 text-sm font-medium text-green-700 dark:text-green-300">+{money(row.total_reward)}</td>
+                      <td className="px-5 py-3.5 text-sm font-medium text-red-700 dark:text-red-300">-{money(row.total_fine)}</td>
+                      <td className={`px-5 py-3.5 text-sm font-semibold ${Number(row.net_adjustment || 0) >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                        {Number(row.net_adjustment || 0) >= 0 ? '+' : '-'}{money(Math.abs(Number(row.net_adjustment || 0)))}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="text-sm font-800 gold-shimmer" style={{ fontFamily: 'Syne, sans-serif' }}>৳{projectedSalary.toLocaleString()}</span>
-                      </td>
+                      <td className="px-5 py-3.5 text-sm font-bold text-gray-900 dark:text-white">{money(projectedSalary)}</td>
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
                           <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
-                            <button onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: null })}
-                              className="btn-primary p-1.5 rounded-lg" title="Add entry">
-                              <Plus className="w-3.5 h-3.5" />
+                            <button
+                              onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: null })}
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Add
                             </button>
                           </AccessControl>
-                          <button onClick={() => toggleRow(row.employee.id)} className="btn-ghost p-1.5 rounded-lg">
-                            {expandedEmployeeId === row.employee.id
-                              ? <ChevronUp className="w-3.5 h-3.5 text-muted" />
-                              : <ChevronDown className="w-3.5 h-3.5 text-muted" />}
+                          <button
+                            onClick={() => void toggleRow(row.employee.id)}
+                            className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                            aria-label={expanded ? 'Collapse entries' : 'Expand entries'}
+                          >
+                            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </button>
                         </div>
                       </td>
                     </tr>
-                    {expandedEmployeeId === row.employee.id && (
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                        <td colSpan={7} className="px-5 pb-4 pt-0">
-                          <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                            <div className="px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+
+                    {expanded && (
+                      <tr className="bg-gray-50/60 dark:bg-gray-900/20">
+                        <td colSpan={7} className="px-5 py-4">
+                          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                            <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
                               <div>
-                                <p className="text-muted text-[10px] uppercase tracking-widest font-600">Entries — {format(new Date(selectedMonth + '-01'), 'MMMM yyyy')}</p>
-                                <p className="text-white text-xs font-700 mt-1">Projected salary after pending stack: ৳{projectedSalary.toLocaleString()}</p>
+                                <p className="text-sm font-semibold text-gray-900 dark:text-white">{format(new Date(`${selectedMonth}-01T00:00:00`), 'MMMM yyyy')} entries</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Projected salary: {money(projectedSalary)}</p>
                               </div>
                               <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
-                                <button onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: null })} className="btn-primary px-3 py-1.5 rounded-xl text-[11px] font-700 w-fit">
+                                <button
+                                  onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: null })}
+                                  className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                                >
                                   Add reward / fine
                                 </button>
                               </AccessControl>
                             </div>
+
                             {isLoadingDetails ? (
-                              <div className="px-4 py-6 text-center text-muted text-xs">Loading...</div>
+                              <div className="px-4 py-8 text-center text-sm text-gray-500">Loading entries…</div>
                             ) : employeeDetails.length === 0 ? (
-                              <div className="px-4 py-6 text-center text-muted text-xs">No entries this month</div>
+                              <div className="px-4 py-8 text-center text-sm text-gray-500">No entries this month.</div>
                             ) : (
-                              <table className="w-full">
-                                <tbody>
-                                  {employeeDetails.map((entry: any) => (
-                                    <tr key={entry.id} className="table-row-hover" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                                      <td className="px-4 py-2.5 text-muted text-[10px] whitespace-nowrap">{format(new Date(entry.entry_date), 'dd MMM yyyy')}</td>
-                                      <td className="px-4 py-2.5">
-                                        <span className={`text-[10px] font-700 px-2 py-0.5 rounded-full ${entry.entry_type === 'reward' ? 'pill-green' : 'pill-red'}`}>
-                                          {entry.entry_type.toUpperCase()}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-2.5">
-                                        <p className="text-white text-xs font-600">{entry.title}</p>
-                                        {entry.notes && <p className="text-muted text-[10px]">{entry.notes}</p>}
-                                      </td>
-                                      <td className="px-4 py-2.5 text-xs text-muted whitespace-nowrap">{entry.is_applied ? 'Applied' : 'Pending'}</td>
-                                      <td className="px-4 py-2.5">
-                                        <span className="text-xs font-700 whitespace-nowrap" style={{ color: entry.entry_type === 'reward' ? '#34d399' : '#f87171' }}>
-                                          {entry.entry_type === 'reward' ? '+' : '-'}৳{Number(entry.amount || 0).toLocaleString()}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-2.5 text-right">
-                                        <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
-                                          <button onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: entry })}
-                                            className="btn-ghost p-1.5 rounded-lg" title="Edit">
-                                            <Edit3 className="w-3 h-3" style={{ color: '#818cf8' }} />
-                                          </button>
-                                        </AccessControl>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[720px]">
+                                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                    {employeeDetails.map((entry: any) => (
+                                      <tr key={entry.id}>
+                                        <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{format(new Date(entry.entry_date), 'dd MMM yyyy')}</td>
+                                        <td className="px-4 py-3">
+                                          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${entry.entry_type === 'reward' ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'}`}>
+                                            {entry.entry_type === 'reward' ? 'Reward' : 'Fine'}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          <p className="text-sm font-medium text-gray-900 dark:text-white">{entry.title}</p>
+                                          {entry.notes ? <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{entry.notes}</p> : null}
+                                        </td>
+                                        <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{entry.is_applied ? 'Applied' : 'Pending'}</td>
+                                        <td className={`px-4 py-3 text-sm font-semibold ${entry.entry_type === 'reward' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                                          {entry.entry_type === 'reward' ? '+' : '-'}{money(entry.amount)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                          <AccessControl roles={['super-admin', 'admin', 'branch-manager']}>
+                                            <button
+                                              onClick={() => setDialog({ isOpen: true, employee: row.employee, editData: entry })}
+                                              className="rounded-lg border border-gray-300 p-2 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                                              title="Edit entry"
+                                            >
+                                              <Edit3 className="h-3.5 w-3.5" />
+                                            </button>
+                                          </AccessControl>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -325,11 +352,17 @@ export default function RewardsFinesPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
       {dialog.isOpen && (
-        <RewardFineDialog isOpen={dialog.isOpen} onClose={() => setDialog({ ...dialog, isOpen: false })}
-          storeId={selectedStoreId} employee={dialog.employee} onSuccess={loadData} editData={dialog.editData} />
+        <RewardFineDialog
+          isOpen={dialog.isOpen}
+          onClose={() => setDialog({ ...dialog, isOpen: false })}
+          storeId={selectedStoreId}
+          employee={dialog.employee}
+          onSuccess={loadData}
+          editData={dialog.editData}
+        />
       )}
     </div>
   );

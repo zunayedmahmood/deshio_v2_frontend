@@ -270,8 +270,10 @@ export default function DeleteBulkBatchPage() {
       const response = await batchService.previewBulkDeleteBatch(payload);
       setPreview(response.data);
       setToast({
-        type: 'warning',
-        message: `Preview ready: ${response.data.existing_batches} old batch(es), ${response.data.barcodes_to_block} old barcode(s) will be blocked.`,
+        type: response.data.can_confirm ? 'warning' : 'error',
+        message: response.data.can_confirm
+          ? `Preview ready: ${response.data.barcode_analysis.stock_to_retire} old stock barcode(s) will be retired, ${response.data.barcode_analysis.claims_to_release || 0} stale/open reservation(s) released, and ${response.data.barcode_analysis.sold_preserved} sold barcode(s) preserved.`
+          : `Reset blocked by ${response.data.blockers.reduce((sum, blocker) => sum + Number(blocker.count || 0), 0)} live/ambiguous record(s). Resolve them before confirming.`,
       });
     } catch (err: any) {
       setToast({
@@ -287,23 +289,40 @@ export default function DeleteBulkBatchPage() {
     const payload = validateForm();
     if (!payload || !preview) return;
 
+    if (!preview.can_confirm) {
+      setToast({ type: 'error', message: 'This reset is blocked. Resolve every listed live/ambiguous record and preview again.' });
+      return;
+    }
+
     const ok = window.confirm(
-      `Confirm stock reset for ${selectedProduct?.name}?\n\n` +
-      `This will delete ${preview.existing_batches} old batch(es), block ${preview.barcodes_to_block} old barcode(s), and create ${payload.quantity} fresh barcode(s) in ${selectedStore?.name || 'the selected store'}.`
+      `Confirm authoritative stock reset for ${selectedProduct?.name}?\n\n` +
+      `This will retire ${preview.barcode_analysis.stock_to_retire} old stock barcode identity/identities, preserve ${preview.barcode_analysis.sold_preserved} sold/customer barcode(s), deactivate ${preview.existing_batches} old batch shell(s), and create exactly ${payload.quantity} fresh barcode(s) in ${selectedStore?.name || 'the selected store'}.`
     );
     if (!ok) return;
 
     setConfirming(true);
     try {
-      const response = await batchService.confirmBulkDeleteBatch(payload);
+      const response = await batchService.confirmBulkDeleteBatch({
+        ...payload,
+        snapshot_hash: preview.snapshot_hash,
+      });
       setLastResult(response.data);
       setPreview(null);
       setToast({
-        type: 'success',
-        message: response.message || 'Stock updated successfully. You can now print the fresh batch barcodes.',
+        type: response.data.sync_warning ? 'warning' : 'success',
+        message: response.data.sync_warning || response.message || 'Stock updated successfully. You can now print the fresh batch barcodes.',
       });
       await loadProducts();
     } catch (err: any) {
+      const errorCode = err?.response?.data?.code;
+      if (errorCode === 'stock_reset_snapshot_changed') {
+        // Never leave a stale preview confirmable after the backend proves the
+        // underlying stock state changed.
+        setPreview(null);
+      } else if (errorCode === 'stock_reset_blocked' && err?.response?.data?.data) {
+        setPreview(err.response.data.data);
+      }
+
       setToast({
         type: 'error',
         message: err?.response?.data?.message || err?.message || 'Stock update failed. No confirmation was completed.',
@@ -344,7 +363,7 @@ export default function DeleteBulkBatchPage() {
                       Delete Bulk Batch
                     </h1>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-3xl">
-                      Search a product, enter quantity, store, cost price, and selling price, preview the destructive reset, then create one fresh batch and print its barcodes.
+                      Replace the current book stock for one exact product with a verified physical count. Sold/history barcodes are preserved; old active stock identities are retired before one fresh batch is created.
                     </p>
                   </div>
 
@@ -488,7 +507,7 @@ export default function DeleteBulkBatchPage() {
                           <ShieldAlert className="w-4 h-4" /> Stock Reset Input
                         </h2>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Product, stock count, desired store, cost price, and selling price are all required before preview. Nothing is deleted until Confirm and Update.
+                          Product, stock count, desired store, cost price, and selling price are required. Preview performs live workflow checks; Confirm is rejected if anything changes after preview.
                         </p>
                       </div>
 
@@ -573,29 +592,56 @@ export default function DeleteBulkBatchPage() {
                     </div>
 
                     {preview && (
-                      <div className="bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900 rounded-xl shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20">
-                          <h2 className="text-sm font-bold text-red-900 dark:text-red-200 flex items-center gap-2">
-                            <AlertTriangle className="w-4 h-4" /> Preview Before Confirming
+                      <div className={`bg-white dark:bg-gray-900 border rounded-xl shadow-sm overflow-hidden ${
+                        preview.can_confirm
+                          ? 'border-amber-200 dark:border-amber-900'
+                          : 'border-red-300 dark:border-red-900'
+                      }`}>
+                        <div className={`p-4 border-b ${
+                          preview.can_confirm
+                            ? 'border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20'
+                            : 'border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/20'
+                        }`}>
+                          <h2 className={`text-sm font-bold flex items-center gap-2 ${
+                            preview.can_confirm
+                              ? 'text-amber-900 dark:text-amber-200'
+                              : 'text-red-900 dark:text-red-200'
+                          }`}>
+                            {preview.can_confirm ? <AlertTriangle className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+                            {preview.can_confirm ? 'Verified Preview Before Confirming' : 'Reset Blocked'}
                           </h2>
-                          <p className="text-xs text-red-700 dark:text-red-300 mt-1">
-                            This is destructive. Old barcode identities are preserved but blocked from sale/packing.
+                          <p className={`text-xs mt-1 ${
+                            preview.can_confirm
+                              ? 'text-amber-700 dark:text-amber-300'
+                              : 'text-red-700 dark:text-red-300'
+                          }`}>
+                            {preview.can_confirm
+                              ? 'No exceptional physical/terminal conflicts were found. Ordinary stale/open reservations will be released automatically; confirm is still protected by the exact preview snapshot.'
+                              : 'Nothing will be changed until every blocker below is resolved and a new clean preview is generated.'}
                           </p>
                         </div>
 
                         <div className="p-4 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Old batches deleted</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Old batch shells retired</p>
                               <p className="text-xl font-bold text-gray-900 dark:text-white">{preview.existing_batches}</p>
                             </div>
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Old units removed</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Book units removed</p>
                               <p className="text-xl font-bold text-gray-900 dark:text-white">{preview.existing_units}</p>
                             </div>
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Old barcodes blocked</p>
-                              <p className="text-xl font-bold text-red-600 dark:text-red-300">{preview.barcodes_to_block}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Old stock barcodes retired</p>
+                              <p className="text-xl font-bold text-red-600 dark:text-red-300">{preview.barcode_analysis.stock_to_retire}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Sold/customer preserved</p>
+                              <p className="text-xl font-bold text-blue-600 dark:text-blue-300">{preview.barcode_analysis.sold_preserved}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Other history preserved</p>
+                              <p className="text-xl font-bold text-gray-900 dark:text-white">{preview.barcode_analysis.historical_preserved}</p>
                             </div>
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
                               <p className="text-xs text-gray-500 dark:text-gray-400">Fresh barcodes created</p>
@@ -603,9 +649,47 @@ export default function DeleteBulkBatchPage() {
                             </div>
                           </div>
 
+                          <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                              <p className="text-xs font-bold text-gray-700 dark:text-gray-300">Barcode status classification</p>
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400">Total {preview.barcode_analysis.total_barcodes} · reservations to release {preview.barcode_analysis.claims_to_release || 0}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {Object.entries(preview.barcode_analysis.status_counts || {}).map(([status, count]) => (
+                                <span key={status} className="text-[11px] px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">
+                                  {status}: <b>{count}</b>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {preview.blockers.length > 0 && (
+                            <div className="rounded-lg border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-3 space-y-3">
+                              <p className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center gap-2">
+                                <XCircle className="w-4 h-4" /> Resolve these before stock reset
+                              </p>
+                              {preview.blockers.map((blocker) => (
+                                <div key={blocker.type} className="rounded-md border border-red-200 dark:border-red-900 bg-white/70 dark:bg-gray-950/40 p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-xs font-bold text-red-900 dark:text-red-200">{blocker.type.replace(/_/g, ' ')}</p>
+                                      <p className="text-xs text-red-700 dark:text-red-300 mt-1">{blocker.message}</p>
+                                    </div>
+                                    <span className="text-xs font-bold px-2 py-1 rounded bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200">{blocker.count}</span>
+                                  </div>
+                                  {Array.isArray(blocker.examples) && blocker.examples.length > 0 && (
+                                    <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[10px] text-gray-600 dark:text-gray-400">
+                                      {JSON.stringify(blocker.examples.slice(0, 5), null, 2)}
+                                    </pre>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
                             <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300">
-                              New batch to create
+                              New authoritative batch to create
                             </div>
                             <div className="p-3 grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
                               <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
@@ -623,7 +707,7 @@ export default function DeleteBulkBatchPage() {
                           {preview.old_batches.length > 0 && (
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
                               <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300">
-                                Old batches that will be deleted
+                                Old batch shells that will be zeroed and deactivated
                               </div>
                               <div className="overflow-x-auto">
                                 <table className="min-w-full text-xs">
@@ -631,7 +715,7 @@ export default function DeleteBulkBatchPage() {
                                     <tr>
                                       <th className="px-3 py-2 text-left">Batch</th>
                                       <th className="px-3 py-2 text-left">Store</th>
-                                      <th className="px-3 py-2 text-right">Qty</th>
+                                      <th className="px-3 py-2 text-right">Book Qty</th>
                                       <th className="px-3 py-2 text-right">Sell</th>
                                       <th className="px-3 py-2 text-left">Created</th>
                                     </tr>
@@ -653,7 +737,7 @@ export default function DeleteBulkBatchPage() {
                           )}
 
                           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-3">
-                            <p className="text-xs font-bold text-amber-900 dark:text-amber-200 mb-2">Dumb warning before you press confirm</p>
+                            <p className="text-xs font-bold text-amber-900 dark:text-amber-200 mb-2">Safety rules for this reset</p>
                             <ul className="space-y-1 text-xs text-amber-800 dark:text-amber-300 list-disc ml-4">
                               {preview.warnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
                             </ul>
@@ -669,11 +753,11 @@ export default function DeleteBulkBatchPage() {
                             </button>
                             <button
                               onClick={confirmUpdate}
-                              disabled={confirming}
-                              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-60"
+                              disabled={confirming || !preview.can_confirm}
+                              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                              {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                              Confirm and Update
+                              {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : preview.can_confirm ? <Trash2 className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+                              {preview.can_confirm ? 'Confirm Authoritative Reset' : 'Resolve Blockers First'}
                             </button>
                           </div>
                         </div>
@@ -687,7 +771,7 @@ export default function DeleteBulkBatchPage() {
                             <CheckCircle2 className="w-4 h-4" /> Stock Updated Successfully
                           </h2>
                           <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                            Old batches are deleted and their barcodes are blocked. Print the fresh batch barcodes from here.
+                            Old active stock identities were retired, sold/history identities were preserved, and the fresh physical-count batch is ready to print.
                           </p>
                         </div>
 
@@ -706,9 +790,19 @@ export default function DeleteBulkBatchPage() {
                               <p className="text-xl font-bold text-gray-900 dark:text-white">{lastResult.barcodes_generated}</p>
                             </div>
                             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Blocked old</p>
-                              <p className="text-xl font-bold text-red-600 dark:text-red-300">{lastResult.blocked_barcodes}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">Old stock retired</p>
+                              <p className="text-xl font-bold text-red-600 dark:text-red-300">{lastResult.retired_stock_barcodes}</p>
                             </div>
+                          </div>
+
+                          <div className="lg:col-span-2 rounded-lg border border-gray-200 dark:border-gray-800 p-3 text-xs text-gray-600 dark:text-gray-300">
+                            <div className="flex flex-wrap gap-x-5 gap-y-1">
+                              <span>Sold/customer preserved: <b>{lastResult.sold_barcodes_preserved}</b></span>
+                              <span>Open order barcode links released: <b>{lastResult.released_order_item_links || 0}</b></span>
+                              <span>Other history preserved: <b>{lastResult.historical_barcodes_preserved}</b></span>
+                              <span>Old book units removed: <b>{lastResult.removed_book_units}</b></span>
+                            </div>
+                            <p className="mt-2 font-mono text-[10px] text-gray-500 dark:text-gray-400">Reset ID: {lastResult.stock_reset_id}</p>
                           </div>
 
                           <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4 bg-gray-50 dark:bg-gray-950/50">

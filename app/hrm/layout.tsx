@@ -1,217 +1,210 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import { StoreProvider, useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, Users, BarChart3, Target, Zap, CreditCard, ChevronDown, Building2 } from 'lucide-react';
+import {
+  LayoutDashboard,
+  UserRound,
+  Users,
+  ClipboardCheck,
+  BarChart3,
+  Target,
+  BadgeDollarSign,
+  WalletCards,
+  Building2,
+  ChevronDown,
+} from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 
 function HRMLayoutContent({ children }: { children: React.ReactNode }) {
   const { isGlobal, user } = useAuth();
+  const { darkMode, setDarkMode } = useTheme();
   const { selectedStoreId, setSelectedStoreId, availableStores, isLoadingStores } = useStore();
   const pathname = usePathname();
   const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const tabs = [
-    { label: 'My Dashboard', href: '/hrm/my', icon: LayoutDashboard, roles: ['employee', 'pos-salesman', 'branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+  const tabs = useMemo(() => [
+    { label: 'Overview', href: '/hrm', icon: LayoutDashboard, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'My HR', href: '/hrm/my', icon: UserRound, roles: ['employee', 'pos-salesman', 'branch-manager', 'admin', 'super-admin', 'online-moderator'] },
     { label: 'Staff', href: '/hrm/branch', icon: Users, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Reports', href: '/hrm/attendance', icon: BarChart3, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Sales Targets', href: '/hrm/sales-targets', icon: Target, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Rewards & Fines', href: '/hrm/rewards-fines', icon: Zap, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-    { label: 'Payroll', href: '/hrm/payroll', icon: CreditCard, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
-  ];
+    { label: 'Attendance', href: '/hrm/attendance', icon: ClipboardCheck, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Sales', href: '/hrm/sales', icon: BarChart3, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Targets', href: '/hrm/sales-targets', icon: Target, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Rewards & Fines', href: '/hrm/rewards-fines', icon: BadgeDollarSign, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+    { label: 'Payroll', href: '/hrm/payroll', icon: WalletCards, roles: ['branch-manager', 'admin', 'super-admin', 'online-moderator'] },
+  ], []);
 
-  const filteredTabs = tabs.filter(tab => {
-    if (!user?.role?.slug) return false;
-    return tab.roles.includes(user.role.slug);
-  });
+  const filteredTabs = tabs.filter((tab) => !!user?.role?.slug && tab.roles.includes(user.role.slug));
+
+  useEffect(() => {
+    if (isGlobal && !selectedStoreId && availableStores.length > 0) {
+      setSelectedStoreId(availableStores[0].id);
+    }
+  }, [availableStores, isGlobal, selectedStoreId, setSelectedStoreId]);
+
+  const isActive = (href: string) => href === '/hrm' ? pathname === '/hrm' : pathname.startsWith(href);
 
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0f]">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
-        .hrm-root { font-family: 'DM Sans', sans-serif; }
-        .hrm-display { font-family: 'Syne', sans-serif; }
-        .gold-shimmer {
-          background: linear-gradient(105deg, #c9a84c 0%, #f0d080 40%, #c9a84c 60%, #a07830 100%);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-        }
-        .tab-active-line::after {
-          content: '';
-          position: absolute;
-          bottom: -1px;
-          left: 0;
-          right: 0;
-          height: 2px;
-          background: linear-gradient(90deg, #c9a84c, #f0d080);
-          border-radius: 2px 2px 0 0;
-        }
-        .noise-bg::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-          pointer-events: none;
-          opacity: 0.4;
-        }
-        .glow-gold { box-shadow: 0 0 30px rgba(201,168,76,0.15); }
-        .hrm-card { 
-          background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
-          border: 1px solid rgba(255,255,255,0.06);
-          backdrop-filter: blur(12px);
-        }
-        .hrm-card-hover:hover {
-          border-color: rgba(201,168,76,0.2);
-          background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
-          transition: all 0.2s ease;
-        }
-        .stat-glow-green { box-shadow: 0 0 40px rgba(52,211,153,0.08); }
-        .stat-glow-red { box-shadow: 0 0 40px rgba(239,68,68,0.08); }
-        .stat-glow-gold { box-shadow: 0 0 40px rgba(201,168,76,0.1); }
-        .pill-gold {
-          background: linear-gradient(105deg, rgba(201,168,76,0.15), rgba(240,208,128,0.1));
-          border: 1px solid rgba(201,168,76,0.25);
-          color: #f0d080;
-        }
-        .pill-green {
-          background: rgba(52,211,153,0.1);
-          border: 1px solid rgba(52,211,153,0.2);
-          color: #34d399;
-        }
-        .pill-red {
-          background: rgba(239,68,68,0.1);
-          border: 1px solid rgba(239,68,68,0.2);
-          color: #f87171;
-        }
-        .pill-blue {
-          background: rgba(99,102,241,0.1);
-          border: 1px solid rgba(99,102,241,0.2);
-          color: #818cf8;
-        }
-        .pill-amber {
-          background: rgba(245,158,11,0.1);
-          border: 1px solid rgba(245,158,11,0.2);
-          color: #fbbf24;
-        }
-        .btn-primary {
-          background: linear-gradient(135deg, #c9a84c 0%, #f0d080 50%, #c9a84c 100%);
-          color: #0a0a0f;
-          font-weight: 700;
-          transition: all 0.2s;
-        }
-        .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
-        .btn-primary:active { transform: translateY(0); }
-        .btn-ghost {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: rgba(255,255,255,0.7);
-          transition: all 0.2s;
-        }
-        .btn-ghost:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: white; }
-        .input-dark {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: white;
-          transition: all 0.2s;
-        }
-        .input-dark:focus { outline: none; border-color: rgba(201,168,76,0.4); background: rgba(255,255,255,0.06); box-shadow: 0 0 0 3px rgba(201,168,76,0.08); }
-        .input-dark::placeholder { color: rgba(255,255,255,0.25); }
-        .divider { border-color: rgba(255,255,255,0.06); }
-        .text-muted { color: rgba(255,255,255,0.4); }
-        .text-sub { color: rgba(255,255,255,0.6); }
-        .text-main { color: rgba(255,255,255,0.9); }
-        .progress-track { background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; }
-        .progress-gold { background: linear-gradient(90deg, #c9a84c, #f0d080); border-radius: 99px; }
-        .progress-green { background: linear-gradient(90deg, #059669, #34d399); border-radius: 99px; }
-        .progress-blue { background: linear-gradient(90deg, #4f46e5, #818cf8); border-radius: 99px; }
-        .table-row-hover:hover { background: rgba(255,255,255,0.03); }
-        .select-dark {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: white;
-          -webkit-appearance: none;
-        }
-        .select-dark:focus { outline: none; border-color: rgba(201,168,76,0.4); }
-        .select-dark option { background: #1a1a2e; color: white; }
-        .avatar-ring {
-          background: linear-gradient(135deg, #c9a84c, #f0d080);
-          padding: 1.5px;
-          border-radius: 50%;
-        }
-        .scroll-custom::-webkit-scrollbar { width: 4px; height: 4px; }
-        .scroll-custom::-webkit-scrollbar-track { background: transparent; }
-        .scroll-custom::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3); border-radius: 99px; }
-      `}</style>
+    <div className={darkMode ? 'dark' : ''}>
+      <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+        <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
 
-      {/* Header */}
-      <div className="hrm-root noise-bg relative border-b border-white/[0.06] px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-        style={{ background: 'linear-gradient(180deg, rgba(201,168,76,0.05) 0%, transparent 100%)' }}>
-        <div>
-          <div className="flex items-center gap-3 mb-0.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.2), rgba(240,208,128,0.1))', border: '1px solid rgba(201,168,76,0.3)' }}>
-              <Users className="w-4 h-4" style={{ color: '#f0d080' }} />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <Header
+            darkMode={darkMode}
+            setDarkMode={setDarkMode}
+            toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          />
+
+          <main className="flex-1 overflow-y-auto">
+            <div className="hrm-shell min-h-full bg-gray-50 dark:bg-gray-900">
+              <style>{`
+                .hrm-shell .hrm-card {
+                  background: #ffffff !important;
+                  border: 1px solid rgb(229 231 235) !important;
+                  box-shadow: 0 1px 2px rgba(0,0,0,.03) !important;
+                  backdrop-filter: none !important;
+                }
+                .dark .hrm-shell .hrm-card {
+                  background: rgb(31 41 55) !important;
+                  border-color: rgb(55 65 81) !important;
+                }
+                .hrm-shell .text-white { color: rgb(17 24 39) !important; }
+                .dark .hrm-shell .text-white { color: rgb(249 250 251) !important; }
+                .hrm-shell .text-main { color: rgb(17 24 39) !important; }
+                .dark .hrm-shell .text-main { color: rgb(243 244 246) !important; }
+                .hrm-shell .text-sub { color: rgb(75 85 99) !important; }
+                .dark .hrm-shell .text-sub { color: rgb(209 213 219) !important; }
+                .hrm-shell .text-muted { color: rgb(107 114 128) !important; }
+                .dark .hrm-shell .text-muted { color: rgb(156 163 175) !important; }
+                .hrm-shell .input-dark,
+                .hrm-shell .select-dark {
+                  background: #ffffff !important;
+                  border: 1px solid rgb(209 213 219) !important;
+                  color: rgb(17 24 39) !important;
+                  box-shadow: none !important;
+                }
+                .dark .hrm-shell .input-dark,
+                .dark .hrm-shell .select-dark {
+                  background: rgb(31 41 55) !important;
+                  border-color: rgb(75 85 99) !important;
+                  color: rgb(243 244 246) !important;
+                }
+                .hrm-shell .input-dark::placeholder { color: rgb(156 163 175) !important; }
+                .hrm-shell .select-dark option { background: #ffffff; color: rgb(17 24 39); }
+                .dark .hrm-shell .select-dark option { background: rgb(31 41 55); color: rgb(243 244 246); }
+                .hrm-shell .btn-primary {
+                  background: rgb(17 24 39) !important;
+                  color: #ffffff !important;
+                  border: 1px solid rgb(17 24 39) !important;
+                  box-shadow: none !important;
+                }
+                .hrm-shell .btn-primary:hover { background: rgb(31 41 55) !important; transform: none !important; }
+                .hrm-shell .btn-ghost {
+                  background: #ffffff !important;
+                  border: 1px solid rgb(209 213 219) !important;
+                  color: rgb(55 65 81) !important;
+                }
+                .dark .hrm-shell .btn-ghost {
+                  background: rgb(31 41 55) !important;
+                  border-color: rgb(75 85 99) !important;
+                  color: rgb(229 231 235) !important;
+                }
+                .hrm-shell .btn-ghost:hover { background: rgb(249 250 251) !important; }
+                .dark .hrm-shell .btn-ghost:hover { background: rgb(55 65 81) !important; }
+                .hrm-shell .progress-track { background: rgb(229 231 235) !important; }
+                .dark .hrm-shell .progress-track { background: rgb(55 65 81) !important; }
+                .hrm-shell .progress-gold,
+                .hrm-shell .progress-blue { background: rgb(37 99 235) !important; }
+                .hrm-shell .progress-green { background: rgb(22 163 74) !important; }
+                .hrm-shell .gold-shimmer {
+                  background: none !important;
+                  -webkit-text-fill-color: currentColor !important;
+                  color: rgb(17 24 39) !important;
+                }
+                .dark .hrm-shell .gold-shimmer { color: rgb(249 250 251) !important; }
+                .hrm-shell .avatar-ring { background: rgb(229 231 235) !important; padding: 1px !important; }
+                .dark .hrm-shell .avatar-ring { background: rgb(75 85 99) !important; }
+                .hrm-shell .table-row-hover:hover { background: rgb(249 250 251) !important; }
+                .dark .hrm-shell .table-row-hover:hover { background: rgb(55 65 81) !important; }
+              `}</style>
+
+              <div className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <div className="px-6 py-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900">
+                          <Users className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Human Resources</h1>
+                          <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                            Staff, attendance, payroll and employee sales performance in one place.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isGlobal && (
+                      <div className="flex items-center gap-3">
+                        <div className="hidden items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400 sm:flex">
+                          <Building2 className="h-4 w-4" />
+                          Branch
+                        </div>
+                        <div className="relative">
+                          <select
+                            value={selectedStoreId || ''}
+                            onChange={(event) => setSelectedStoreId(event.target.value ? Number(event.target.value) : null)}
+                            disabled={isLoadingStores}
+                            className="min-w-52 appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm font-medium text-gray-800 outline-none transition focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:ring-gray-700"
+                          >
+                            <option value="">Select branch</option>
+                            {availableStores.map((store) => (
+                              <option key={store.id} value={store.id}>{store.name}</option>
+                            ))}
+                          </select>
+                          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto px-6">
+                  <nav className="flex min-w-max gap-1">
+                    {filteredTabs.map((tab) => {
+                      const Icon = tab.icon;
+                      const active = isActive(tab.href);
+                      return (
+                        <button
+                          key={tab.href}
+                          onClick={() => router.push(tab.href)}
+                          className={`flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition ${
+                            active
+                              ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
+                              : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </nav>
+                </div>
+              </div>
+
+              <div className="p-6">{children}</div>
             </div>
-            <h1 className="hrm-display text-xl font-700 text-white tracking-tight">HRM <span className="gold-shimmer">Management</span></h1>
-          </div>
-          <p className="text-xs text-muted ml-11">Attendance · Performance · Payroll</p>
+          </main>
         </div>
-
-        {isGlobal && (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-muted text-xs font-medium">
-              <Building2 className="w-3.5 h-3.5" />
-              Branch
-            </div>
-            <div className="relative">
-              <select
-                value={selectedStoreId || ''}
-                onChange={(e) => setSelectedStoreId(Number(e.target.value))}
-                disabled={isLoadingStores}
-                className="select-dark pl-3 pr-8 py-2 text-sm rounded-xl cursor-pointer w-48"
-              >
-                <option value="" disabled>Select Store</option>
-                {availableStores.map((store) => (
-                  <option key={store.id} value={store.id}>{store.name}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted" />
-            </div>
-          </div>
-        )}
       </div>
-
-      {/* Tabs */}
-      <div className="hrm-root border-b border-white/[0.06] px-6 overflow-x-auto scroll-custom"
-        style={{ background: 'rgba(10,10,15,0.8)' }}>
-        <nav className="flex gap-1">
-          {filteredTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = pathname === tab.href;
-            return (
-              <button
-                key={tab.href}
-                onClick={() => router.push(tab.href)}
-                className={`relative flex items-center gap-2 py-3.5 px-4 text-xs font-600 transition-all whitespace-nowrap rounded-t-lg ${isActive
-                    ? 'tab-active-line text-white'
-                    : 'text-muted hover:text-sub'
-                  }`}
-                style={isActive ? { fontFamily: 'Syne, sans-serif', fontWeight: 600 } : { fontFamily: 'DM Sans, sans-serif' }}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? '' : 'opacity-50'}`}
-                  style={isActive ? { color: '#f0d080' } : {}} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      {/* Content */}
-      <main className="hrm-root flex-1 overflow-y-auto p-6 scroll-custom" style={{ background: '#0a0a0f' }}>
-        {children}
-      </main>
     </div>
   );
 }

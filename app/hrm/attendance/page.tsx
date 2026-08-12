@@ -12,7 +12,6 @@ import {
   Settings2,
   Users,
   CheckCircle2,
-  UserX,
   Save,
   RotateCcw,
   Search,
@@ -355,7 +354,7 @@ export default function AttendanceManagerPage() {
   const attendanceTotals = useMemo(() => {
     return reportRows.reduce(
       (acc, row) => {
-        acc.dutyDays += Number((row.summary.present || 0) + (row.summary.late || 0) + (row.summary.absent || 0) + (row.summary.leave || 0) + (row.summary.half_day || 0));
+        acc.dutyDays += Number(row.summary.present || 0) + Number(row.summary.late || 0) + Number(row.summary.absent || 0) + Number(row.summary.leave || 0) + Number(row.summary.half_day || 0);
         acc.overtimeMinutes += Number(row.summary.overtime_minutes || 0);
         acc.workedMinutes += Number(row.summary.worked_minutes || 0);
         acc.dutyMinutes += Number(row.summary.duty_minutes || 0);
@@ -374,327 +373,238 @@ export default function AttendanceManagerPage() {
     return map;
   }, [reportEmployees, selectedDate]);
 
+  const statusClass = (status: string): string => {
+    if (status === 'present') return 'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300';
+    if (status === 'late') return 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300';
+    if (status === 'absent') return 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300';
+    if (status === 'leave') return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300';
+    if (status === 'half_day') return 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300';
+    if (status === 'holiday_auto') return 'bg-violet-100 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300';
+    return 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300';
+  };
+
   if (!selectedStoreId) {
     return (
-      <div className="flex h-96 flex-col items-center justify-center rounded-2xl" style={{ border: '1px dashed rgba(255,255,255,0.08)' }}>
-        <CalendarDays className="mb-4 h-14 w-14" style={{ color: 'rgba(201,168,76,0.3)' }} />
-        <h3 className="mb-1 text-lg font-700 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>No store selected</h3>
-        <p className="text-sm text-muted">Choose a branch to open attendance manager</p>
+      <div className="flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-center dark:border-gray-700 dark:bg-gray-800">
+        <CalendarDays className="mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
+        <h3 className="font-semibold text-gray-900 dark:text-white">Select a store</h3>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose a branch to manage attendance and duty rosters.</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Attendance management</h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Configure branch attendance rules, build employee duty rosters and manage daily clock-in/clock-out from one screen.
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <div className="hrm-card rounded-2xl p-5 xl:col-span-1">
-          <div className="mb-4 flex items-start justify-between gap-3">
+        <section className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-600 uppercase tracking-widest text-muted">Branch attendance mode</p>
-              <h2 className="mt-1 text-lg font-700 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Policy setup</h2>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Branch policy</p>
+              <h3 className="mt-1 font-semibold text-gray-900 dark:text-white">Attendance rules</h3>
             </div>
-            <div className="rounded-xl p-2" style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-              <Settings2 className="h-4 w-4" style={{ color: '#f0d080' }} />
-            </div>
+            <Settings2 className="h-5 w-5 text-gray-400" />
           </div>
 
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setPolicyForm((prev) => ({ ...prev, mode: 'fixed_day_off' }))}
-                className="rounded-xl px-4 py-3 text-left transition-all"
-                style={{
-                  background: policyForm.mode === 'fixed_day_off' ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: policyForm.mode === 'fixed_day_off' ? '1px solid rgba(201,168,76,0.28)' : '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <p className="text-sm font-700 text-white">Weekly holiday</p>
-                <p className="mt-1 text-[11px] text-muted">Same weekly off-day rules for the branch.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPolicyForm((prev) => ({ ...prev, mode: 'always_on_duty' }))}
-                className="rounded-xl px-4 py-3 text-left transition-all"
-                style={{
-                  background: policyForm.mode === 'always_on_duty' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)',
-                  border: policyForm.mode === 'always_on_duty' ? '1px solid rgba(99,102,241,0.28)' : '1px solid rgba(255,255,255,0.06)',
-                }}
-              >
-                <p className="text-sm font-700 text-white">Roster duty</p>
-                <p className="mt-1 text-[11px] text-muted">Choose duty dates employee by employee.</p>
-              </button>
-            </div>
-
-            {policyForm.mode === 'fixed_day_off' && (
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Weekly holidays</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {WEEK_DAYS.map((day) => {
-                    const active = policyForm.fixed_days_off.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        onClick={() => toggleOffDay(day)}
-                        className="rounded-xl px-3 py-2.5 text-xs font-700 capitalize transition-all"
-                        style={{
-                          background: active ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)',
-                          border: active ? '1px solid rgba(201,168,76,0.24)' : '1px solid rgba(255,255,255,0.06)',
-                          color: active ? '#f0d080' : 'rgba(255,255,255,0.72)',
-                        }}
-                      >
-                        {day}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Default in</label>
-                <input value={policyForm.fixed_start_time} onChange={(e) => setPolicyForm((prev) => ({ ...prev, fixed_start_time: e.target.value }))} type="time" className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Default out</label>
-                <input value={policyForm.fixed_end_time} onChange={(e) => setPolicyForm((prev) => ({ ...prev, fixed_end_time: e.target.value }))} type="time" className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Late fee / min</label>
-                <input value={policyForm.late_fee_per_minute} onChange={(e) => setPolicyForm((prev) => ({ ...prev, late_fee_per_minute: e.target.value }))} type="number" min="0" className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">OT / hour</label>
-                <input value={policyForm.overtime_rate_per_hour} onChange={(e) => setPolicyForm((prev) => ({ ...prev, overtime_rate_per_hour: e.target.value }))} type="number" min="0" className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Grace min</label>
-                <input value={policyForm.grace_period_minutes} onChange={(e) => setPolicyForm((prev) => ({ ...prev, grace_period_minutes: e.target.value }))} type="number" min="0" className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Notes</label>
-              <textarea value={policyForm.notes} onChange={(e) => setPolicyForm((prev) => ({ ...prev, notes: e.target.value }))} rows={3} className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Optional branch attendance notes..." />
-            </div>
-
-            <button onClick={() => void savePolicy()} disabled={isSavingPolicy} className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm">
-              <Save className="h-4 w-4" />
-              {isSavingPolicy ? 'Saving...' : 'Save attendance mode'}
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setPolicyForm((prev) => ({ ...prev, mode: 'fixed_day_off' }))}
+              className={`rounded-lg border p-3 text-left transition ${policyForm.mode === 'fixed_day_off' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50'}`}
+            >
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Weekly holiday</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Shared off-day and shift hours.</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPolicyForm((prev) => ({ ...prev, mode: 'always_on_duty' }))}
+              className={`rounded-lg border p-3 text-left transition ${policyForm.mode === 'always_on_duty' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50'}`}
+            >
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Roster based</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Duty dates assigned per employee.</p>
             </button>
           </div>
-        </div>
 
-        <div className="hrm-card rounded-2xl p-5 xl:col-span-2">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-600 uppercase tracking-widest text-muted">Monthly duty planner</p>
-              <h2 className="mt-1 text-lg font-700 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Roster builder</h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="input-dark rounded-xl px-3 py-2 text-sm" />
-              <select value={selectedEmployeeId ?? ''} onChange={(e) => setSelectedEmployeeId(Number(e.target.value))} className="select-dark rounded-xl px-3 py-2 text-sm min-w-[220px]">
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>{employee.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div>
-              <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Shift start</label>
-              <input type="time" value={rosterForm.start_time} onChange={(e) => setRosterForm((prev) => ({ ...prev, start_time: e.target.value }))} className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-            </div>
-            <div>
-              <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Shift end</label>
-              <input type="time" value={rosterForm.end_time} onChange={(e) => setRosterForm((prev) => ({ ...prev, end_time: e.target.value }))} className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-[10px] font-700 uppercase tracking-widest text-muted">Roster note</label>
-              <input value={rosterForm.notes} onChange={(e) => setRosterForm((prev) => ({ ...prev, notes: e.target.value }))} className="input-dark w-full rounded-xl px-3 py-2.5 text-sm" placeholder="Optional notes for this month..." />
-            </div>
-          </div>
-
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <button onClick={autoFillRoster} className="btn-ghost rounded-xl px-3 py-2 text-xs font-700">Auto fill</button>
-            <button onClick={clearRoster} className="btn-ghost rounded-xl px-3 py-2 text-xs font-700 flex items-center gap-1.5"><RotateCcw className="h-3.5 w-3.5" />Clear</button>
-            <div className="rounded-xl px-3 py-2 text-xs font-700" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#fff' }}>
-              Selected duty days: {rosterForm.duty_dates.length}
-            </div>
-            {selectedEmployee && (
-              <div className="rounded-xl px-3 py-2 text-xs" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)', color: '#c7d2fe' }}>
-                {selectedEmployee.name}
+          {policyForm.mode === 'fixed_day_off' && (
+            <div className="mt-5">
+              <label className="mb-2 block text-xs font-medium text-gray-600 dark:text-gray-300">Weekly off days</label>
+              <div className="grid grid-cols-2 gap-2">
+                {WEEK_DAYS.map((day) => {
+                  const active = policyForm.fixed_days_off.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleOffDay(day)}
+                      className={`rounded-lg border px-3 py-2 text-xs font-medium capitalize transition ${active ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700/50'}`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          )}
+
+          {policyForm.mode === 'fixed_day_off' && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Shift start
+                <input type="time" value={policyForm.fixed_start_time} onChange={(event) => setPolicyForm((prev) => ({ ...prev, fixed_start_time: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+              </label>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Shift end
+                <input type="time" value={policyForm.fixed_end_time} onChange={(event) => setPolicyForm((prev) => ({ ...prev, fixed_end_time: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+              </label>
+            </div>
+          )}
+
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Grace (min)
+              <input type="number" min="0" value={policyForm.grace_period_minutes} onChange={(event) => setPolicyForm((prev) => ({ ...prev, grace_period_minutes: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Late fee / min
+              <input type="number" min="0" step="0.01" value={policyForm.late_fee_per_minute} onChange={(event) => setPolicyForm((prev) => ({ ...prev, late_fee_per_minute: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              OT / hour
+              <input type="number" min="0" step="0.01" value={policyForm.overtime_rate_per_hour} onChange={(event) => setPolicyForm((prev) => ({ ...prev, overtime_rate_per_hour: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-7">
+          <label className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+            Notes
+            <textarea value={policyForm.notes} onChange={(event) => setPolicyForm((prev) => ({ ...prev, notes: event.target.value }))} rows={2} className="mt-1.5 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" placeholder="Optional attendance policy notes" />
+          </label>
+
+          <button onClick={() => void savePolicy()} disabled={isSavingPolicy} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+            <Save className="h-4 w-4" /> {isSavingPolicy ? 'Saving…' : 'Save attendance policy'}
+          </button>
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-5 xl:col-span-2 dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Employee schedule</p>
+              <h3 className="mt-1 font-semibold text-gray-900 dark:text-white">Monthly duty roster</h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Select an employee, set duty hours and mark their working dates for the month.</p>
+            </div>
+            <input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Employee
+              <select value={selectedEmployeeId || ''} onChange={(event) => setSelectedEmployeeId(event.target.value ? Number(event.target.value) : null)} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                <option value="">Select employee</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Duty start
+              <input type="time" value={rosterForm.start_time} onChange={(event) => setRosterForm((prev) => ({ ...prev, start_time: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+            <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+              Duty end
+              <input type="time" value={rosterForm.end_time} onChange={(event) => setRosterForm((prev) => ({ ...prev, end_time: event.target.value }))} className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{selectedEmployee?.name || 'No employee selected'} · {rosterForm.duty_dates.length} duty days</p>
+            <div className="flex gap-2">
+              <button onClick={autoFillRoster} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"><RotateCcw className="h-3.5 w-3.5" /> Auto fill</button>
+              <button onClick={clearRoster} className="rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700">Clear</button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-7 gap-1.5 sm:grid-cols-10 md:grid-cols-14 lg:grid-cols-16">
             {monthDates.map((day) => {
               const date = format(day, 'yyyy-MM-dd');
               const active = rosterForm.duty_dates.includes(date);
               return (
-                <button
-                  key={date}
-                  type="button"
-                  onClick={() => toggleDutyDate(date)}
-                  className="rounded-2xl px-2 py-3 text-center transition-all"
-                  style={{
-                    background: active ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.03)',
-                    border: active ? '1px solid rgba(52,211,153,0.25)' : '1px solid rgba(255,255,255,0.06)',
-                  }}
-                >
-                  <p className="text-[10px] uppercase tracking-widest text-muted">{format(day, 'EEE')}</p>
-                  <p className="mt-1 text-base font-800" style={{ color: active ? '#34d399' : '#fff' }}>{format(day, 'dd')}</p>
+                <button key={date} type="button" onClick={() => toggleDutyDate(date)} title={format(day, 'EEEE, dd MMM yyyy')} className={`rounded-lg border px-1 py-2 text-center transition ${active ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}>
+                  <span className="block text-[9px] uppercase opacity-70">{format(day, 'EEE').slice(0, 1)}</span>
+                  <span className="block text-xs font-semibold">{format(day, 'dd')}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-sm text-sub">
-              In roster branches, attendance can only be marked on selected duty dates. This is where you pick the employee’s 26 working days for the month.
-            </p>
-            <button onClick={() => void saveRoster()} disabled={isSavingRoster || !selectedEmployeeId} className="btn-primary flex items-center gap-2 rounded-xl px-4 py-3 text-sm">
-              <Save className="h-4 w-4" />
-              {isSavingRoster ? 'Saving...' : 'Save employee roster'}
-            </button>
-          </div>
-        </div>
+          <label className="mt-4 block text-xs font-medium text-gray-600 dark:text-gray-300">
+            Roster notes
+            <textarea value={rosterForm.notes} onChange={(event) => setRosterForm((prev) => ({ ...prev, notes: event.target.value }))} rows={2} className="mt-1.5 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" placeholder="Optional schedule notes" />
+          </label>
+          <button onClick={() => void saveRoster()} disabled={isSavingRoster || !selectedEmployeeId} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">
+            <Save className="h-4 w-4" /> {isSavingRoster ? 'Saving…' : 'Save roster'}
+          </button>
+        </section>
       </div>
 
-      <div className="hrm-card rounded-2xl overflow-hidden">
-        <div className="flex flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-col gap-4 border-b border-gray-200 px-5 py-4 lg:flex-row lg:items-end lg:justify-between dark:border-gray-700">
           <div>
-            <p className="text-xs font-600 uppercase tracking-widest text-muted">Daily control</p>
-            <h3 className="mt-1 text-lg font-700 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Clock in / out manager</h3>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Daily attendance</p>
+            <h3 className="mt-1 font-semibold text-gray-900 dark:text-white">Manager controls</h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Record clock-in, clock-out, leave or absence using the selected manual time.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="input-dark rounded-xl px-3 py-2 text-sm" />
-            <input type="time" value={manualClockTime} onChange={(e) => setManualClockTime(e.target.value)} className="input-dark rounded-xl px-3 py-2 text-sm" />
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search employee..." className="input-dark rounded-xl py-2 pl-9 pr-3 text-sm" />
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="relative">
+              <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+            <label className="relative">
+              <Clock3 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input type="time" value={manualClockTime} onChange={(event) => setManualClockTime(event.target.value)} className="rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
+            <label className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input type="text" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search employee" className="min-w-52 rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100" />
+            </label>
           </div>
         </div>
 
-        <div className="overflow-x-auto scroll-custom">
-          <table className="w-full text-left">
-            <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <th className="px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted">Employee</th>
-                <th className="px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted">Duty</th>
-                <th className="px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted">Status</th>
-                <th className="px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted">In / Out</th>
-                <th className="px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted text-right">Actions</th>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead className="bg-gray-50 text-left dark:bg-gray-900/40">
+              <tr>
+                {['Employee', 'Duty', 'Status', 'In', 'Out', 'Worked', 'Overtime', 'Actions'].map((heading) => <th key={heading} className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{heading}</th>)}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {isLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-16 text-center text-sm text-muted">Loading attendance manager...</td>
-                </tr>
+                <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-500">Loading attendance…</td></tr>
               ) : filteredEmployees.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-16 text-center text-sm text-muted">No employees found</td>
-                </tr>
+                <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-500">No employees found.</td></tr>
               ) : filteredEmployees.map((employee) => {
-                const dayRow = dayMap.get(Number(employee.id));
-                const schedule = getScheduleForEmployee(Number(employee.id));
+                const employeeId = Number(employee.id);
+                const schedule = getScheduleForEmployee(employeeId);
                 const dutyActive = isScheduledForDate(schedule, selectedDate);
-                const status = dayRow?.status || (dutyActive ? 'not_marked' : 'off_day_auto');
-                const clockedIn = Boolean(dayRow?.in_time);
-                const clockedOut = Boolean(dayRow?.out_time);
-
+                const day = dayMap.get(employeeId);
+                const status = day?.status || (dutyActive ? 'not_marked' : 'off_day_auto');
                 return (
-                  <tr key={employee.id} className="table-row-hover" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="avatar-ring h-9 w-9 shrink-0">
-                          <div className="flex h-full w-full items-center justify-center rounded-full bg-[#09090f] text-sm font-700 text-[#f0d080]">
-                            {employee.name.charAt(0)}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-sm font-700 text-white">{employee.name}</p>
-                          <p className="text-[11px] text-muted">{employee.phone || employee.email || 'No contact'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      {dutyActive ? (
-                        <div>
-                          <p className="text-xs font-700 text-emerald-400">Duty day</p>
-                          <p className="text-[11px] text-muted">{schedule?.start_time?.slice(0, 5) || rosterForm.start_time} - {schedule?.end_time?.slice(0, 5) || rosterForm.end_time}</p>
-                        </div>
-                      ) : (
-                        <span className="rounded-full px-2.5 py-1 text-[10px] font-700 uppercase tracking-wider" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.55)' }}>
-                          Off day
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      {status === 'not_marked' ? (
-                        <span className="rounded-full px-2.5 py-1 text-[10px] font-700 uppercase tracking-wider" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.55)' }}>
-                          Not marked
-                        </span>
-                      ) : (
-                        <span className="rounded-full px-2.5 py-1 text-[10px] font-700 uppercase tracking-wider" style={{
-                          background: statusConfig[status]?.bg || 'rgba(255,255,255,0.06)',
-                          color: statusConfig[status]?.color || '#fff',
-                        }}>
-                          {status.replace(/_/g, ' ')}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-white">
-                      <div className="space-y-1">
-                        <p><span className="text-muted">IN:</span> {dayRow?.in_time || '--:--'}</p>
-                        <p><span className="text-muted">OUT:</span> {dayRow?.out_time || '--:--'}</p>
-                        <p className="text-[11px] text-muted">Duty: {dayRow?.scheduled_start_time && dayRow?.scheduled_end_time ? `${dayRow.scheduled_start_time} - ${dayRow.scheduled_end_time}` : '--:--'}</p>
-                        <p className="text-[11px]"><span className="text-indigo-300">OT:</span> {dayRow?.overtime_hhmm || minutesToHhmm(dayRow?.overtime_minutes)} <span className="text-muted">• Worked {dayRow?.worked_hhmm || minutesToHhmm(dayRow?.worked_minutes)}</span></p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <button
-                          disabled={!dutyActive || clockedIn}
-                          onClick={() => void markEmployee(Number(employee.id), 'clock_in')}
-                          className="rounded-xl px-3 py-2 text-xs font-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.2)', color: '#34d399' }}
-                        >
-                          <span className="inline-flex items-center gap-1.5"><LogIn className="h-3.5 w-3.5" />Clock in</span>
-                        </button>
-                        <button
-                          disabled={!dutyActive || !clockedIn || clockedOut}
-                          onClick={() => void markEmployee(Number(employee.id), 'clock_out')}
-                          className="rounded-xl px-3 py-2 text-xs font-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}
-                        >
-                          <span className="inline-flex items-center gap-1.5"><LogOut className="h-3.5 w-3.5" />Clock out</span>
-                        </button>
-                        <button
-                          disabled={!dutyActive}
-                          onClick={() => void markEmployee(Number(employee.id), 'leave')}
-                          className="rounded-xl px-3 py-2 text-xs font-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.2)', color: '#818cf8' }}
-                        >
-                          Leave
-                        </button>
-                        <button
-                          disabled={!dutyActive}
-                          onClick={() => void markEmployee(Number(employee.id), 'absent')}
-                          className="rounded-xl px-3 py-2 text-xs font-700 disabled:cursor-not-allowed disabled:opacity-40"
-                          style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.78)' }}
-                        >
-                          Absent
-                        </button>
+                  <tr key={employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                    <td className="px-5 py-3.5"><p className="text-sm font-medium text-gray-900 dark:text-white">{employee.name}</p><p className="text-xs text-gray-500 dark:text-gray-400">{employee.employee_code || employee.email || ''}</p></td>
+                    <td className="px-5 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${dutyActive ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'}`}>{dutyActive ? 'Scheduled' : 'Off duty'}</span></td>
+                    <td className="px-5 py-3.5"><span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${statusClass(status)}`}>{status.replace(/_/g, ' ')}</span></td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{day?.in_time || '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{day?.out_time || '—'}</td>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{day?.worked_hhmm || minutesToHhmm(day?.worked_minutes)}</td>
+                    <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{day?.overtime_hhmm || minutesToHhmm(day?.overtime_minutes)}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        <button disabled={!dutyActive} onClick={() => void markEmployee(employeeId, 'clock_in')} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-30"><LogIn className="h-3.5 w-3.5" /> In</button>
+                        <button disabled={!dutyActive} onClick={() => void markEmployee(employeeId, 'clock_out')} className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-gray-100 dark:text-gray-900"><LogOut className="h-3.5 w-3.5" /> Out</button>
+                        <button disabled={!dutyActive} onClick={() => void markEmployee(employeeId, 'leave')} className="rounded-lg border border-indigo-200 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-30 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/30">Leave</button>
+                        <button disabled={!dutyActive} onClick={() => void markEmployee(employeeId, 'absent')} className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-30 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30">Absent</button>
                       </div>
                     </td>
                   </tr>
@@ -703,112 +613,50 @@ export default function AttendanceManagerPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Planned Duty Days', value: rosterForm.duty_dates.length.toLocaleString(), note: selectedEmployee?.name || 'Selected employee', icon: CheckCircle2 },
+          { label: 'Active Staff', value: employees.length.toLocaleString(), note: 'Selected branch', icon: Users },
+          { label: 'Monthly Overtime', value: minutesToHhmm(attendanceTotals.overtimeMinutes), note: 'Across filtered employees', icon: Clock3 },
+          { label: 'Manual Clock Time', value: manualClockTime, note: 'Used by attendance actions', icon: ShieldCheck },
+        ].map((card) => (
+          <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium text-gray-500 dark:text-gray-400">{card.label}</p><p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.note}</p></div><card.icon className="h-5 w-5 text-gray-400" /></div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-4">
-        <div className="hrm-card rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="rounded-xl p-2" style={{ background: 'rgba(52,211,153,0.12)' }}><CheckCircle2 className="h-4 w-4 text-emerald-400" /></div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted">Planned duty days</p>
-              <p className="text-2xl font-800 text-white">{rosterForm.duty_dates.length}</p>
-            </div>
-          </div>
-          <p className="text-xs text-sub">Useful for those branches where each employee has a monthly roster instead of a fixed weekly holiday.</p>
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
+          <div><h3 className="font-semibold text-gray-900 dark:text-white">Monthly attendance matrix</h3><p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Day-by-day status plus duty-day and overtime summary.</p></div>
+          <span className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">{format(new Date(`${selectedMonth}-01T00:00:00`), 'MMMM yyyy')}</span>
         </div>
-        <div className="hrm-card rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="rounded-xl p-2" style={{ background: 'rgba(99,102,241,0.12)' }}><Users className="h-4 w-4 text-indigo-300" /></div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted">Total staff</p>
-              <p className="text-2xl font-800 text-white">{employees.length}</p>
-            </div>
-          </div>
-          <p className="text-xs text-sub">The daily control table includes all active staff in the selected branch.</p>
-        </div>
-        <div className="hrm-card rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="rounded-xl p-2" style={{ background: 'rgba(245,158,11,0.12)' }}><Clock3 className="h-4 w-4 text-amber-300" /></div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted">Monthly overtime</p>
-              <p className="text-2xl font-800 text-white">{minutesToHhmm(attendanceTotals.overtimeMinutes)}</p>
-            </div>
-          </div>
-          <p className="text-xs text-sub">Auto-calculated from actual clock in and clock out against the assigned duty time.</p>
-        </div>
-        <div className="hrm-card rounded-2xl p-5">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="rounded-xl p-2" style={{ background: 'rgba(201,168,76,0.12)' }}><ShieldCheck className="h-4 w-4" style={{ color: '#f0d080' }} /></div>
-            <div>
-              <p className="text-xs uppercase tracking-widest text-muted">Manual clock time</p>
-              <p className="text-lg font-800 text-white">{manualClockTime}</p>
-            </div>
-          </div>
-          <p className="text-xs text-sub">This time is used when the manager presses clock in or clock out.</p>
-        </div>
-      </div>
-
-      <div className="hrm-card rounded-2xl overflow-hidden">
-        <div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div>
-            <p className="text-xs uppercase tracking-widest text-muted">Monthly report</p>
-            <h3 className="mt-1 text-lg font-700 text-white" style={{ fontFamily: 'Syne, sans-serif' }}>Attendance matrix</h3>
-          </div>
-          <div className="rounded-xl px-3 py-2 text-xs font-700" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#fff' }}>
-            {selectedMonth}
-          </div>
-        </div>
-        <div className="overflow-x-auto scroll-custom">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <th className="min-w-[180px] px-5 py-3 text-[10px] font-700 uppercase tracking-widest text-muted" style={{ position: 'sticky', left: 0, zIndex: 10, background: '#0e0e18', borderRight: '1px solid rgba(255,255,255,0.06)' }}>Employee</th>
-                <th className="min-w-[88px] px-4 py-3 text-center text-[10px] font-700 uppercase tracking-widest text-muted" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>Duty days</th>
-                <th className="min-w-[88px] px-4 py-3 text-center text-[10px] font-700 uppercase tracking-widest text-muted" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>Month OT</th>
-                {monthDates.map((day) => (
-                  <th key={day.toISOString()} className="min-w-[28px] px-1 py-3 text-center" style={{ background: isToday(day) ? 'rgba(201,168,76,0.08)' : 'transparent' }}>
-                    <div className="flex flex-col items-center">
-                      <span className="text-[10px] font-700" style={{ color: isToday(day) ? '#f0d080' : 'rgba(255,255,255,0.35)' }}>{format(day, 'dd')}</span>
-                      <span className="text-[8px]" style={{ color: 'rgba(255,255,255,0.2)' }}>{format(day, 'EEE').charAt(0)}</span>
-                    </div>
-                  </th>
-                ))}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-gray-50 dark:bg-gray-900/40">
+              <tr>
+                <th className="sticky left-0 z-10 min-w-[180px] bg-gray-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:bg-gray-900 dark:text-gray-400">Employee</th>
+                <th className="min-w-[85px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Duty</th>
+                <th className="min-w-[85px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">OT</th>
+                {monthDates.map((day) => <th key={day.toISOString()} className={`min-w-[34px] px-1 py-3 text-center text-[10px] font-semibold ${isToday(day) ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'text-gray-400'}`}><span className="block">{format(day, 'dd')}</span><span className="block text-[8px] font-normal">{format(day, 'EEE').slice(0, 1)}</span></th>)}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {reportRows.length === 0 ? (
-                <tr>
-                  <td colSpan={monthDates.length + 3} className="px-5 py-14 text-center text-sm text-muted">No monthly attendance data found.</td>
-                </tr>
+                <tr><td colSpan={monthDates.length + 3} className="px-5 py-12 text-center text-sm text-gray-500">No monthly attendance data found.</td></tr>
               ) : reportRows.map((row) => {
                 const schedule = getScheduleForEmployee(row.employee.id);
                 const dutyCount = schedule?.duty_dates?.filter((date) => date.startsWith(selectedMonth)).length ?? 0;
-
                 return (
-                  <tr key={row.employee.id} className="table-row-hover" style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                    <td className="px-5 py-3" style={{ position: 'sticky', left: 0, zIndex: 5, background: '#0d0d17', borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div>
-                        <p className="text-sm font-700 text-white">{row.employee.name}</p>
-                        <p className="text-[10px] text-muted">{row.employee.employee_code || 'No code'}</p>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-center" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span className="rounded-lg px-2 py-1 text-[10px] font-700" style={{ background: 'rgba(52,211,153,0.1)', color: '#34d399' }}>{dutyCount || row.summary.present + row.summary.late + row.summary.absent + row.summary.leave}</span>
-                    </td>
-                    <td className="px-3 py-3 text-center" style={{ borderRight: '1px solid rgba(255,255,255,0.06)' }}>
-                      <span className="rounded-lg px-2 py-1 text-[10px] font-700" style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc' }}>{row.summary.overtime_hhmm || minutesToHhmm(row.summary.overtime_minutes)}</span>
-                    </td>
+                  <tr key={row.employee.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                    <td className="sticky left-0 z-[5] bg-white px-5 py-3 dark:bg-gray-800"><p className="text-sm font-medium text-gray-900 dark:text-white">{row.employee.name}</p><p className="text-xs text-gray-500 dark:text-gray-400">{row.employee.employee_code || 'No code'}</p></td>
+                    <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200">{dutyCount || Number(row.summary.present || 0) + Number(row.summary.late || 0) + Number(row.summary.absent || 0) + Number(row.summary.leave || 0)}</td>
+                    <td className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-200">{String(row.summary.overtime_hhmm || minutesToHhmm(Number(row.summary.overtime_minutes || 0)))}</td>
                     {row.daily.map((day) => {
-                      const cfg = statusConfig[day.status] || { label: '·', bg: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.2)' };
-                      return (
-                        <td key={`${row.employee.id}-${day.date}`} className="px-0.5 py-3 text-center">
-                          <div title={`${day.date} · ${day.status}${day.in_time ? ` · IN ${day.in_time}` : ''}${day.out_time ? ` · OUT ${day.out_time}` : ''}${day.overtime_hhmm ? ` · OT ${day.overtime_hhmm}` : ''}`}
-                            className="mx-auto flex h-5 w-5 items-center justify-center rounded text-[8px] font-800"
-                            style={{ background: cfg.bg, color: cfg.color }}>
-                            {cfg.label}
-                          </div>
-                        </td>
-                      );
+                      const cfg = statusConfig[day.status] || { label: '·', bg: '', color: '' };
+                      return <td key={`${row.employee.id}-${day.date}`} className="px-0.5 py-3 text-center"><div title={`${day.date} · ${day.status}${day.in_time ? ` · IN ${day.in_time}` : ''}${day.out_time ? ` · OUT ${day.out_time}` : ''}`} className={`mx-auto flex h-6 min-w-6 items-center justify-center rounded px-1 text-[8px] font-bold ${statusClass(day.status)}`}>{cfg.label}</div></td>;
                     })}
                   </tr>
                 );
@@ -816,13 +664,11 @@ export default function AttendanceManagerPage() {
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      <div className="flex items-start gap-3 rounded-2xl p-4" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.12)' }}>
-        <TimerReset className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />
-        <p className="text-[11px] text-sub">
-          Workflow: first choose the branch mode, then build the monthly roster for each employee if the branch is roster-based, and finally use the daily manager panel to record actual clock-in and clock-out times.
-        </p>
+      <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+        <TimerReset className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+        <p className="text-sm text-blue-800 dark:text-blue-300">Set the branch policy first. For roster-based branches, assign monthly duty dates per employee, then use Daily Attendance to record actual attendance.</p>
       </div>
     </div>
   );

@@ -56,6 +56,7 @@ export interface ActivityLogParams {
   event?: string; // created|updated|deleted
   per_page?: number;
   page?: number;
+  /** Fetch every available backend page for the selected filters. */
   fetch_all?: boolean;
   /** Allow endpoint-specific filters (order_id, product_id, dispatch_id, etc.) */
   [key: string]: any;
@@ -169,10 +170,10 @@ async function fetchCategoryPage(
   const url = endpointForCategory[category];
 
   // Pass through endpoint-specific filters (e.g., order_id, product_id, dispatch_id, etc.)
-  // fetch_all is frontend-only and must not be sent to Laravel.
+  // `fetch_all` is a frontend-only control and must never be sent to Laravel.
   const { category: _cat, fetch_all: _fetchAll, ...rest } = params as any;
 
-  // Backend versions in this project use both naming conventions.
+  // Backend versions in this project have used both naming conventions.
   const date_from = params.date_from || undefined;
   const date_to = params.date_to || undefined;
 
@@ -198,44 +199,98 @@ async function fetchCategoryPage(
   };
 }
 
+function paginationLastPage(meta: any, perPage: number): number | null {
+  const explicit = Number(meta?.last_page ?? meta?.total_pages ?? meta?.pages ?? 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const total = Number(meta?.total ?? meta?.total_items ?? meta?.count ?? 0);
+  const backendPerPage = Number(meta?.per_page ?? meta?.page_size ?? perPage);
+  if (Number.isFinite(total) && total > 0 && Number.isFinite(backendPerPage) && backendPerPage > 0) {
+    return Math.max(1, Math.ceil(total / backendPerPage));
+  }
+
+  return null;
+}
+
+async function fetchCategoryAllPages(
+  category: Exclude<BusinessHistoryCategory, 'all'>,
+  params: ActivityLogParams
+): Promise<Paginated<ActivityLogEntry>> {
+  // Business-history endpoints commonly cap page size around 100. Requesting 100
+  // keeps the number of requests reasonable without relying on an unsupported huge limit.
+  const perPage = Math.max(Number(params.per_page || 0), 100);
+  const first = await fetchCategoryPage(category, { ...params, per_page: perPage, page: 1 });
+
+  const all: ActivityLogEntry[] = [];
+  const seen = new Set<string>();
+  const appendUnique = (rows: ActivityLogEntry[]) => {
+    let added = 0;
+    for (const row of rows) {
+      const key = `${row.category}:${row.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(row);
+      added += 1;
+    }
+    return added;
+  };
+
+  appendUnique(first.data || []);
+
+  let meta = first.meta;
+  let links = first.links;
+  let lastPage = paginationLastPage(meta, perPage);
+  let page = 1;
+
+  // The high ceiling is only an infinite-loop guard for malformed pagination metadata.
+  // Normal requests stop on last_page/total_pages, has_more_pages=false, an empty page,
+  // or a repeated page when a backend accidentally ignores the `page` parameter.
+  const MAX_PAGES_SAFETY = 1000;
+  while (page < MAX_PAGES_SAFETY) {
+    if (lastPage !== null && page >= lastPage) break;
+    if (meta?.has_more_pages === false || meta?.has_more === false) break;
+
+    page += 1;
+    const next = await fetchCategoryPage(category, { ...params, per_page: perPage, page });
+    const rows = next.data || [];
+    if (!rows.length) break;
+
+    const added = appendUnique(rows);
+    meta = next.meta ?? meta;
+    links = next.links ?? links;
+    lastPage = paginationLastPage(meta, perPage) ?? lastPage;
+
+    // If every row is a duplicate, the endpoint is most likely returning page 1
+    // repeatedly. Stop rather than looping forever.
+    if (added === 0) break;
+  }
+
+  return {
+    data: all,
+    links,
+    meta: {
+      ...(meta || {}),
+      fetched_all_pages: true,
+      fetched_count: all.length,
+      fetched_pages: page,
+    },
+  };
+}
+
 async function fetchCategory(
   category: Exclude<BusinessHistoryCategory, 'all'>,
   params: ActivityLogParams
 ): Promise<Paginated<ActivityLogEntry>> {
-  if (!params.fetch_all) {
-    return fetchCategoryPage(category, params);
-  }
-
-  const perPage = Math.max(params.per_page ?? 50, 100);
-  const rows: ActivityLogEntry[] = [];
-  let page = 1;
-  let lastPage = 1;
-
-  do {
-    const result = await fetchCategoryPage(category, { ...params, per_page: perPage, page });
-    rows.push(...result.data);
-
-    const metaLastPage = Number(result.meta?.last_page ?? result.meta?.total_pages ?? 0);
-    if (metaLastPage > 0) {
-      lastPage = metaLastPage;
-    } else if (result.data.length >= perPage) {
-      // Fallback for endpoints that do not return pagination metadata.
-      lastPage = page + 1;
-    } else {
-      lastPage = page;
-    }
-
-    page += 1;
-  } while (page <= lastPage);
-
-  return { data: rows, meta: { fetched_all_pages: true, fetched_count: rows.length } };
+  return params.fetch_all
+    ? fetchCategoryAllPages(category, params)
+    : fetchCategoryPage(category, params);
 }
 
 const activityService = {
   /**
    * Fetch business history entries.
    *
-   * - If category is omitted or "all", it fetches the requested pages from all supported categories and merges them.
+   * - If category is omitted or "all", it fetches the first page from all supported categories and merges them.
    * - If a specific category is provided, it fetches that endpoint only.
    */
   async getLogs(params: ActivityLogParams): Promise<Paginated<ActivityLogEntry>> {
@@ -282,10 +337,10 @@ const activityService = {
   async getStatistics(date_from?: string, date_to?: string): Promise<StatsResponse> {
     const res = await axios.get('/business-history/statistics', {
       params: {
-        date_from,
-        date_to,
-        start_date: date_from,
-        end_date: date_to,
+        date_from: date_from || undefined,
+        date_to: date_to || undefined,
+        start_date: date_from || undefined,
+        end_date: date_to || undefined,
       },
     });
 

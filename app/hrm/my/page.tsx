@@ -1,279 +1,209 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import hrmService, { AttendanceRecord } from '@/services/hrmService';
-import { useAuth } from '@/contexts/AuthContext';
-import { Clock, TrendingUp, Award, AlertCircle, CheckCircle2, XCircle, ChevronRight, Users, Zap } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import { Award, CalendarDays, Clock3, MessageCircle, ShoppingBag, Target, TrendingUp } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import hrmService, { AttendanceRecord } from '@/services/hrmService';
+
+const money = (value: number) =>
+  new Intl.NumberFormat('en-BD', {
+    style: 'currency',
+    currency: 'BDT',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+
+const dateLabel = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'EEE, dd MMM');
+};
 
 export default function MyHRMPage() {
   const { user } = useAuth();
+  const [month, setMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [performance, setPerformance] = useState<any>(null);
+  const [performance, setPerformance] = useState<any>({});
   const [rewardsFines, setRewardsFines] = useState<any[]>([]);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [overtime, setOvertime] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [attendanceRows, performanceData, rewardRows, overtimeRows] = await Promise.all([
+          hrmService.getMyAttendance({ month }),
+          hrmService.getMyPerformance({ month }),
+          hrmService.getMyRewardsFines({ month }),
+          hrmService.getMyOvertime({ month }),
+        ]);
+        setAttendance(attendanceRows);
+        setPerformance(performanceData || {});
+        setRewardsFines(rewardRows);
+        setOvertime(overtimeRows);
+      } catch (error) {
+        console.error('Failed to load employee HR dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const [attData, perfData, rfData] = await Promise.all([
-        hrmService.getMyAttendance(),
-        hrmService.getMyPerformance(),
-        hrmService.getMyRewardsFines()
-      ]);
-      setAttendance(attData);
-      setPerformance(perfData);
-      setRewardsFines(rfData);
-    } catch (error) { console.error(error); }
-    finally { setIsLoading(false); }
-  };
+    void load();
+  }, [month]);
 
-  const todayRecord = attendance.find(r => r.attendance_date === format(new Date(), 'yyyy-MM-dd'));
-  const todayStatus = todayRecord?.status?.toLowerCase() ?? '';
+  const presentCount = attendance.filter((row) => ['present', 'late'].includes(row.status?.toLowerCase())).length;
+  const lateCount = attendance.filter((row) => row.status?.toLowerCase() === 'late' || row.is_late).length;
+  const overtimeHours = overtime.reduce((sum, row) => sum + Number(row.overtime_hours || 0), 0);
+  const rewardNet = rewardsFines.reduce(
+    (sum, row) => sum + (row.entry_type === 'reward' ? Number(row.amount || 0) : -Number(row.amount || 0)),
+    0,
+  );
 
-  const lateCount = attendance.filter(r => r.is_late).length;
-  const presentCount = attendance.filter(r => ['present', 'late'].includes(r.status?.toLowerCase())).length;
-  const percent = performance?.percent || 0;
-
-  const getStatusPill = (status: string) => {
-    const s = status?.toLowerCase();
-    if (s === 'present') return <span className="pill-green text-[10px] font-700 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Present</span>;
-    if (s === 'late') return <span className="pill-amber text-[10px] font-700 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Late</span>;
-    if (s === 'absent') return <span className="pill-red text-[10px] font-700 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Absent</span>;
-    if (s === 'leave') return <span className="pill-blue text-[10px] font-700 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Leave</span>;
-    return <span className="text-[10px] font-700 px-2.5 py-0.5 rounded-full uppercase tracking-wider" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>Not Marked</span>;
-  };
-
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(201,168,76,0.3)', borderTopColor: '#f0d080' }} />
-    </div>
+  const latestAttendance = useMemo(
+    () => [...attendance].sort((a, b) => String(b.attendance_date).localeCompare(String(a.attendance_date))).slice(0, 10),
+    [attendance],
   );
 
   return (
-    <div className="space-y-5">
-      {/* Welcome Banner */}
-      <div className="relative rounded-2xl overflow-hidden p-6"
-        style={{ background: 'linear-gradient(135deg, rgba(201,168,76,0.12) 0%, rgba(99,102,241,0.08) 100%)', border: '1px solid rgba(201,168,76,0.15)' }}>
-        <div className="absolute top-0 right-0 w-48 h-48 rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, #f0d080, transparent)', transform: 'translate(30%,-30%)' }} />
-        <div className="flex items-center gap-4">
-          <div className="avatar-ring w-14 h-14 shrink-0">
-            <div className="w-full h-full rounded-full flex items-center justify-center text-xl font-800"
-              style={{ background: '#0a0a0f', color: '#f0d080', fontFamily: 'Syne, sans-serif' }}>
-              {user?.name?.charAt(0)?.toUpperCase()}
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Employee portal</p>
+          <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{user?.name || 'My HR dashboard'}</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Your attendance, target progress, sales and HR adjustments.</p>
+        </div>
+        <input
+          type="month"
+          value={month}
+          onChange={(event) => setMonth(event.target.value)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 outline-none focus:border-gray-500 focus:ring-2 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-gray-700"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Days present', value: presentCount.toLocaleString(), note: `${lateCount} late`, icon: CalendarDays, className: 'bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-400' },
+          { label: 'Total sales', value: money(performance.achieved || 0), note: `${performance.order_count || 0} completed orders`, icon: TrendingUp, className: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' },
+          { label: 'Target progress', value: `${Number(performance.percent || 0).toFixed(1)}%`, note: performance.target ? `${money(performance.target)} target` : 'No target set', icon: Target, className: 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400' },
+          { label: 'Overtime', value: `${overtimeHours.toFixed(1)}h`, note: `Rewards/fines net ${money(rewardNet)}`, icon: Clock3, className: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' },
+        ].map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.label} className="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
+                  <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">{loading ? '—' : card.value}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{card.note}</p>
+                </div>
+                <div className={`rounded-lg p-2.5 ${card.className}`}><Icon className="h-5 w-5" /></div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section className="xl:col-span-2 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white">My sales contribution</h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">POS and Social Commerce are both included in your monthly target achievement.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400"><ShoppingBag className="h-4 w-4 text-blue-600 dark:text-blue-400" /> POS</div>
+              <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">{money(performance.pos_sales_amount || 0)}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{performance.pos_order_count || 0} orders</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400"><MessageCircle className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Social Commerce</div>
+              <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">{money(performance.social_commerce_sales_amount || 0)}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{performance.social_commerce_order_count || 0} orders</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-gray-400"><Target className="h-4 w-4 text-green-600 dark:text-green-400" /> Combined</div>
+              <p className="mt-2 text-xl font-bold text-gray-900 dark:text-white">{money(performance.achieved || 0)}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{Number(performance.percent || 0).toFixed(1)}% of target</p>
             </div>
           </div>
-          <div>
-            <p className="text-muted text-xs uppercase tracking-widest font-600 mb-0.5">Welcome back</p>
-            <h2 className="text-white text-xl font-700 leading-tight" style={{ fontFamily: 'Syne, sans-serif' }}>{user?.name}</h2>
-            <p className="text-muted text-xs mt-0.5">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
+          <div className="px-5 pb-5">
+            <div className="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className={`h-full rounded-full ${Number(performance.percent || 0) >= 100 ? 'bg-green-600' : 'bg-blue-600'}`}
+                style={{ width: `${Math.min(Number(performance.percent || 0), 100)}%` }}
+              />
+            </div>
           </div>
-          <div className="ml-auto text-right hidden md:block">
-            {todayRecord ? getStatusPill(todayRecord.status) : getStatusPill('')}
-            <p className="text-muted text-[10px] mt-1">{format(new Date(), 'hh:mm a')}</p>
-          </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Days Present', value: presentCount, color: '#34d399', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.12)' },
-          { label: 'Late Arrivals', value: lateCount, color: '#fbbf24', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.12)' },
-          { label: 'Sales Achieved', value: `৳${(performance?.achieved || 0).toLocaleString()}`, color: '#f0d080', bg: 'rgba(201,168,76,0.08)', border: 'rgba(201,168,76,0.12)' },
-          { label: 'Target %', value: `${percent}%`, color: '#818cf8', bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.12)' },
-        ].map(s => (
-          <div key={s.label} className="hrm-card rounded-2xl p-4" style={{ background: s.bg, borderColor: s.border }}>
-            <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-2">{s.label}</p>
-            <p className="text-2xl font-800" style={{ fontFamily: 'Syne, sans-serif', color: s.color }}>{s.value}</p>
+        <section className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Rewards & fines</h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Entries for the selected month.</p>
           </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {/* Today Clock Card */}
-        <div className="hrm-card rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-700 text-sm flex items-center gap-2" style={{ fontFamily: 'Syne, sans-serif' }}>
-              <Clock className="w-4 h-4" style={{ color: '#818cf8' }} /> Today
-            </h3>
-          </div>
-          <div className="space-y-2.5">
-            {[
-              { label: 'Clock In', value: todayRecord?.clock_in, color: '#34d399' },
-              { label: 'Clock Out', value: todayRecord?.clock_out, color: '#f87171' },
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <span className="text-muted text-xs font-500">{item.label}</span>
-                <span className="text-sm font-700" style={{ color: item.value ? item.color : 'rgba(255,255,255,0.2)', fontFamily: 'Syne, sans-serif' }}>
-                  {item.value || '--:--'}
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {rewardsFines.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-gray-500">No rewards or fines this month.</div>
+            ) : rewardsFines.slice(0, 6).map((row) => (
+              <div key={row.id} className="flex items-center justify-between gap-4 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{row.title || 'Adjustment'}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{row.entry_date ? dateLabel(row.entry_date) : ''}</p>
+                </div>
+                <span className={`text-sm font-semibold ${row.entry_type === 'reward' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {row.entry_type === 'reward' ? '+' : '-'}{money(Number(row.amount || 0))}
                 </span>
               </div>
             ))}
-            {todayRecord?.is_late && (
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" style={{ color: '#fbbf24' }} />
-                <span className="text-[10px] font-600" style={{ color: '#fbbf24' }}>Late entry recorded</span>
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* Sales Target Card */}
-        <div className="hrm-card rounded-2xl p-5 md:col-span-1 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-700 text-sm flex items-center gap-2" style={{ fontFamily: 'Syne, sans-serif' }}>
-              <TrendingUp className="w-4 h-4" style={{ color: '#34d399' }} /> Sales Target
-            </h3>
-            <span className="text-muted text-[10px] font-500">{format(new Date(), 'MMMM yyyy')}</span>
-          </div>
-
-          {!performance?.target ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted">
-              <TrendingUp className="w-8 h-8 mb-2 opacity-20" />
-              <p className="text-xs">No target set for this month</p>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-end justify-between mb-3">
-                <div>
-                  <p className="text-muted text-[10px] uppercase tracking-widest font-600 mb-1">Progress</p>
-                  <p className="text-4xl font-800 gold-shimmer" style={{ fontFamily: 'Syne, sans-serif' }}>{percent}%</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-muted text-[10px] mb-1">Target</p>
-                  <p className="text-white text-lg font-700">৳{(performance?.target || 0).toLocaleString()}</p>
-                </div>
-              </div>
-              <div className="progress-track h-2 mb-3">
-                <div className={`h-2 transition-all duration-1000 ${percent >= 100 ? 'progress-gold' : percent >= 50 ? 'progress-green' : 'progress-blue'}`}
-                  style={{ width: `${Math.min(percent, 100)}%` }} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted text-xs">Achieved: <span className="text-white font-600">৳{(performance?.achieved || 0).toLocaleString()}</span></span>
-                <span className="text-muted text-xs">Gap: <span className="font-600" style={{ color: '#f87171' }}>৳{Math.max(0, (performance?.target || 0) - (performance?.achieved || 0)).toLocaleString()}</span></span>
-              </div>
-            </>
-          )}
-        </div>
+        </section>
       </div>
 
-      {/* Bottom Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Attendance History */}
-        <div className="hrm-card rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h3 className="text-white font-700 text-sm" style={{ fontFamily: 'Syne, sans-serif' }}>Attendance History</h3>
-            <span className="text-muted text-[10px]">{attendance.length} records</span>
+      <section className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-white">Attendance history</h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Latest attendance records in the selected month.</p>
           </div>
-          {attendance.length === 0 ? (
-            <div className="p-8 text-center text-muted text-xs">No attendance records found</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.03)' }}>
-              {attendance.slice(0, 7).map((record) => {
-                const s = record.status?.toLowerCase();
-                const isGood = s === 'present';
-                const isBad = s === 'absent';
-                return (
-                  <div key={record.id} className="px-5 py-3 flex items-center justify-between table-row-hover">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                        style={{ background: isGood ? 'rgba(52,211,153,0.1)' : isBad ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)' }}>
-                        {isGood ? <CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#34d399' }} />
-                          : isBad ? <XCircle className="w-3.5 h-3.5" style={{ color: '#f87171' }} />
-                          : <Clock className="w-3.5 h-3.5" style={{ color: '#fbbf24' }} />}
-                      </div>
-                      <div>
-                        <p className="text-white text-xs font-600">{format(new Date(record.attendance_date), 'EEE, MMM d')}</p>
-                        <p className="text-muted text-[10px]">{record.status?.replace(/_/g,' ') || 'Unknown'}{record.is_late ? ' · Late' : ''}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-600" style={{ color: '#34d399' }}>{record.clock_in || '--:--'}</p>
-                      <p className="text-[10px] text-muted">{record.clock_out || '--:--'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <Award className="h-5 w-5 text-gray-400" />
         </div>
-
-        {/* Insights */}
-        <div className="hrm-card rounded-2xl p-5">
-          <h3 className="text-white font-700 text-sm mb-4" style={{ fontFamily: 'Syne, sans-serif' }}>Performance Insights</h3>
-          <div className="space-y-3">
-            {lateCount > 0 && (
-              <div className="flex items-start gap-3 p-3.5 rounded-xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.12)' }}>
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#fbbf24' }} />
-                <div>
-                  <p className="text-xs font-700 mb-0.5" style={{ color: '#fbbf24' }}>Late Arrivals</p>
-                  <p className="text-[11px] text-muted">Late {lateCount} time{lateCount > 1 ? 's' : ''} this month. Punctuality affects your score.</p>
-                </div>
-              </div>
-            )}
-            {percent >= 100 && (
-              <div className="flex items-start gap-3 p-3.5 rounded-xl" style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.15)' }}>
-                <Zap className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#f0d080' }} />
-                <div>
-                  <p className="text-xs font-700 mb-0.5 gold-shimmer">Target Reached! 🎉</p>
-                  <p className="text-[11px] text-muted">You've hit 100%+ this month. Outstanding work!</p>
-                </div>
-              </div>
-            )}
-            {rewardsFines.length > 0 && (
-              <div className="flex items-start gap-3 p-3.5 rounded-xl" style={{ background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.12)' }}>
-                <Award className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#a78bfa' }} />
-                <div>
-                  <p className="text-xs font-700 mb-0.5" style={{ color: '#a78bfa' }}>Rewards & Fines</p>
-                  <p className="text-[11px] text-muted">{rewardsFines.length} entr{rewardsFines.length > 1 ? 'ies' : 'y'}. Net: <span style={{ color: rewardsFines.reduce((a,r) => a + (r.entry_type==='reward'?+r.amount:-+r.amount),0) >= 0 ? '#34d399' : '#f87171' }}>
-                    ৳{rewardsFines.reduce((a,r) => a + (r.entry_type==='reward'?+r.amount:-+r.amount),0).toLocaleString()}
-                  </span></p>
-                </div>
-              </div>
-            )}
-            {lateCount === 0 && percent < 100 && rewardsFines.length === 0 && (
-              <div className="text-center py-6 text-muted text-xs">All good! No alerts this month.</div>
-            )}
-          </div>
-
-          <button onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-            className="w-full mt-4 flex items-center justify-between p-3.5 rounded-xl transition-all"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(201,168,76,0.2)')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)')}>
-            <div className="flex items-center gap-2">
-              <Award className="w-4 h-4" style={{ color: '#a78bfa' }} />
-              <span className="text-xs font-600 text-white">Reward / Fine History</span>
-            </div>
-            <ChevronRight className={`w-4 h-4 text-muted transition-transform ${isHistoryOpen ? 'rotate-90' : ''}`} />
-          </button>
-
-          {isHistoryOpen && (
-            <div className="mt-3 space-y-2 pl-4 border-l-2" style={{ borderColor: 'rgba(139,92,246,0.3)' }}>
-              {rewardsFines.length === 0 ? (
-                <p className="text-muted text-xs py-2">No entries this month</p>
-              ) : rewardsFines.map(entry => (
-                <div key={entry.id} className="flex justify-between items-center p-2.5 rounded-lg"
-                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div>
-                    <p className="text-white text-xs font-600">{entry.title}</p>
-                    <p className="text-muted text-[10px]">{format(new Date(entry.entry_date), 'MMM dd, yyyy')}</p>
-                  </div>
-                  <span className="text-xs font-700" style={{ color: entry.entry_type === 'reward' ? '#34d399' : '#f87171' }}>
-                    {entry.entry_type === 'reward' ? '+' : '-'}৳{Number(entry.amount).toLocaleString()}
-                  </span>
-                </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px]">
+            <thead className="bg-gray-50 text-left dark:bg-gray-900/40">
+              <tr>
+                {['Date', 'Status', 'Clock in', 'Clock out', 'Overtime'].map((heading) => (
+                  <th key={heading} className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{heading}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {latestAttendance.length === 0 ? (
+                <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-gray-500">No attendance records for this month.</td></tr>
+              ) : latestAttendance.map((row) => (
+                <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                  <td className="px-5 py-3.5 text-sm font-medium text-gray-900 dark:text-white">{dateLabel(row.attendance_date)}</td>
+                  <td className="px-5 py-3.5">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                      ['present'].includes(row.status)
+                        ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300'
+                        : row.status === 'late'
+                          ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                          : row.status === 'absent'
+                            ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {row.status?.replace(/_/g, ' ') || 'Not marked'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{row.clock_in || '—'}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{row.clock_out || '—'}</td>
+                  <td className="px-5 py-3.5 text-sm text-gray-600 dark:text-gray-300">{Number(row.overtime_minutes || 0)} min</td>
+                </tr>
               ))}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

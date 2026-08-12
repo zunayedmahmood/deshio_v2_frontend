@@ -3,14 +3,12 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useStore } from '@/contexts/StoreContext';
-import { useAuth } from '@/contexts/AuthContext';
 import hrmService, { AttendanceRecord } from '@/services/hrmService';
 import employeeService, { Employee } from '@/services/employeeService';
 import AttendanceModal from '@/components/hrm/AttendanceModal';
 import AccessControl from '@/components/AccessControl';
 import {
   Users,
-  UserPlus,
   TrendingUp,
   Calendar,
   CheckCircle2,
@@ -24,14 +22,14 @@ import {
   Play,
   UserMinus,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  ShoppingBag
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
 export default function BranchHRMPage() {
   const { selectedStoreId } = useStore();
-  const { user: currentUser } = useAuth();
   const router = useRouter();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -213,7 +211,7 @@ export default function BranchHRMPage() {
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-end mb-1">
-                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Store Performance</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold tracking-wider">Sales Target Progress</p>
                 <p className="text-sm font-bold text-emerald-600">{performanceReport?.branch_achievement || 0}%</p>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 mt-1">
@@ -450,7 +448,7 @@ export default function BranchHRMPage() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-purple-500" />
-              Leaderboard (Performance)
+              Employee Sales Leaderboard
             </h3>
 
             <div className="space-y-5">
@@ -470,9 +468,8 @@ export default function BranchHRMPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                      {rank.achievement_percentage}%
-                    </p>
+                    <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{rank.achievement_percentage}%</p>
+                    <p className="mt-0.5 text-[10px] text-gray-400">৳{Number(rank.achieved_amount || 0).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -488,6 +485,10 @@ export default function BranchHRMPage() {
           <div className="bg-black text-white rounded-2xl p-6 shadow-lg shadow-black/20">
             <h3 className="font-bold mb-4">Branch Quick Actions</h3>
             <div className="grid grid-cols-1 gap-3">
+              <button onClick={() => router.push('/hrm/sales')} className="flex items-center justify-between p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm font-medium">
+                <span className="flex items-center gap-2"><ShoppingBag className="w-4 h-4" /> Employee Sales</span>
+                <ChevronRight className="w-4 h-4 text-white/50" />
+              </button>
               <button onClick={() => router.push('/hrm/sales-targets')} className="flex items-center justify-between p-3 bg-white/10 hover:bg-white/20 rounded-xl transition-colors text-sm font-medium">
                 Set Sales Targets
                 <ChevronRight className="w-4 h-4 text-white/50" />

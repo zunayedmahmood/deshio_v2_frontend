@@ -26,6 +26,63 @@ export interface AttendanceRecord {
   };
 }
 
+
+export interface HRMPerformanceEmployee {
+  id: number;
+  name: string;
+  employee_code?: string | null;
+}
+
+export interface HRMPerformanceItem {
+  employee: HRMPerformanceEmployee;
+  target_amount: number;
+  achieved_amount: number;
+  remaining_amount: number;
+  achievement_percentage: number;
+  order_count: number;
+  pos_sales_amount: number;
+  pos_order_count: number;
+  social_commerce_sales_amount: number;
+  social_commerce_order_count: number;
+}
+
+export interface HRMPerformanceReport {
+  items: HRMPerformanceItem[];
+  branch_target: number;
+  total_sales: number;
+  pos_sales: number;
+  social_commerce_sales: number;
+  branch_order_count: number;
+  pos_order_count: number;
+  social_commerce_order_count: number;
+  remaining_target: number;
+  branch_achievement: number;
+}
+
+export interface HRMSalesRecord {
+  id: number;
+  order_number: string;
+  order_date: string | null;
+  order_type: 'counter' | 'social_commerce';
+  channel_label: string;
+  status: string;
+  payment_status?: string | null;
+  total_amount: number;
+  paid_amount: number;
+  outstanding_amount: number;
+  employee: HRMPerformanceEmployee | null;
+  customer?: { id: number; name: string; phone?: string | null } | null;
+  store?: { id: number; name: string } | null;
+}
+
+export interface HRMSalesRecordsPage {
+  data: HRMSalesRecord[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+}
+
 export interface SalesTarget {
   id: number;
   employee_id: number;
@@ -151,24 +208,71 @@ const hrmService = {
     return response.data;
   },
 
-  async getPerformanceReport(params?: any): Promise<any> {
+  async getPerformanceReport(params?: any): Promise<HRMPerformanceReport> {
     const response = await axiosInstance.get('/hrm/sales-targets/report', { params });
-    return response.data.success ? (response.data.data || {}) : {};
+    return response.data.success ? (response.data.data || {
+      items: [],
+      branch_target: 0,
+      total_sales: 0,
+      pos_sales: 0,
+      social_commerce_sales: 0,
+      branch_order_count: 0,
+      pos_order_count: 0,
+      social_commerce_order_count: 0,
+      remaining_target: 0,
+      branch_achievement: 0,
+    }) : {
+      items: [],
+      branch_target: 0,
+      total_sales: 0,
+      pos_sales: 0,
+      social_commerce_sales: 0,
+      branch_order_count: 0,
+      pos_order_count: 0,
+      social_commerce_order_count: 0,
+      remaining_target: 0,
+      branch_achievement: 0,
+    };
+  },
+
+  async getSalesRecords(params: {
+    store_id: number;
+    month: string;
+    employee_id?: number;
+    channel?: 'counter' | 'social_commerce';
+    page?: number;
+    per_page?: number;
+  }): Promise<HRMSalesRecordsPage> {
+    const response = await axiosInstance.get('/hrm/sales-targets/sales-records', { params });
+    const data = response.data.success ? response.data.data : null;
+    return {
+      data: Array.isArray(data?.data) ? data.data : [],
+      current_page: Number(data?.current_page || 1),
+      last_page: Number(data?.last_page || 1),
+      per_page: Number(data?.per_page || params.per_page || 25),
+      total: Number(data?.total || 0),
+    };
   },
 
   // Employee Self-Service
-  async getMyPerformance(): Promise<any> {
-    const response = await axiosInstance.get('/hrm/my/performance');
+  async getMyPerformance(params?: { month?: string }): Promise<any> {
+    const response = await axiosInstance.get('/hrm/my/performance', { params });
     return response.data.success ? (response.data.data || {}) : {};
   },
 
   async getMyAttendance(params?: any): Promise<AttendanceRecord[]> {
     const response = await axiosInstance.get('/hrm/my/attendance', { params });
-    return (response.data.success && Array.isArray(response.data.data)) ? response.data.data : [];
+    if (!response.data.success || !Array.isArray(response.data.data)) return [];
+    return response.data.data.map((row: any) => ({
+      ...row,
+      status: (row.status || 'not_marked').toLowerCase(),
+      clock_in: row.clock_in || row.in_time || null,
+      clock_out: row.clock_out || row.out_time || null,
+    }));
   },
 
-  async getMyOvertime(): Promise<any[]> {
-    const response = await axiosInstance.get('/hrm/my/overtime');
+  async getMyOvertime(params?: { month?: string }): Promise<any[]> {
+    const response = await axiosInstance.get('/hrm/my/overtime', { params });
     return (response.data.success && Array.isArray(response.data.data)) ? response.data.data : [];
   },
 

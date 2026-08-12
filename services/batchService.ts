@@ -222,6 +222,28 @@ export interface BulkDeleteBatchPriceSource {
   sell_price: number;
 }
 
+export interface BulkDeleteBatchBlocker {
+  type: string;
+  count: number;
+  message: string;
+  examples?: Array<Record<string, any>>;
+}
+
+export interface BulkDeleteBatchBarcodeAnalysis {
+  total_barcodes: number;
+  stock_to_retire: number;
+  sold_preserved: number;
+  historical_preserved: number;
+  claims_to_release: number;
+  status_blocker_count: number;
+  claim_blocker_count: number;
+  unknown_status_count: number;
+  status_counts: Record<string, number>;
+  status_blocker_examples: Array<Record<string, any>>;
+  claim_blocker_examples: Array<Record<string, any>>;
+  unknown_status_examples: Array<Record<string, any>>;
+}
+
 export interface BulkDeleteBatchPreviewData {
   product: { id: number; name: string; sku?: string };
   target_store: { id: number; name: string; type?: string };
@@ -229,6 +251,10 @@ export interface BulkDeleteBatchPreviewData {
   existing_batches: number;
   existing_units: number;
   barcodes_to_block: number;
+  barcode_analysis: BulkDeleteBatchBarcodeAnalysis;
+  can_confirm: boolean;
+  blockers: BulkDeleteBatchBlocker[];
+  snapshot_hash: string;
   old_batches: Array<{
     id: number;
     batch_number: string;
@@ -251,15 +277,32 @@ export interface BulkDeleteBatchPreviewData {
 }
 
 export interface BulkDeleteBatchConfirmData {
+  stock_reset_id: string;
+  sync_warning?: string | null;
   product: { id: number; name: string; sku?: string };
   store: { id: number; name: string };
+  retired_batches: number;
+  removed_book_units: number;
+  retired_stock_barcodes: number;
+  released_order_item_links: number;
+  sold_barcodes_preserved: number;
+  historical_barcodes_preserved: number;
+  retired_batch_details: Array<{
+    retired_batch_id: number;
+    retired_batch_number: string;
+    store_id: number | null;
+    store_name?: string;
+    quantity: number;
+    barcodes_logged: number;
+  }>;
+  // Backward-compatible aliases returned by the backend.
   deleted_batches: number;
   deleted_units: number;
   blocked_barcodes: number;
   deleted_batch_details: Array<{
     deleted_batch_id: number;
     deleted_batch_number: string;
-    store_id: number;
+    store_id: number | null;
     store_name?: string;
     quantity: number;
     barcodes_logged: number;
@@ -469,9 +512,9 @@ class BatchService {
   }
 
   /**
-   * Confirm stock reset: delete old batches, block old barcodes, create fresh batch.
+   * Confirm authoritative stock reset using the exact preview snapshot.
    */
-  async confirmBulkDeleteBatch(data: BulkDeleteBatchPreviewRequest): Promise<ApiResponse<BulkDeleteBatchConfirmData>> {
+  async confirmBulkDeleteBatch(data: BulkDeleteBatchPreviewRequest & { snapshot_hash: string }): Promise<ApiResponse<BulkDeleteBatchConfirmData>> {
     const response = await axios.post('/batches/delete-bulk-batch/confirm', {
       ...data,
       barcode_type: 'CODE128',
