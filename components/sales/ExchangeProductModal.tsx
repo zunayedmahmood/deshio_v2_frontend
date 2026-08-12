@@ -8,9 +8,11 @@ interface ExchangeProductModalProps {
   order: any;
   onClose: () => void;
   onExchange: (exchangeData: any) => Promise<void>;
+  enableMobileScan?: boolean;
+  allowForceLegacyBarcode?: boolean;
 }
 
-export default function ExchangeProductModal({ order, onClose, onExchange }: ExchangeProductModalProps) {
+export default function ExchangeProductModal({ order, onClose, onExchange, allowForceLegacyBarcode = false }: ExchangeProductModalProps) {
   const normalizedOriginalOrderType = String(order?.order_type || order?.orderType || '').toLowerCase();
   const originalOrderIsOnline = ['social_commerce', 'ecommerce'].includes(normalizedOriginalOrderType);
 
@@ -19,6 +21,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
+  const [forceLegacyCandidateCode, setForceLegacyCandidateCode] = useState<string | null>(null);
+  const [forceLegacyEnabled, setForceLegacyEnabled] = useState(false);
+  const [forceLegacyOrderItemId, setForceLegacyOrderItemId] = useState<number | null>(null);
   const [replacementBarcodeInput, setReplacementBarcodeInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [allowPartialRefunds, setAllowPartialRefunds] = useState(false);
@@ -222,10 +227,10 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     } : item));
   };
 
-  const buildReturnItem = (orderItem: any, matchedBarcode: { code: string; id?: number }) => {
+  const buildReturnItem = (orderItem: any, matchedBarcode: { code: string; id?: number }, forceLegacy = false) => {
     const listedUnitPrice = getItemListedUnitPrice(orderItem);
     const soldAtUnitPrice = getItemSoldAtUnitPrice(orderItem);
-    const productBarcodeId = matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id;
+    const productBarcodeId = forceLegacy ? undefined : (matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id);
 
     return {
       order_item_id: orderItem.id,
@@ -244,7 +249,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
       quantity: 1,
       total_price: soldAtUnitPrice,
       return_reason: 'exchange',
-      quality_check_passed: true
+      quality_check_passed: true,
+      force_legacy_barcode: forceLegacy,
+      legacy_barcode: forceLegacy ? matchedBarcode.code : undefined,
     };
   };
 
@@ -260,9 +267,38 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
 
     setError(null);
     setRemovedItems(prev => [...prev, buildReturnItem(orderItem, matchedBarcode)]);
+    setForceLegacyCandidateCode(null);
+    setForceLegacyEnabled(false);
+    setForceLegacyOrderItemId(null);
     setBarcodeInput('');
     window.setTimeout(() => replacementInputRef.current?.focus(), 0);
     return true;
+  };
+
+  const forceLegacyOrderItems = (order.items || []).filter((item: any) => Number(item?.product_id ?? item?.product?.id ?? 0) > 0);
+
+  const addForcedLegacyReturnItem = () => {
+    if (!forceLegacyCandidateCode || !forceLegacyEnabled) {
+      setError('Tick Force Return before adding this unknown legacy barcode.');
+      return;
+    }
+    const orderItem = forceLegacyOrderItems.find((item: any) => sameId(item.id, forceLegacyOrderItemId));
+    if (!orderItem) {
+      setError('Select the exact original order item for this physical legacy barcode.');
+      return;
+    }
+    const code = forceLegacyCandidateCode.trim();
+    if (removedItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
+      setError('This legacy barcode is already selected for exchange return.');
+      return;
+    }
+    setError(null);
+    setRemovedItems(prev => [...prev, buildReturnItem(orderItem, { code }, true)]);
+    setForceLegacyCandidateCode(null);
+    setForceLegacyEnabled(false);
+    setForceLegacyOrderItemId(null);
+    setBarcodeInput('');
+    window.setTimeout(() => replacementInputRef.current?.focus(), 0);
   };
 
   const addPendingReturnItem = (orderItem: any) => {
@@ -314,6 +350,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
     try {
 
       setError(null);
+      setForceLegacyCandidateCode(null);
+      setForceLegacyEnabled(false);
+      setForceLegacyOrderItemId(null);
     
       if (removedItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
         setError('Item already scanned for return');
@@ -332,7 +371,14 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
       const { orderItem, matchedBarcode } = found;
       addReturnItem(orderItem, matchedBarcode);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Failed to quickly verify the scanned return barcode');
+      if (allowForceLegacyBarcode && Number(err?.response?.status) === 404) {
+        setForceLegacyCandidateCode(code);
+        setForceLegacyEnabled(false);
+        setForceLegacyOrderItemId(forceLegacyOrderItems.length === 1 ? Number(forceLegacyOrderItems[0].id) : null);
+        setError(null);
+      } else {
+        setError(err?.response?.data?.message || 'Failed to quickly verify the scanned return barcode');
+      }
       setBarcodeInput('');
     } finally {
       returnScanInFlightRef.current = false;
@@ -681,6 +727,54 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                       )}
                     </form>
 
+                    {allowForceLegacyBarcode && forceLegacyCandidateCode && (
+                      <div className="mb-5 p-4 rounded-2xl border-2 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Unknown legacy barcode</p>
+                              <p className="text-sm font-mono font-black text-gray-900 dark:text-white mt-1">{forceLegacyCandidateCode}</p>
+                              <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">Force Return stages this physical barcode only inside the successful exchange transaction. Existing barcodes can never use this path.</p>
+                            </div>
+                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={forceLegacyEnabled}
+                                onChange={(e) => setForceLegacyEnabled(e.target.checked)}
+                                className="w-4 h-4 accent-black"
+                              />
+                              <span className="text-xs font-black text-gray-900 dark:text-white">Force Return</span>
+                            </label>
+                            {forceLegacyEnabled && (
+                              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+                                <select
+                                  value={forceLegacyOrderItemId ?? ''}
+                                  onChange={(e) => setForceLegacyOrderItemId(e.target.value ? Number(e.target.value) : null)}
+                                  className="w-full px-3 py-3 bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-800 rounded-xl text-sm font-bold"
+                                >
+                                  <option value="">Select exact original order item</option>
+                                  {forceLegacyOrderItems.map((item: any) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.product_name || item.product?.name || item.name || 'Product'} — Item #{item.id} — Qty {item.quantity || 1}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={addForcedLegacyReturnItem}
+                                  disabled={!forceLegacyOrderItemId}
+                                  className="px-4 py-3 rounded-xl bg-black text-white dark:bg-white dark:text-black text-xs font-black uppercase tracking-widest disabled:opacity-40"
+                                >
+                                  Add Forced Return
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {selectableReturnBarcodes.length > 0 && (
                       <div className="mb-5 p-3 rounded-2xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Selectable sold barcodes from this order</p>
@@ -750,6 +844,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange }: Exc
                           <div>
                             <p className="text-sm font-black text-gray-900 dark:text-white uppercase tracking-tight">{item.product_name}</p>
                             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{item.barcode}</p>
+                            {item.force_legacy_barcode && <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[9px] font-black uppercase tracking-widest">Forced legacy return</span>}
                             <p className="text-[10px] text-gray-500 mt-1">Product price: ৳{Number(item.listed_unit_price || 0).toLocaleString()} • Sold at: ৳{Number(item.sold_at_unit_price || 0).toLocaleString()} • Item discount: ৳{Number(item.item_discount_amount || 0).toLocaleString()} • Order discount: ৳{Number(item.order_discount_amount || 0).toLocaleString()}</p>
                           </div>
                         </div>

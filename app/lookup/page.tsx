@@ -1994,6 +1994,7 @@ export default function LookupPage() {
           unit_price: Number(item.manual_sold_at_price ?? item.unit_price ?? item.sold_at_unit_price ?? 0),
           manual_sold_at_price: Number(item.manual_sold_at_price ?? item.unit_price ?? item.sold_at_unit_price ?? 0),
           total_price: Number(item.total_price ?? ((item.manual_sold_at_price ?? item.unit_price ?? item.sold_at_unit_price ?? 0) * item.quantity)),
+          ...(item.force_legacy_barcode ? { force_legacy_barcode: true, legacy_barcode: item.legacy_barcode || item.barcode } : {}),
         })),
         customer_notes: returnData.customerNotes || 'Initiated from lookup page',
       };
@@ -2073,6 +2074,7 @@ export default function LookupPage() {
             barcode_id: item.product_barcode_id, // Compatibility with controller
             return_reason: 'other', // Default reason
             quality_check_passed: true, // Defaulting for quick exchange
+            ...(item.force_legacy_barcode ? { force_legacy_barcode: true, legacy_barcode: item.legacy_barcode || item.barcode } : {}),
           };
         }),
         replacementProducts: exchangeData.replacementProducts.map((p: any) => ({
@@ -4073,6 +4075,7 @@ export default function LookupPage() {
                 order={selectedOrderForAction}
                 onReturn={handleReturnSubmit}
                 enableMobileScan
+                allowForceLegacyBarcode
               />
             )}
             {showExchangeModal && selectedOrderForAction && (
@@ -4081,6 +4084,7 @@ export default function LookupPage() {
                 onClose={() => setShowExchangeModal(false)}
                 onExchange={handleExchangeSubmit}
                 enableMobileScan
+                allowForceLegacyBarcode
               />
             )}
 
