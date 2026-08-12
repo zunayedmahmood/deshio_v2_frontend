@@ -232,7 +232,7 @@ export default function BarcodeRelabelPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Temporary Barcode Relabeling</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 max-w-3xl">
-            Generate one or more floating replacement barcodes for existing physical units. Relabelling creates new scan identities only; it does not increase stock. When the batch stock reaches zero, leftover barcode identities in that relabel pool are automatically voided by the backend.
+            Generate any number of floating scan aliases while this batch still has physical stock. Alias count is independent from physical quantity and never increases stock. When the batch reaches zero, every unused original/relabel identity left in that batch is automatically retired.
           </p>
         </div>
 
@@ -315,7 +315,7 @@ export default function BarcodeRelabelPage() {
 
             <label className="space-y-1 block">
               <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Notes</span>
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Example: sticker lost from one physical unit; stock should remain unchanged" rows={3} className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Example: print extra scan aliases for this batch; physical stock must remain unchanged" rows={3} className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-4 py-3 text-sm" />
             </label>
 
             <button

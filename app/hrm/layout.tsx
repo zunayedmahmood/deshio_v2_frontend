@@ -74,8 +74,6 @@ function HRMLayoutContent({ children }: { children: React.ReactNode }) {
                   background: rgb(31 41 55) !important;
                   border-color: rgb(55 65 81) !important;
                 }
-                .hrm-shell .text-white { color: rgb(17 24 39) !important; }
-                .dark .hrm-shell .text-white { color: rgb(249 250 251) !important; }
                 .hrm-shell .text-main { color: rgb(17 24 39) !important; }
                 .dark .hrm-shell .text-main { color: rgb(243 244 246) !important; }
                 .hrm-shell .text-sub { color: rgb(75 85 99) !important; }

@@ -1668,11 +1668,19 @@ export default function LookupPage() {
    * Tracking endpoints often omit pricing, but batches API has it.
    */
   const enrichBarcodeHistoryWithBatchPrices = async (bd: any) => {
+    const enriched = {
+      ...bd,
+      current_location: bd?.current_location ? {
+        ...bd.current_location,
+        batch: bd.current_location.batch ? { ...bd.current_location.batch } : bd.current_location.batch,
+      } : bd?.current_location,
+    };
+
     try {
-      const loc = bd?.current_location;
+      const loc = enriched?.current_location;
       const batchId =
-        Number(loc?.batch?.id || loc?.batch_id || loc?.batchId || bd?.batch_id || bd?.batchId || null) || null;
-      if (!batchId) return bd;
+        Number(loc?.batch?.id || loc?.batch_id || loc?.batchId || enriched?.batch_id || enriched?.batchId || null) || null;
+      if (!batchId) return enriched;
 
       // normalize keys if the backend sent sell_price instead of selling_price
       if (loc?.batch) {
@@ -1682,28 +1690,27 @@ export default function LookupPage() {
 
       const existing = extractBatchPrices(loc?.batch || loc);
       if (existing.cost != null && existing.sell != null) {
-        // Already have complete pricing. Keep it.
         if (loc?.batch) {
           if (loc.batch.cost_price == null && existing.cost != null) loc.batch.cost_price = existing.cost;
           if (loc.batch.selling_price == null && existing.sell != null) loc.batch.selling_price = existing.sell;
         }
-        return bd;
+        return enriched;
       }
 
       const res = await batchService.getBatch(batchId);
       if (res?.success && res?.data) {
         const b: any = res.data;
-        bd.current_location = bd.current_location || {};
-        bd.current_location.batch = bd.current_location.batch || {};
-        bd.current_location.batch.id = b.id;
-        bd.current_location.batch.batch_number = bd.current_location.batch.batch_number || b.batch_number;
-        bd.current_location.batch.cost_price = b.cost_price ?? bd.current_location.batch.cost_price;
-        bd.current_location.batch.selling_price = (b.sell_price ?? b.selling_price) ?? bd.current_location.batch.selling_price;
+        enriched.current_location = enriched.current_location || {};
+        enriched.current_location.batch = enriched.current_location.batch || {};
+        enriched.current_location.batch.id = b.id;
+        enriched.current_location.batch.batch_number = enriched.current_location.batch.batch_number || b.batch_number;
+        enriched.current_location.batch.cost_price = b.cost_price ?? enriched.current_location.batch.cost_price;
+        enriched.current_location.batch.selling_price = (b.sell_price ?? b.selling_price) ?? enriched.current_location.batch.selling_price;
       }
     } catch {
       // non-blocking
     }
-    return bd;
+    return enriched;
   };
 
 
@@ -2224,10 +2231,17 @@ export default function LookupPage() {
         }
         return;
       }
-      const enriched = await enrichBarcodeHistoryWithBatchPrices(res.data as any);
-      setBarcodeData(enriched as any);
-      setBarcodeProductImageUrl(toAbsoluteAssetUrl((enriched as any)?.product?.image_url));
-      void resolveBarcodePurchaseInfo(code, enriched as any);
+      const immediate = res.data as any;
+      // Movement history is the primary lookup result. Render it immediately;
+      // optional price/PO enrichment must never hold the barcode timeline hostage.
+      setBarcodeData(immediate);
+      setBarcodeProductImageUrl(toAbsoluteAssetUrl(immediate?.product?.image_url));
+      void resolveBarcodePurchaseInfo(code, immediate);
+      void enrichBarcodeHistoryWithBatchPrices(immediate).then((enriched) => {
+        setBarcodeData((current: any) =>
+          current?.barcode === immediate?.barcode ? enriched : current
+        );
+      });
     } catch (err: any) {
       const message = err?.response?.data?.message || err?.message || 'Failed to fetch barcode history';
       const lockDetection = readOpenOrderLockError(err, code);
@@ -2343,12 +2357,18 @@ export default function LookupPage() {
         setError('Barcode not found');
         return;
       }
-      const bd = await enrichBarcodeHistoryWithBatchPrices(res.data as any);
+      const bd = res.data as any;
       setBatchBarcodeData(bd);
+      void enrichBarcodeHistoryWithBatchPrices(bd).then((enriched) => {
+        setBatchBarcodeData((current: any) =>
+          current?.barcode === bd?.barcode ? enriched : current
+        );
+      });
 
       if (isSoldFromCurrentLocation(bd.current_location, bd.history)) {
-        const ord = await resolveOrderFromBarcodeData(bd);
-        setBatchResolvedOrder(ord);
+        void resolveOrderFromBarcodeData(bd).then((ord) => {
+          setBatchResolvedOrder(ord);
+        });
       }
     } catch (e: any) {
       setError(e?.message || 'Failed to load barcode details');
