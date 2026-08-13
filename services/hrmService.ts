@@ -3,11 +3,35 @@ import axiosInstance from '@/lib/axios';
 export interface AttendancePolicy {
   id: number;
   store_id: number;
-  shift_start: string;
-  shift_end: string;
-  late_grace_period: number;
-  early_exit_grace_period: number;
-  weekend_days: string[];
+  shift_start?: string;
+  shift_end?: string;
+  late_grace_period?: number;
+  early_exit_grace_period?: number;
+  weekend_days?: string[];
+  mode?: string;
+  fixed_days_off?: string[];
+  fixed_start_time?: string | null;
+  fixed_end_time?: string | null;
+  late_fee_per_minute?: number;
+  overtime_rate_per_hour?: number;
+  grace_period_minutes?: number;
+  notes?: string | null;
+}
+
+export interface EmployeeSchedule {
+  id: number;
+  employee_id: number;
+  store_id: number;
+  start_time: string;
+  end_time: string;
+  effective_from: string;
+  effective_to?: string | null;
+  duty_mode?: 'all_days' | 'weekly_pattern' | 'selected_dates' | string;
+  weekly_days?: string[] | null;
+  duty_dates?: string[] | null;
+  notes?: string | null;
+  is_active?: boolean;
+  employee?: { id: number; name: string; employee_code?: string | null; store_id?: number };
 }
 
 export interface AttendanceRecord {
@@ -107,6 +131,27 @@ const hrmService = {
 
   async upsertStorePolicy(data: any): Promise<any> {
     const response = await axiosInstance.post('/hrm/attendance/policy', data);
+    return response.data;
+  },
+
+  async getSchedules(params: { store_id: number; employee_id?: number; date?: string }): Promise<EmployeeSchedule[]> {
+    const response = await axiosInstance.get('/hrm/attendance/schedules', { params });
+    return response.data.success && Array.isArray(response.data.data) ? response.data.data : [];
+  },
+
+  async assignSchedule(data: {
+    employee_id: number;
+    store_id: number;
+    start_time: string;
+    end_time: string;
+    effective_from?: string;
+    effective_to?: string;
+    duty_mode?: 'all_days' | 'weekly_pattern' | 'selected_dates';
+    weekly_days?: string[];
+    duty_dates?: string[];
+    notes?: string;
+  }): Promise<any> {
+    const response = await axiosInstance.post('/hrm/attendance/schedules', data);
     return response.data;
   },
 

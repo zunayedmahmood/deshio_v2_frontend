@@ -131,7 +131,6 @@ export default function POSPage() {
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
 
   // User Info
-  const [userRole, setUserRole] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
 
   // Cart
@@ -712,6 +711,11 @@ export default function POSPage() {
     // Validation
     if (!selectedOutlet) {
       showToast('Please select an outlet', 'error');
+      return;
+    }
+
+    if ([cashPaid, cardPaid, bkashPaid, nagadPaid].some((amount) => amount < 0)) {
+      showToast('Paid amounts cannot be negative', 'error');
       return;
     }
     if (cart.length === 0) {
@@ -1525,7 +1529,6 @@ export default function POSPage() {
     const storeId = localStorage.getItem('storeId') || '';
     const name = localStorage.getItem('userName') || '';
 
-    setUserRole(role);
     setUserName(name);
 
     fetchOutlets(role, storeId);
@@ -1643,7 +1646,7 @@ export default function POSPage() {
                   </label>
                   <input
                     type="text"
-                    value={userRole === 'store_manager' ? userName : 'Admin'}
+                    value={(user as any)?.name || userName || 'Unknown User'}
                     readOnly
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
@@ -1747,7 +1750,7 @@ export default function POSPage() {
                   <select
                     value={selectedOutlet}
                     onChange={(e) => setSelectedOutlet(e.target.value)}
-                    disabled={!canSelectStore || role === 'branch-manager'}
+                    disabled={!cart.some((item) => item.isDefective) && defectItems.length === 0 && (!canSelectStore || role === 'branch-manager')}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="">Choose an Outlet</option>
@@ -2345,7 +2348,9 @@ export default function POSPage() {
                             type="number"
                             value={cashPaid === 0 ? '' : cashPaid}
                             placeholder="0"
-                            onChange={(e) => setCashPaid(e.target.value === '' ? 0 : Number(e.target.value))}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => setCashPaid(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0))}
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
@@ -2358,7 +2363,9 @@ export default function POSPage() {
                             type="number"
                             value={cardPaid === 0 ? '' : cardPaid}
                             placeholder="0"
-                            onChange={(e) => setCardPaid(e.target.value === '' ? 0 : Number(e.target.value))}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => setCardPaid(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0))}
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
@@ -2381,7 +2388,9 @@ export default function POSPage() {
                             type="number"
                             value={bkashPaid === 0 ? '' : bkashPaid}
                             placeholder="0"
-                            onChange={(e) => setBkashPaid(e.target.value === '' ? 0 : Number(e.target.value))}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => setBkashPaid(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0))}
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />
@@ -2404,7 +2413,9 @@ export default function POSPage() {
                             type="number"
                             value={nagadPaid === 0 ? '' : nagadPaid}
                             placeholder="0"
-                            onChange={(e) => setNagadPaid(e.target.value === '' ? 0 : Number(e.target.value))}
+                            min={0}
+                            step="0.01"
+                            onChange={(e) => setNagadPaid(e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0))}
                             disabled={isProcessing || isInstallment}
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                           />

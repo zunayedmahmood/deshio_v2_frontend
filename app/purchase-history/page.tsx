@@ -542,7 +542,7 @@ export default function PurchaseHistoryPage() {
         successMessage += `Refund paid now: ৳${Number(settlement.refund_paid).toLocaleString()}\n`;
       }
       if (settlement.remaining_refund_due > 0) {
-        successMessage += `Remaining store credit/refund due: ৳${Number(settlement.remaining_refund_due).toLocaleString()}\n`;
+        successMessage += `Remaining refund due: ৳${Number(settlement.remaining_refund_due).toLocaleString()}\n`;
       }
 
       alert(successMessage);

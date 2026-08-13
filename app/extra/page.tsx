@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
-import { Search, Barcode, User, Package, Trash2, ShoppingCart, AlertCircle, StoreIcon, ChevronDown, ChevronUp, Calendar, MapPin, Image as ImageIcon, Truck, RotateCcw, X, DollarSign } from 'lucide-react';
+import { Search, Barcode, User, Package, Trash2, ShoppingCart, AlertCircle, StoreIcon, ChevronDown, ChevronUp, Calendar, MapPin, Image as ImageIcon, Truck, X, DollarSign } from 'lucide-react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import SellDefectModal from '@/components/SellDefectModal';
@@ -39,6 +39,10 @@ interface DefectItem {
   store?: string;
   storeId?: number;
   vendor?: string;
+  vendorId?: number;
+  vendorName?: string;
+  vendorPhone?: string;
+  vendorEmail?: string;
   image?: string;
   batchId?: number;
   barcodeStatus?: string;
@@ -49,6 +53,14 @@ interface DefectSaleItem extends DefectItem {
   sellingPrice: number;
   storeId?: number;
 }
+
+type PaginationMeta = {
+  currentPage: number;
+  lastPage: number;
+  total: number;
+};
+
+const EXTRA_PAGE_SIZE = 10;
 
 const formatPrice = (price: number | undefined | null): string => {
   if (price === undefined || price === null) return '0.00';
@@ -61,6 +73,12 @@ export default function DefectsPage() {
   const { darkMode, setDarkMode } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [defects, setDefects] = useState<DefectItem[]>([]);
+  const [extraPage, setExtraPage] = useState(1);
+  const [soldPage, setSoldPage] = useState(1);
+  const [returnedPage, setReturnedPage] = useState(1);
+  const [extraPagination, setExtraPagination] = useState<PaginationMeta>({ currentPage: 1, lastPage: 1, total: 0 });
+  const [soldPagination, setSoldPagination] = useState<PaginationMeta>({ currentPage: 1, lastPage: 1, total: 0 });
+  const [returnedPagination, setReturnedPagination] = useState<PaginationMeta>({ currentPage: 1, lastPage: 1, total: 0 });
   const [stores, setStores] = useState<Store[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -116,12 +134,21 @@ export default function DefectsPage() {
   useEffect(() => {
     fetchStores();
     fetchVendors();
-    fetchDefects();
   }, []);
 
   useEffect(() => {
+    setExtraPage(1);
+    setSoldPage(1);
+    setReturnedPage(1);
+  }, [selectedStore, selectedVendor, filterType]);
+
+  useEffect(() => {
     fetchDefects();
-  }, [selectedStore, selectedVendor]);
+  }, [selectedStore, selectedVendor, filterType, extraPage, soldPage, returnedPage]);
+
+  useEffect(() => {
+    setSelectedDefectsForVendor([]);
+  }, [selectedStore, selectedVendor, extraPage]);
 
   const fetchStores = async () => {
     try {
@@ -146,93 +173,109 @@ export default function DefectsPage() {
     }
   };
 
+  const transformDefect = (d: DefectiveProduct): DefectItem => {
+    let rawImage: string | undefined = undefined;
+    if (d.defect_images && Array.isArray(d.defect_images) && d.defect_images.length > 0) {
+      rawImage = d.defect_images[0];
+    } else if (d.product?.primary_image_url) {
+      rawImage = d.product.primary_image_url;
+    } else if (d.product?.images && d.product.images.length > 0) {
+      rawImage = d.product.images[0].image_url;
+    } else if (d.barcode?.product?.primary_image_url) {
+      rawImage = d.barcode.product.primary_image_url;
+    } else if (d.barcode?.product?.images && d.barcode.product.images.length > 0) {
+      rawImage = d.barcode.product.images[0].image_url;
+    }
+
+    const parsePrice = (value: any): number | undefined => {
+      if (value === null || value === undefined) return undefined;
+      const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+
+    let mappedStatus: 'pending' | 'approved' | 'sold' | 'returned_to_vendor';
+    if (d.status === 'available_for_sale') mappedStatus = 'approved';
+    else if (d.status === 'sold') mappedStatus = 'sold';
+    else if (d.status === 'returned_to_vendor') mappedStatus = 'returned_to_vendor';
+    else mappedStatus = 'pending';
+
+    const originVendor = d.origin_vendor;
+    const fallbackVendor = d.product?.vendor || d.vendor;
+    const vendorId = Number(originVendor?.id || fallbackVendor?.id || 0) || undefined;
+    const vendorName = originVendor?.name || fallbackVendor?.name;
+
+    return {
+      id: d.id.toString(),
+      barcode: d.barcode?.barcode || '',
+      productId: d.product_id,
+      productName: d.product?.name || 'Unknown Product',
+      status: mappedStatus,
+      addedBy: d.identifiedBy?.name || 'System',
+      addedAt: d.identified_at,
+      originalSellingPrice: parsePrice(d.original_price),
+      costPrice: parsePrice(
+        d.cost_price ??
+        d.vendor_return_value ??
+        d.metadata?.vendor_return_unit_cost ??
+        d.metadata?.cost_price_snapshot ??
+        d.batch?.cost_price ??
+        d.barcode?.batch?.cost_price ??
+        d.product?.cost_price
+      ),
+      costPriceSource: d.cost_price_source || d.metadata?.vendor_return_cost_source,
+      vendorReturnValue: parsePrice(d.vendor_return_value),
+      batchSellingPrice: parsePrice(d.batch?.sell_price ?? d.barcode?.batch?.sell_price),
+      returnReason: d.defect_description,
+      store: d.store?.name,
+      storeId: d.store_id,
+      vendor: vendorName,
+      vendorId,
+      vendorName,
+      vendorPhone: originVendor?.phone || fallbackVendor?.phone,
+      vendorEmail: originVendor?.email || fallbackVendor?.email,
+      image: rawImage ? toAbsoluteAssetUrl(rawImage) : undefined,
+      sellingPrice: parsePrice(d.suggested_selling_price ?? d.actual_selling_price),
+      batchId: d.product_batch_id,
+      barcodeStatus: d.barcode?.current_status,
+    };
+  };
+
+  const toPaginationMeta = (page: any): PaginationMeta => ({
+    currentPage: Number(page?.current_page || 1),
+    lastPage: Math.max(1, Number(page?.last_page || 1)),
+    total: Number(page?.total || 0),
+  });
+
   const fetchDefects = async () => {
     try {
-      const filters: any = {
-        per_page: -1
-      };
-      if (selectedStore !== 'all') {
-        filters.store_id = parseInt(selectedStore);
-      }
-      if (selectedVendor !== 'all') {
-        filters.vendor_id = parseInt(selectedVendor);
-      }
-      
-      const result = await defectIntegrationService.getDefectiveProducts(filters);
-      
-      const defectiveData = result.data?.data || result.data || [];
-      
-      const transformedDefects: DefectItem[] = defectiveData.map((d: DefectiveProduct) => {
-        let rawImage: string | undefined = undefined;
-        if (d.defect_images && Array.isArray(d.defect_images) && d.defect_images.length > 0) {
-          rawImage = d.defect_images[0];
-        } else if (d.product?.primary_image_url) {
-          rawImage = d.product.primary_image_url;
-        } else if (d.product?.images && d.product.images.length > 0) {
-          rawImage = d.product.images[0].image_url;
-        } else if (d.barcode?.product?.primary_image_url) {
-          rawImage = d.barcode.product.primary_image_url;
-        } else if (d.barcode?.product?.images && d.barcode.product.images.length > 0) {
-          rawImage = d.barcode.product.images[0].image_url;
-        }
+      const baseFilters: any = { per_page: EXTRA_PAGE_SIZE };
+      if (selectedStore !== 'all') baseFilters.store_id = parseInt(selectedStore);
+      if (selectedVendor !== 'all') baseFilters.vendor_id = parseInt(selectedVendor);
 
-        const imageUrl = rawImage ? toAbsoluteAssetUrl(rawImage) : undefined;
+      const activeExtraFilters = filterType === 'all' ? {} : { extra_type: filterType };
+      const [extraResult, soldResult, returnedResult] = await Promise.all([
+        defectIntegrationService.getDefectiveProducts({ ...baseFilters, ...activeExtraFilters, status: 'identified,inspected,available_for_sale', page: extraPage }),
+        defectIntegrationService.getDefectiveProducts({ ...baseFilters, status: 'sold', page: soldPage }),
+        defectIntegrationService.getDefectiveProducts({ ...baseFilters, status: 'returned_to_vendor', page: returnedPage }),
+      ]);
 
-        const parsePrice = (value: any): number | undefined => {
-          if (value === null || value === undefined) return undefined;
-          const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
-          return isNaN(parsed) ? undefined : parsed;
-        };
+      const extraMeta = toPaginationMeta(extraResult);
+      const soldMeta = toPaginationMeta(soldResult);
+      const returnedMeta = toPaginationMeta(returnedResult);
+      setExtraPagination(extraMeta);
+      setSoldPagination(soldMeta);
+      setReturnedPagination(returnedMeta);
 
-        let mappedStatus: 'pending' | 'approved' | 'sold' | 'returned_to_vendor';
-        if (d.status === 'available_for_sale') {
-          mappedStatus = 'approved';
-        } else if (d.status === 'sold') {
-          mappedStatus = 'sold';
-        } else if (d.status === 'returned_to_vendor') {
-          mappedStatus = 'returned_to_vendor';
-        } else if (d.status === 'identified' || d.status === 'inspected') {
-          mappedStatus = 'pending';
-        } else {
-          mappedStatus = 'pending';
-        }
+      if (extraPage > extraMeta.lastPage) setExtraPage(extraMeta.lastPage);
+      if (soldPage > soldMeta.lastPage) setSoldPage(soldMeta.lastPage);
+      if (returnedPage > returnedMeta.lastPage) setReturnedPage(returnedMeta.lastPage);
 
-        return {
-          id: d.id.toString(),
-          barcode: d.barcode?.barcode || '',
-          productId: d.product_id,
-          productName: d.product?.name || 'Unknown Product',
-          status: mappedStatus,
-          addedBy: d.identifiedBy?.name || 'System',
-          addedAt: d.identified_at,
-          originalSellingPrice: parsePrice(d.original_price),
-          costPrice: parsePrice(
-            d.cost_price ??
-            d.vendor_return_value ??
-            d.metadata?.vendor_return_unit_cost ??
-            d.metadata?.cost_price_snapshot ??
-            d.batch?.cost_price ??
-            d.barcode?.batch?.cost_price ??
-            d.product?.cost_price
-          ),
-          costPriceSource: d.cost_price_source || d.metadata?.vendor_return_cost_source,
-          vendorReturnValue: parsePrice(d.vendor_return_value),
-          batchSellingPrice: parsePrice(
-            d.batch?.sell_price ??
-            d.barcode?.batch?.sell_price
-          ),
-          returnReason: d.defect_description,
-          store: d.store?.name,
-          storeId: d.store_id,
-          vendor: d.product?.vendor?.name || d.vendor?.name,
-          image: imageUrl,
-          sellingPrice: parsePrice(d.suggested_selling_price),
-          batchId: d.product_batch_id,
-          barcodeStatus: d.barcode?.current_status,
-        };
-      });
-      
-      setDefects(transformedDefects);
+      const rows = [
+        ...(Array.isArray(extraResult?.data) ? extraResult.data : []),
+        ...(Array.isArray(soldResult?.data) ? soldResult.data : []),
+        ...(Array.isArray(returnedResult?.data) ? returnedResult.data : []),
+      ];
+      setDefects(rows.map(transformDefect));
     } catch (error: any) {
       console.error('Error fetching defects:', error);
       setErrorMessage(error.message || 'Failed to fetch defects');
@@ -587,46 +630,6 @@ export default function DefectsPage() {
     }
   };
 
-  const handleRestoreToInventory = async (defect: DefectItem) => {
-    const confirmed = confirm(
-      `Restore ${defect.productName} (${defect.barcode}) to regular inventory?\n\n` +
-      'This will remove the defect/used/employee-use marking and make the barcode available for normal POS, online orders, packing, and product search again.'
-    );
-
-    if (!confirmed) return;
-
-    setLoading(true);
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    try {
-      await defectiveProductService.restoreToInventory(parseInt(defect.id), {
-        restore_notes: 'Defect marking reverted from Extra Items panel',
-      });
-
-      await fetchDefects();
-      setSelectedDefectsForVendor(prev => prev.filter(id => id !== defect.id));
-      setSuccessMessage('Defect marking removed. Product is now available for normal sale.');
-      setToast({
-        show: true,
-        message: 'Product restored to regular inventory',
-        type: 'success',
-      });
-      setTimeout(() => setSuccessMessage(''), 4000);
-    } catch (error: any) {
-      console.error('Error restoring item:', error);
-      const message = error.response?.data?.message || error.message || 'Error restoring item';
-      setErrorMessage(message);
-      setToast({
-        show: true,
-        message: 'Failed to restore product',
-        type: 'error',
-      });
-      setTimeout(() => setErrorMessage(''), 7000);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleDefectSelection = (defectId: string) => {
     setSelectedDefectsForVendor(prev =>
@@ -720,33 +723,35 @@ export default function DefectsPage() {
     setExpandedDefect(expandedDefect === defectId ? null : defectId);
   };
 
-  const pendingDefects = defects.filter(d => {
-    const isPending = d.status === 'pending' || d.status === 'approved';
-    if (!isPending) return false;
-    
-    if (filterType === 'all') return true;
-    
-    const hasUsedTag = d.returnReason?.includes('USED_ITEM');
-    const hasEmployeeUseTag = d.returnReason?.includes('EMPLOYEE_USE') || d.barcodeStatus === 'employee_use';
-    // An item is a defect if:
-    // 1. It has "DEFECT" tag in description, OR
-    // 2. It has a description that's not only a usage tag, OR  
-    // 3. It doesn't have usage tags and has some description
-    const hasDefectTag = d.returnReason?.includes('DEFECT') || 
-                         (d.returnReason &&
-                          !d.returnReason.startsWith('USED_ITEM') &&
-                          !d.returnReason.startsWith('EMPLOYEE_USE') &&
-                          d.returnReason.trim().length > 0);
-    
-    if (filterType === 'used') return hasUsedTag;
-    if (filterType === 'employee_use') return hasEmployeeUseTag;
-    if (filterType === 'defects') return hasDefectTag;
-    
-    return true;
-  });
+  const pendingDefects = defects.filter(d => d.status === 'pending' || d.status === 'approved');
   
   const soldDefects = defects.filter(d => d.status === 'sold');
   const returnedDefects = defects.filter(d => d.status === 'returned_to_vendor');
+
+  const renderPagination = (meta: PaginationMeta, page: number, setPage: (page: number) => void) => {
+    if (meta.lastPage <= 1) return null;
+    return (
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
+        <button
+          type="button"
+          onClick={() => setPage(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+        >
+          Previous
+        </button>
+        <span>Page {meta.currentPage} of {meta.lastPage} • {meta.total} items</span>
+        <button
+          type="button"
+          onClick={() => setPage(Math.min(meta.lastPage, page + 1))}
+          disabled={page >= meta.lastPage}
+          className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className={darkMode ? 'dark' : ''}>
@@ -1017,7 +1022,7 @@ export default function DefectsPage() {
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-semibold text-gray-900 dark:text-white">
-                          Extra Items ({pendingDefects.length})
+                          Extra Items ({extraPagination.total})
                         </h3>
                         <div className="flex items-center gap-2">
                           {selectedDefectsForVendor.length > 0 && (
@@ -1222,14 +1227,6 @@ export default function DefectsPage() {
                                       <ShoppingCart className="w-4 h-4" />
                                     </button>
                                     <button
-                                      onClick={() => handleRestoreToInventory(defect)}
-                                      disabled={loading}
-                                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors disabled:opacity-50"
-                                      title="Restore to regular inventory"
-                                    >
-                                      <RotateCcw className="w-4 h-4" />
-                                    </button>
-                                    <button
                                       onClick={() => handleRemove(defect.id)}
                                       className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                       title="Delete defect marking and restore to stock"
@@ -1345,12 +1342,14 @@ export default function DefectsPage() {
                     </div>
                   </div>
 
+                  {renderPagination(extraPagination, extraPage, setExtraPage)}
+
                   {/* Sold Items */}
-                  {soldDefects.length > 0 && (
+                  {soldPagination.total > 0 && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                         <h3 className="font-semibold text-gray-900 dark:text-white">
-                          Sold Items ({soldDefects.length})
+                          Sold Items ({soldPagination.total})
                         </h3>
                       </div>
 
@@ -1372,16 +1371,17 @@ export default function DefectsPage() {
                           </div>
                         ))}
                       </div>
+                      {renderPagination(soldPagination, soldPage, setSoldPage)}
                     </div>
                   )}
 
                   {/* Returned to Vendor Items */}
-                  {returnedDefects.length > 0 && (
+                  {returnedPagination.total > 0 && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                         <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                           <Truck className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                          Returned to Vendor ({returnedDefects.length})
+                          Returned to Vendor ({returnedPagination.total})
                         </h3>
                       </div>
 
@@ -1417,6 +1417,7 @@ export default function DefectsPage() {
                           </div>
                         ))}
                       </div>
+                      {renderPagination(returnedPagination, returnedPage, setReturnedPage)}
                     </div>
                   )}
                 </div>

@@ -113,7 +113,7 @@ export default function ReturnToVendorModal({
     }
 
     if (inferredVendorId && Number(selectedVendor) !== inferredVendorId) {
-      alert('The return vendor must match the selected product vendor.');
+      alert('The return vendor must match the original purchase-order vendor.');
       return;
     }
 
@@ -228,8 +228,8 @@ export default function ReturnToVendorModal({
                   {hasMixedVendors
                     ? 'Please select products from one vendor only. Return-to-vendor should be processed vendor-wise.'
                     : inferredVendorId
-                      ? 'The return vendor is taken from the product/vendor record and locked for this return.'
-                      : 'Select the vendor manually only if this product record does not have a vendor assigned.'}
+                      ? 'The return vendor is taken from the original purchase order when available and locked for this return.'
+                      : 'Select the vendor manually only when Deshio cannot trace an original purchase-order vendor for this item.'}
                 </p>
               </div>
             </div>
@@ -320,7 +320,7 @@ export default function ReturnToVendorModal({
             )}
             {inferredVendorId && !hasMixedVendors && (
               <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
-                Vendor is preselected from the product record, so staff cannot accidentally return it to another vendor.
+                Vendor is preselected from the original purchase order, so staff cannot accidentally return it to another vendor.
               </p>
             )}
             {hasMixedVendors && (

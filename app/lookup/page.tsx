@@ -2089,6 +2089,7 @@ export default function LookupPage() {
             product_batch_id: item.product_batch_id || originalItem?.product_batch_id || originalItem?.batch_id,
             quantity,
             unit_price: unitPrice,
+            manual_sold_at_price: unitPrice,
             total_price: Number(item.total_price ?? unitPrice * quantity),
             product_barcode_id: item.product_barcode_id,
             barcode_id: item.product_barcode_id, // Preserve exact selected identity on Force retry; unknown legacy entries remain undefined.

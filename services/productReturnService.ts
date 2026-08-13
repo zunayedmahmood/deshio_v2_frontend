@@ -199,7 +199,7 @@ class ProductReturnService {
     return response.data;
   }
 
-  async receivePendingExchangeReturn(id: number, data: { barcodes: string[]; quality_check_passed?: boolean; quality_check_notes?: string }) {
+  async receivePendingExchangeReturn(id: number, data: { barcodes?: string[]; forced_barcodes?: Array<{ barcode: string; order_item_id: number }>; quality_check_passed?: boolean; quality_check_notes?: string }) {
     const response = await axiosInstance.post(`/exchange/${id}/receive-return`, data);
     return response.data;
   }

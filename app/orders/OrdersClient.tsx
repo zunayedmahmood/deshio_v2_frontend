@@ -394,7 +394,7 @@ export default function OrdersDashboard() {
   const [orderTypeFilter, setOrderTypeFilterRaw] = useState('All Types');
 
   // ✅ Separate filters
-  const [orderStatusFilter, setOrderStatusFilterRaw] = useState('pending');
+  const [orderStatusFilter, setOrderStatusFilterRaw] = useState('pending_assignment');
 
   const [paymentStatusFilter, setPaymentStatusFilterRaw] = useState('All Payment Status');
 
@@ -459,7 +459,7 @@ export default function OrdersDashboard() {
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  // Default to Pending in Online Orders (as requested) for faster workflow.
+  // Default to Pending Assignment so newly created online orders are shown first.
   // Keeps Installments on "All" because installment statuses vary.
   const didInitQuickDefaultsRef = useRef(false);
   useEffect(() => {
@@ -467,13 +467,13 @@ export default function OrdersDashboard() {
     didInitQuickDefaultsRef.current = true;
 
     if (initialViewMode === 'online') {
-      setOrderStatusFilter('pending');
+      setOrderStatusFilter('pending_assignment');
       // Preselect today, social_commerce, and pathao as requested
       setDateFilter(getTodayFilterValue());
       setOrderTypeFilter('social_commerce');
       setCourierFilter('pathao');
     } else {
-      setOrderStatusFilter('pending');
+      setOrderStatusFilter('All Order Status');
     }
   }, [initialViewMode]);
 
@@ -989,7 +989,9 @@ export default function OrdersDashboard() {
         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
         : s === 'shipped' || s === 'pending_assignment'
           ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-          : s === 'processing' || s === 'confirmed' || s === 'ready_for_pickup' || s === 'assigned_to_store'
+          : s === 'assigned_to_store'
+            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+            : s === 'processing' || s === 'confirmed' || s === 'ready_for_pickup'
             ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
             : s === 'cancelled'
               ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
@@ -1588,6 +1590,8 @@ export default function OrdersDashboard() {
       { label: 'Assigned to Store', value: 'assigned_to_store' },
       { label: 'Service Only', value: 'service_only' },
       { label: 'Confirmed', value: 'confirmed' },
+      { label: 'Shipped', value: 'shipped' },
+      { label: 'Delivered', value: 'delivered' },
       { label: 'Cancelled', value: 'cancelled' },
       { label: 'Returned', value: 'returned' },
       { label: 'All', value: 'All Order Status' },
@@ -4198,7 +4202,7 @@ When the courier brings back the original product, open this order/lookup and cl
                   onClick={() => {
                     setViewMode('online');
                     setOrderTypeFilter('All Types');
-                    setOrderStatusFilter('pending');
+                    setOrderStatusFilter('pending_assignment');
                     setPaymentStatusFilter('All Payment Status');
                     setCourierFilter('All Couriers');
                     setSearch('');
@@ -5519,8 +5523,7 @@ When the courier brings back the original product, open this order/lookup and cl
                     e.stopPropagation();
                     openReturnModal(order as any);
                   }}
-                  disabled={Boolean(order.hasActiveReturn)}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
                 >
                   <RotateCcw className="h-5 w-5 flex-shrink-0" />
                   <span>Initiate Return</span>
@@ -5530,8 +5533,7 @@ When the courier brings back the original product, open this order/lookup and cl
                     e.stopPropagation();
                     openExchangeModal(order as any);
                   }}
-                  disabled={Boolean(order.hasActiveReturn)}
-                  className="w-full px-4 py-3 text-left text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 text-left text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
                 >
                   <ArrowLeftRight className="h-5 w-5 flex-shrink-0" />
                   <span>Request Exchange</span>

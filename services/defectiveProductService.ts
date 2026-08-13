@@ -31,6 +31,7 @@ export interface DefectiveProduct {
   sale_notes?: string;
   disposal_notes?: string;
   vendor_notes?: string;
+  metadata?: Record<string, any>;
   returned_at?: string;
   disposed_at?: string;
   created_at: string;
@@ -44,6 +45,8 @@ export interface DefectiveProduct {
   soldBy?: any;
   order?: any;
   vendor?: any;
+  origin_vendor?: { id: number; name: string; phone?: string; email?: string };
+  origin_purchase_order?: { id: number; po_number: string };
 }
 
 export type DefectType = 
@@ -67,11 +70,12 @@ export type DefectiveStatus =
   | 'returned_to_vendor';
 
 export interface DefectiveProductFilters {
-  status?: DefectiveStatus;
+  status?: DefectiveStatus | string;
   store_id?: number;
   vendor_id?: number;
   severity?: Severity;
   defect_type?: DefectType;
+  extra_type?: 'defects' | 'used' | 'employee_use';
   from_date?: string;
   to_date?: string;
   search?: string;

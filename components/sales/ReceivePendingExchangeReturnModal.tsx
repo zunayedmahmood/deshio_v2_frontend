@@ -12,6 +12,8 @@ export default function ReceivePendingExchangeReturnModal({ ret, onClose, onDone
   const [barcodeText, setBarcodeText] = useState('');
   const [qualityPassed, setQualityPassed] = useState(true);
   const [notes, setNotes] = useState('');
+  const [forceOpenByItem, setForceOpenByItem] = useState<Record<number, boolean>>({});
+  const [forcedBarcodeTextByItem, setForcedBarcodeTextByItem] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -25,8 +27,16 @@ export default function ReceivePendingExchangeReturnModal({ ret, onClose, onDone
       .map((value) => value.trim())
       .filter(Boolean);
 
-    if (barcodes.length === 0) {
-      setError('Scan or enter at least one returned barcode.');
+    const forced_barcodes = Object.entries(forcedBarcodeTextByItem).flatMap(([orderItemId, raw]) =>
+      raw
+        .split(/[\n,\s]+/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((barcode) => ({ barcode, order_item_id: Number(orderItemId) }))
+    );
+
+    if (barcodes.length === 0 && forced_barcodes.length === 0) {
+      setError('Scan at least one returned barcode or add a Force Return barcode to an expected item.');
       return;
     }
 
@@ -35,6 +45,7 @@ export default function ReceivePendingExchangeReturnModal({ ret, onClose, onDone
     try {
       await productReturnService.receivePendingExchangeReturn(Number(ret.id), {
         barcodes,
+        forced_barcodes,
         quality_check_passed: qualityPassed,
         quality_check_notes: notes || undefined,
       });
@@ -78,9 +89,40 @@ export default function ReceivePendingExchangeReturnModal({ ret, onClose, onDone
                 {items.map((item: any, idx: number) => {
                   const got = Array.isArray(item.returned_barcode_ids) ? item.returned_barcode_ids.length : 0;
                   return (
-                    <div key={`${item.order_item_id || item.product_id}-${idx}`} className="px-3 py-2 text-xs flex items-center justify-between gap-3">
-                      <span className="font-semibold text-gray-900 dark:text-white">{item.product_name || `Product #${item.product_id}`}</span>
-                      <span className="font-black text-orange-600">{got}/{Number(item.quantity || 0)}</span>
+                    <div key={`${item.order_item_id || item.product_id}-${idx}`} className="px-3 py-2 text-xs space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-semibold text-gray-900 dark:text-white">{item.product_name || `Product #${item.product_id}`}</span>
+                        <span className="font-black text-orange-600">{got}/{Number(item.quantity || 0)}</span>
+                      </div>
+                      {got < Number(item.quantity || 0) && item.order_item_id && (
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const itemId = Number(item.order_item_id);
+                              const opening = !forceOpenByItem[itemId];
+                              setForceOpenByItem((prev) => ({ ...prev, [itemId]: opening }));
+                              const normalCodes = barcodeText.split(/[\n,\s]+/).map((value) => value.trim()).filter(Boolean);
+                              if (opening && normalCodes.length === 1 && !forcedBarcodeTextByItem[itemId]) {
+                                setForcedBarcodeTextByItem((prev) => ({ ...prev, [itemId]: normalCodes[0] }));
+                                setBarcodeText('');
+                              }
+                            }}
+                            className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 hover:underline"
+                          >
+                            {forceOpenByItem[Number(item.order_item_id)] ? 'Hide Force Return' : 'Force Return'}
+                          </button>
+                          {forceOpenByItem[Number(item.order_item_id)] && (
+                            <textarea
+                              value={forcedBarcodeTextByItem[Number(item.order_item_id)] || ''}
+                              onChange={(e) => setForcedBarcodeTextByItem((prev) => ({ ...prev, [Number(item.order_item_id)]: e.target.value }))}
+                              rows={2}
+                              className="mt-2 w-full px-2 py-1.5 text-xs font-mono border border-amber-300 dark:border-amber-700 rounded-lg bg-amber-50 dark:bg-amber-950/20 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                              placeholder="Scan legacy barcode(s) for this exact original item"
+                            />
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -98,7 +140,7 @@ export default function ReceivePendingExchangeReturnModal({ ret, onClose, onDone
               placeholder="Scan barcode, or paste multiple barcodes separated by line/comma/space"
               autoFocus
             />
-            <p className="text-[10px] text-gray-500 mt-1">Barcode must belong to the original order item selected during exchange initiation.</p>
+            <p className="text-[10px] text-gray-500 mt-1">Barcode must belong to the original order item selected during exchange initiation. If a legacy barcode fails normal lookup, use Force Return on that exact expected item above.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

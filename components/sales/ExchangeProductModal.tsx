@@ -584,13 +584,8 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       return;
     }
 
-    if (forceLegacyEnabled && deferReturnReceipt) {
+    if (deferReturnReceipt && removedItems.some(item => item.force_legacy_barcode)) {
       setError('Force Return can only be used when the original physical barcode is being returned now, not for a deferred courier receipt.');
-      return;
-    }
-
-    if (forceLegacyEnabled && removedItems.length !== 1) {
-      setError('Force Return must be processed one physical barcode at a time. Keep only the barcode that failed normal exchange validation.');
       return;
     }
 
@@ -600,11 +595,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       await onExchange({
         orderId: order.id,
         exchangeAtStoreId: exchangeAtStoreId,
-        removedProducts: removedItems.map(item => forceLegacyEnabled ? {
-          ...item,
-          force_legacy_barcode: true,
-          legacy_barcode: item.barcode,
-        } : item),
+        removedProducts: removedItems,
         replacementProducts: replacementItems,
         replacement_order_discount_amount: replacementOrderDiscount,
         paymentRefund: isEvenExchange
@@ -775,7 +766,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                           <span>
                             <span className="block text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Force Return</span>
                             <span className="block mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                              Leave this off for the normal exchange attempt. If Deshio rejects the selected return barcode, keep this modal open, tick Force Return, and submit the same barcode again. Force Return is one physical barcode per submit.
+                              Leave this off for the normal exchange attempt. If Deshio rejects the selected return barcode, keep this modal open, tick Force Return, and submit the same barcode again. Each forced row represents one physical barcode; multiple failed legacy barcodes can be added to the same exchange.
                             </span>
                             {deferReturnReceipt && <span className="block mt-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Unavailable while the original item is still with the customer/courier.</span>}
                           </span>
@@ -1027,14 +1018,14 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
                   {totals.difference < 0 && (
                     <div className={`rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest ${allowPartialRefunds ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/10 dark:text-blue-400' : 'bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400'}`}>
-                      {allowPartialRefunds ? 'Partial refund is enabled: this exchange can be submitted with store credit remaining.' : 'Partial refund is disabled: full refund must be entered before exchange.'}
+                      {allowPartialRefunds ? 'Partial refund is enabled: this exchange can be submitted with a remaining refund due that can be paid later from Returns.' : 'Partial refund is disabled: full refund must be entered before exchange.'}
                     </div>
                   )}
 
                   {(totals.difference !== 0) && (
                     <div className="pt-8 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{totals.difference > 0 ? 'Collect Payment' : 'Refund / Store Credit'}</h4>
+                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{totals.difference > 0 ? 'Collect Payment' : 'Refund'}</h4>
                         <button onClick={() => setShowNoteCounter(!showNoteCounter)} className={`text-[9px] px-3 py-1.5 rounded-full font-black uppercase tracking-widest transition-all ${showNoteCounter ? 'bg-black text-white' : 'bg-blue-50 text-blue-600'}`}>
                           {showNoteCounter ? 'Close Counter' : 'Note Counter'}
                         </button>
@@ -1056,7 +1047,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                       <div className="space-y-4">
                         {totals.difference < 0 && (
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
-                            Enter cash/card/mobile amount only if refund is paid now. Any remaining refund becomes store credit automatically.
+                            Enter cash/card/mobile amount only if refund is paid now. Any amount not refunded now remains refund due and can be issued later from Returns.
                           </p>
                         )}
                         {[
@@ -1087,7 +1078,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                               <span>৳{immediateRefundEntered.toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-blue-600">
-                              <span>Store credit</span>
+                              <span>Remaining refund due</span>
                               <span>৳{refundDue.toLocaleString()}</span>
                             </div>
                           </div>

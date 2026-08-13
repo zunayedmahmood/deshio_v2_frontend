@@ -409,11 +409,6 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
       return;
     }
 
-    if (forceLegacyEnabled && returnedItems.length !== 1) {
-      setError('Force Return must be processed one physical barcode at a time. Keep only the barcode that failed normal return validation.');
-      return;
-    }
-
     setError(null);
     setIsProcessing(true);
     try {
@@ -421,11 +416,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
         returnReason,
         returnType,
         receivedAtStoreId,
-        selectedProducts: returnedItems.map(item => forceLegacyEnabled ? {
-          ...item,
-          force_legacy_barcode: true,
-          legacy_barcode: item.barcode,
-        } : item),
+        selectedProducts: returnedItems,
         refundMethods: {
           cash: effectiveRefundCash,
           card: refundDetails.card,
@@ -574,7 +565,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                       <span>
                         <span className="block text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Force Return</span>
                         <span className="block mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                          Leave this off for the normal attempt. If Deshio rejects the selected barcode, keep this modal open, tick Force Return, and submit the same barcode again. Force Return is limited to one physical barcode per submit and never rewrites the old order item.
+                          Leave this off for the normal attempt. If Deshio rejects the selected barcode, keep this modal open, tick Force Return, and submit the same barcode again. Each forced row represents one physical barcode; you can add multiple failed legacy barcodes before submitting. Force Return never rewrites the old order item.
                         </span>
                       </span>
                     </label>
