@@ -27,6 +27,7 @@ export type GuestCheckoutRequest = {
   customer_name?: string;
   customer_email?: string;
   notes?: string;
+  coupon_code?: string;
 
   // Keep guest e-commerce orders unassigned initially
   store_id?: number | null;
@@ -125,16 +126,12 @@ class GuestCheckoutService {
     };
     const idempotencyKey = createIdempotencyKey('guest-checkout');
 
-    try {
-      const response = await axiosInstance.post<ApiResponse<any>>(
-        '/guest-checkout',
-        body,
-        { headers: { 'Idempotency-Key': idempotencyKey } },
-      );
-      return response.data as any;
-    } catch (error: any) {
-      throw new Error(error?.response?.data?.message || 'Failed to place guest order');
-    }
+    const response = await axiosInstance.post<ApiResponse<any>>(
+      '/guest-checkout',
+      body,
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    );
+    return response.data as any;
   }
 
   async ordersByPhone(phoneOrPayload: string | { phone: string }): Promise<GuestOrdersByPhoneResponse> {

@@ -902,6 +902,7 @@ export default function DefectsPage() {
                           type="checkbox"
                           id="isDefect"
                           checked={isDefect}
+                          disabled={isUsedItem || isEmployeeUsage}
                           onChange={(e) => setIsDefect(e.target.checked)}
                           className="mt-0.5 w-4 h-4"
                         />
@@ -920,6 +921,7 @@ export default function DefectsPage() {
                           type="checkbox"
                           id="isUsed"
                           checked={isUsedItem}
+                          disabled={isDefect || isEmployeeUsage}
                           onChange={(e) => setIsUsedItem(e.target.checked)}
                           className="mt-0.5 w-4 h-4"
                         />
@@ -938,6 +940,7 @@ export default function DefectsPage() {
                           type="checkbox"
                           id="isEmployeeUsage"
                           checked={isEmployeeUsage}
+                          disabled={isDefect || isUsedItem}
                           onChange={(e) => setIsEmployeeUsage(e.target.checked)}
                           className="mt-0.5 w-4 h-4"
                         />

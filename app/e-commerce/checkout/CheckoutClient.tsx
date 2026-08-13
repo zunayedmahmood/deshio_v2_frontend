@@ -13,11 +13,12 @@ import campaignService, { CouponValidationResult, CouponErrorCode } from '@/serv
 import { usePromotion } from '@/contexts/PromotionContext';
 import customerRewardService from '@/services/customerRewardService';
 import { calculateLoyaltyRedemption } from '@/lib/loyaltyPricing';
+import { automaticFixedDiscount } from '@/lib/promotionPricing';
 
 export default function CheckoutClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { getApplicablePromotion } = usePromotion();
+  const { getApplicablePromotion, activePublicPromotions } = usePromotion();
 
   // State
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
@@ -390,8 +391,22 @@ export default function CheckoutClient() {
       sku: item.sku || '',
     };
   });
+  const campaignPricingItems = selectedItems.map((item, index) => {
+    const originalUnitPrice = Number(item.unit_price) || 0;
+    const pricedUnit = Number(orderItems[index]?.price ?? originalUnitPrice);
+    return {
+      productId: Number(item.product_id),
+      categoryId: item.category_id ?? null,
+      quantity: Number(item.quantity) || 1,
+      unitPrice: originalUnitPrice,
+      lineDiscountAmount: Math.max(0, (originalUnitPrice - pricedUnit) * (Number(item.quantity) || 1)),
+    };
+  });
+  const campaignLineSubtotal = orderItems.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  const automaticFixed = automaticFixedDiscount(activePublicPromotions, campaignPricingItems, campaignLineSubtotal);
   const couponDiscount = appliedCoupon?.discount || 0;
-  const summary = checkoutService.calculateOrderSummary(orderItems, shippingCharge, couponDiscount);
+  const orderLevelDiscount = Math.min(campaignLineSubtotal, couponDiscount + (automaticFixed?.amount || 0));
+  const summary = checkoutService.calculateOrderSummary(orderItems, shippingCharge, orderLevelDiscount);
   const loyaltyBalance = Math.max(0, Number(loyaltySummary?.points_balance || 0));
   const loyaltyTakaPerPoint = Math.max(0, Number(loyaltySummary?.taka_per_point || 0));
   const loyaltyRedemption = calculateLoyaltyRedemption({
@@ -603,11 +618,11 @@ export default function CheckoutClient() {
     const customerIdRaw = localStorage.getItem('customer_id') || localStorage.getItem('customerId');
     const customer_id = customerIdRaw ? parseInt(customerIdRaw, 10) : null;
 
-    const cart_items = selectedItems.map((item: any) => ({
+    const cart_items = selectedItems.map((item: any, index: number) => ({
       product_id: item.product_id ?? item.id,
       category_id: item.category_id ?? undefined,
       quantity: item.quantity ?? 1,
-      unit_price: Number(item.selling_price ?? item.price ?? 0),
+      unit_price: Number(orderItems[index]?.price ?? item.unit_price ?? 0),
     }));
 
     const result: CouponValidationResult = await campaignService.validateCouponCode({
@@ -643,6 +658,7 @@ export default function CheckoutClient() {
         MINIMUM_NOT_MET: `This coupon requires a minimum order of ৳${(result.minimum_purchase ?? 0).toFixed(2)}.`,
         NO_ELIGIBLE_ITEMS: 'No items in your cart are eligible for this coupon.',
         LOGIN_REQUIRED: 'Please log in to use this coupon.',
+        AUTOMATIC_PROMOTION: 'This promotion is applied automatically; no coupon code is needed.',
       };
       setCouponError(
         result.error_code ? (errorMessages[result.error_code] ?? result.message ?? 'Invalid coupon.') : (result.message ?? 'Invalid coupon.')
@@ -653,6 +669,7 @@ export default function CheckoutClient() {
 
   const handleGuestPlaceOrder = async () => {
     setError(null);
+    setFieldErrors({});
 
     if (selectedItems.length === 0) {
       setError('Your cart is empty. Please add items first.');
@@ -706,6 +723,7 @@ export default function CheckoutClient() {
         ...(guestName.trim() ? { customer_name: guestName.trim() } : {}),
         ...(guestEmail.trim() ? { customer_email: guestEmail.trim() } : {}),
         ...(orderNotes.trim() ? { notes: orderNotes.trim() } : {}),
+        ...(appliedCoupon && couponCode.trim() ? { coupon_code: couponCode.trim() } : {}),
         ...(loyaltyPointsToUse > 0 ? {
           use_loyalty_points: true,
           loyalty_points_requested: loyaltyPointsToUse,
@@ -731,7 +749,7 @@ export default function CheckoutClient() {
                 payment_method: 'sslcommerz',
                 total_amount: typeof amt === 'number' ? amt : Number(amt),
                 shipping_charge: shippingCharge,
-                discount: couponDiscount,
+                discount: summary.discount_amount,
                 created_at: Date.now(),
                 customer: { phone: normalizePhoneByCountry(guestPhone, guestAddress.country), name: guestName || undefined, email: guestEmail || undefined },
                 items: selectedItems.map((it) => ({
@@ -823,7 +841,7 @@ export default function CheckoutClient() {
           mappedErrors[key] = Array.isArray(serverError.errors[key]) ? serverError.errors[key][0] : serverError.errors[key];
         });
         setFieldErrors(mappedErrors);
-        setError('Please check the highlighted fields');
+        setError(Object.values(mappedErrors)[0] || 'Please check the highlighted fields');
       } else {
         setError(serverError?.message || err?.message || 'Failed to place order. Please try again.');
       }
@@ -1050,7 +1068,7 @@ export default function CheckoutClient() {
                       value={guestPhone}
                       onChange={(e) => setGuestPhone(e.target.value)}
                       className="ec-input"
-                      aria-invalid={!isValidPhoneForCountry(guestPhone, guestAddress.country) && guestPhone !== ''}
+                      aria-invalid={Boolean(fieldErrors.phone) || (!isValidPhoneForCountry(guestPhone, guestAddress.country) && guestPhone !== '')}
                     />
                     {!isValidPhoneForCountry(guestPhone, guestAddress.country) && guestPhone !== '' && (
                       <p className="text-xs text-rose-500 mt-1">Please enter a valid phone number</p>
@@ -1099,7 +1117,7 @@ export default function CheckoutClient() {
                       value={guestAddress.full_name}
                       onChange={(e) => setGuestAddress({ ...guestAddress, full_name: e.target.value })}
                       className="ec-input"
-                      aria-invalid={!guestAddress.full_name && isProcessing}
+                      aria-invalid={Boolean(fieldErrors['delivery_address.full_name']) || (!guestAddress.full_name && isProcessing)}
                     />
                   </div>
 
@@ -1112,7 +1130,7 @@ export default function CheckoutClient() {
                       value={guestAddress.address_line_1}
                       onChange={(e) => setGuestAddress({ ...guestAddress, address_line_1: e.target.value })}
                       className="ec-input"
-                      aria-invalid={!guestAddress.address_line_1 && isProcessing}
+                      aria-invalid={Boolean(fieldErrors['delivery_address.address_line_1']) || (!guestAddress.address_line_1 && isProcessing)}
                     />
                   </div>
 
@@ -1137,7 +1155,7 @@ export default function CheckoutClient() {
                       value={guestAddress.city}
                       onChange={(e) => setGuestAddress({ ...guestAddress, city: e.target.value })}
                       className="ec-input"
-                      aria-invalid={!guestAddress.city && isProcessing}
+                      aria-invalid={Boolean(fieldErrors['delivery_address.city']) || (!guestAddress.city && isProcessing)}
                     />
                   </div>
 
@@ -1151,6 +1169,7 @@ export default function CheckoutClient() {
                       value={guestAddress.postal_code}
                       onChange={(e) => setGuestAddress({ ...guestAddress, postal_code: e.target.value })}
                       className="ec-input"
+                      aria-invalid={Boolean(fieldErrors['delivery_address.postal_code'])}
                     />
                   </div>
 
@@ -1305,10 +1324,10 @@ export default function CheckoutClient() {
                     <span className="text-sm text-[var(--text-secondary)]">Standard Delivery</span>
                     <span className="text-sm font-medium text-[var(--text-primary)]">৳{shippingCharge.toLocaleString()}</span>
                   </div>
-                  {couponDiscount > 0 && (
+                  {summary.discount_amount > 0 && (
                     <div className="flex justify-between items-center text-[var(--status-success)]">
-                      <span className="text-sm underline decoration-dotted">Store Credit / Promo</span>
-                      <span className="text-sm font-bold">-৳{couponDiscount.toLocaleString()}</span>
+                      <span className="text-sm underline decoration-dotted">Campaign / Coupon</span>
+                      <span className="text-sm font-bold">-৳{summary.discount_amount.toLocaleString()}</span>
                     </div>
                   )}
                   {loyaltyDiscount > 0 && (

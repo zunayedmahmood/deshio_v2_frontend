@@ -62,7 +62,7 @@ export const PromotionProvider = ({ children }: { children: React.ReactNode }) =
    */
   const getApplicablePromotion = useCallback(
     (productId: number, categoryId?: number | null): PublicPromotion | null => {
-      const percentage = promotions.filter((p) => p.type === 'percentage');
+      const percentage = promotions.filter((p) => p.type === 'percentage' && p.is_automatic);
       const matches: PublicPromotion[] = [];
 
       for (const promo of percentage) {
@@ -96,7 +96,7 @@ export const PromotionProvider = ({ children }: { children: React.ReactNode }) =
    */
   const getFixedDiscountForCartSubtotal = useCallback(
     (subtotal: number): { amount: number; promotion: PublicPromotion } | null => {
-      const fixed = promotions.filter((p) => p.type === 'fixed');
+      const fixed = promotions.filter((p) => p.type === 'fixed' && p.is_automatic);
       let best: { amount: number; promotion: PublicPromotion } | null = null;
 
       for (const promo of fixed) {

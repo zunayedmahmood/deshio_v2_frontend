@@ -14,6 +14,8 @@ import batchService from '@/services/batchService';
 import productService from '@/services/productService';
 import defectIntegrationService from '@/services/defectIntegrationService';
 import employeeService from '@/services/employeeService';
+import campaignService, { Campaign } from '@/services/campaignService';
+import { automaticFixedDiscount, automaticPercentageDiscount } from '@/lib/promotionPricing';
 
 // -----------------------------
 // Helpers
@@ -51,6 +53,8 @@ interface CartProduct {
   barcode?: string | null;
   is_scanned?: boolean;
   is_inventory_deducted?: boolean;
+  category_id?: number | null;
+  campaignDiscount?: boolean;
 }
 
 interface StoreAvailabilityDetail {
@@ -125,6 +129,13 @@ export default function SocialCommercePage() {
   // Edit-order mode (navigated from orders page for social commerce orders)
   const [editOrderId, setEditOrderId] = useState<number | null>(null);
   const [editOrderNumber, setEditOrderNumber] = useState<string | null>(null);
+  const [automaticPromotions, setAutomaticPromotions] = useState<Campaign[]>([]);
+
+  useEffect(() => {
+    campaignService.getCampaigns({ is_automatic: true, valid_only: true, per_page: 100 })
+      .then((response: any) => setAutomaticPromotions(response?.data?.data ?? response?.data ?? []))
+      .catch(() => setAutomaticPromotions([]));
+  }, []);
 
   // Multi-product staging: collect several products before adding them all to cart at once
   interface StagingItem {
@@ -612,6 +623,8 @@ export default function SocialCommercePage() {
       barcode: item.barcode ?? item.barcode_number ?? null,
       is_scanned: Boolean(item.is_scanned || item.product_barcode_id || item.barcode_id || item.barcode || item.barcode_number),
       is_inventory_deducted: Boolean(item.is_inventory_deducted),
+      category_id: Number(item.category_id ?? item.categoryId ?? item.product?.category_id ?? item.product?.category?.id ?? 0) || null,
+      campaignDiscount: Boolean(item.campaignDiscount),
     };
   };
 
@@ -1142,6 +1155,7 @@ export default function SocialCommercePage() {
           id: pid,
           name,
           sku,
+          category_id: Number(prod?.category_id ?? prod?.category?.id ?? 0) || null,
           // ✅ Price used for the order (we keep the MIN sell price across batches by default)
           attributes: {
             Price: sellPrice,
@@ -2120,6 +2134,16 @@ export default function SocialCommercePage() {
     return !productStoreId || !currentStoreId || productStoreId === currentStoreId;
   };
 
+  const getAutomaticLineDiscount = (product: any, price: number, qty: number) => {
+    if (editOrderId || product?.isDefective) return 0;
+    return automaticPercentageDiscount(automaticPromotions, {
+      productId: Number(product?.id || 0),
+      categoryId: product?.category_id ?? product?.category?.id ?? null,
+      quantity: qty,
+      unitPrice: price,
+    })?.amount || 0;
+  };
+
   const addToCart = () => {
     if (!selectedProduct || !quantity || parseInt(quantity) <= 0) {
       alert('Please select a product and enter quantity');
@@ -2143,7 +2167,9 @@ export default function SocialCommercePage() {
     }
 
     const baseAmount = price * qty;
-    const discountValue = discPer > 0 ? (baseAmount * discPer) / 100 : discTk;
+    const manualDiscountValue = discPer > 0 ? (baseAmount * discPer) / 100 : discTk;
+    const automaticDiscountValue = getAutomaticLineDiscount(selectedProduct, price, qty);
+    const discountValue = Math.max(manualDiscountValue, automaticDiscountValue);
     const finalAmount = baseAmount - discountValue;
 
     const newItem: CartProduct = {
@@ -2157,6 +2183,8 @@ export default function SocialCommercePage() {
       amount: finalAmount,
       isDefective: selectedProduct.isDefective,
       defectId: selectedProduct.defectId,
+      category_id: selectedProduct.category_id ?? selectedProduct.category?.id ?? null,
+      campaignDiscount: automaticDiscountValue >= manualDiscountValue && automaticDiscountValue > 0,
     };
 
     console.log('✅ Adding to cart:', {
@@ -2240,7 +2268,9 @@ export default function SocialCommercePage() {
       const discPer = parseFloat(s.discountPercent) || 0;
       const discTk = parseFloat(s.discountTk) || 0;
       const baseAmount = price * s.quantity;
-      const discountValue = discPer > 0 ? (baseAmount * discPer) / 100 : discTk;
+      const manualDiscountValue = discPer > 0 ? (baseAmount * discPer) / 100 : discTk;
+      const automaticDiscountValue = getAutomaticLineDiscount(s.product, price, s.quantity);
+      const discountValue = Math.max(manualDiscountValue, automaticDiscountValue);
       return {
         id: Date.now() + Math.random(),
         product_id: s.product.id,
@@ -2252,6 +2282,8 @@ export default function SocialCommercePage() {
         amount: baseAmount - discountValue,
         isDefective: s.product.isDefective,
         defectId: s.product.defectId,
+        category_id: s.product.category_id ?? s.product.category?.id ?? null,
+        campaignDiscount: automaticDiscountValue >= manualDiscountValue && automaticDiscountValue > 0,
       };
     });
     setCart((prev) => [...prev, ...newItems]);
@@ -2288,6 +2320,22 @@ export default function SocialCommercePage() {
   }, {});
 
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
+  const campaignPricingItems = cart.filter(item => !item.isService && !item.isDefective).map(item => ({
+    productId: item.product_id,
+    categoryId: item.category_id,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    lineDiscountAmount: item.discount_amount,
+  }));
+  const productSubtotalAfterLineDiscounts = cart
+    .filter(item => !item.isService && !item.isDefective)
+    .reduce((sum, item) => sum + item.amount, 0);
+  const automaticOrderDiscount = editOrderId
+    ? 0
+    : (automaticFixedDiscount(automaticPromotions, campaignPricingItems, productSubtotalAfterLineDiscounts)?.amount || 0);
+  const effectiveOrderDiscount = editOrderId
+    ? discountAmountState
+    : Math.max(discountAmountState, automaticOrderDiscount);
 
   const getPathaoRecipientAddressPreview = () => {
     if (isInternational) return '';
@@ -2594,7 +2642,7 @@ export default function SocialCommercePage() {
             category: item.serviceCategory,
           })),
         shipping_amount: shippingAmountState || 0,
-        discount_amount: discountAmountState || 0,
+        discount_amount: effectiveOrderDiscount || 0,
         notes: orderNotes?.trim() || '',
       };
 

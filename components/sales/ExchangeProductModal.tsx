@@ -3,6 +3,8 @@ import { X, Search, ArrowRightLeft, Calculator, Barcode, Trash2, CheckCircle2, A
 import axiosInstance from '@/lib/axios';
 import storeService, { type Store } from '@/services/storeService';
 import productReturnService from '@/services/productReturnService';
+import campaignService, { Campaign } from '@/services/campaignService';
+import { automaticFixedDiscount, automaticPercentageDiscount } from '@/lib/promotionPricing';
 
 interface ExchangeProductModalProps {
   order: any;
@@ -18,6 +20,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
   const [removedItems, setRemovedItems] = useState<any[]>([]);
   const [replacementItems, setReplacementItems] = useState<any[]>([]);
+  const [automaticPromotions, setAutomaticPromotions] = useState<Campaign[]>([]);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -61,6 +64,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     productReturnService.getPartialRefundSetting()
       .then((res: any) => setAllowPartialRefunds(Boolean(res?.data?.enabled)))
       .catch(() => setAllowPartialRefunds(false));
+    campaignService.getCampaigns({ is_automatic: true, valid_only: true, per_page: 100 })
+      .then((response: any) => setAutomaticPromotions(response?.data?.data ?? response?.data ?? []))
+      .catch(() => setAutomaticPromotions([]));
     if (!deferReturnReceipt && returnInputRef.current) returnInputRef.current.focus();
     if (deferReturnReceipt && replacementInputRef.current) replacementInputRef.current.focus();
   }, []);
@@ -430,16 +436,23 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       }
 
       const unitPrice = parseFloat(batch.sell_price || batch.selling_price || batch.sale_price || '0');
+      const productId = productData.id || barcodeData.product_id || lookupData.product_id;
+      const categoryId = productData.category_id ?? productData.category?.id ?? lookupData.category_id ?? null;
+      const automatic = automaticPercentageDiscount(automaticPromotions, {
+        productId: Number(productId), categoryId, quantity: 1, unitPrice,
+      });
+      const campaignDiscount = automatic?.amount || 0;
       const newItem = {
-        product_id: productData.id || barcodeData.product_id || lookupData.product_id,
+        product_id: productId,
         batch_id: batch.id || barcodeData.batch_id,
         name: productData.name || 'Unknown Product',
         barcode: barcodeCode,
         barcode_id: barcodeData.id || lookupData.barcode_id || lookupData.product_barcode_id || lookupData.id,
         unit_price: unitPrice,
         quantity: 1,
-        total_price: unitPrice,
-        discount_amount: 0
+        total_price: Math.max(0, unitPrice - campaignDiscount),
+        discount_amount: campaignDiscount,
+        category_id: categoryId,
       };
 
       setReplacementItems(prev => [...prev, newItem]);
@@ -489,9 +502,19 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     setReplacementItems(prev => prev.filter((_, i) => i !== index));
   };
 
+  const replacementCampaignItems = replacementItems.map(item => ({
+    productId: Number(item.product_id),
+    categoryId: item.category_id ?? null,
+    quantity: Number(item.quantity) || 1,
+    unitPrice: Number(item.unit_price) || 0,
+    lineDiscountAmount: Number(item.discount_amount) || 0,
+  }));
+  const replacementSubtotalAfterLines = replacementItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+  const replacementOrderDiscount = automaticFixedDiscount(automaticPromotions, replacementCampaignItems, replacementSubtotalAfterLines)?.amount || 0;
+
   const calculateTotals = () => {
     const returnTotal = removedItems.reduce((sum, item) => sum + item.total_price, 0);
-    const replacementTotal = replacementItems.reduce((sum, item) => sum + item.total_price, 0);
+    const replacementTotal = Math.max(0, replacementSubtotalAfterLines - replacementOrderDiscount);
     const difference = Math.round((replacementTotal - returnTotal) * 100) / 100;
 
     return {
@@ -583,6 +606,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
           legacy_barcode: item.barcode,
         } : item),
         replacementProducts: replacementItems,
+        replacement_order_discount_amount: replacementOrderDiscount,
         paymentRefund: isEvenExchange
           ? {
               type: 'none',

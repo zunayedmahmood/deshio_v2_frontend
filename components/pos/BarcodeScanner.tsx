@@ -22,6 +22,7 @@ export interface ScannedProduct {
   price: number;
   availableQty: number;
   barcode: string;
+  categoryId?: number | null;
 }
 
 export default function BarcodeScanner({ 
@@ -200,6 +201,7 @@ export default function BarcodeScanner({
         price: price,
         availableQty: scanResult.quantity_available,
         barcode: barcode,
+        categoryId: scanResult.product.category_id ?? scanResult.product.category?.id ?? null,
       };
 
       // Play success beep

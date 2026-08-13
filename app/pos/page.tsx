@@ -29,6 +29,7 @@ import productService from '@/services/productService';
 import batchService, { Batch } from '@/services/batchService';
 import defectIntegrationService from '@/services/defectIntegrationService';
 import paymentMethodService from '@/services/paymentMethodService';
+import campaignService, { Campaign } from '@/services/campaignService';
 
 // Components
 import BarcodeScanner, { ScannedProduct } from '@/components/pos/BarcodeScanner';
@@ -42,6 +43,7 @@ import CustomerFormModal from '@/components/pos/CustomerFormModal';
 import { useCustomerLookup } from '@/lib/hooks/useCustomerLookup';
 import { checkQZStatus, printReceipt } from '@/lib/qz-tray';
 import { calculateLoyaltyRedemption } from '@/lib/loyaltyPricing';
+import { automaticFixedDiscount, automaticPercentageDiscount } from '@/lib/promotionPricing';
 import DailyCashReportModal from '@/components/pos/DailyCashReportModal';
 import OpenOrderLockRescueWidget from '@/components/barcode/OpenOrderLockRescueWidget';
 
@@ -66,6 +68,7 @@ interface Product {
   id: number;
   name: string;
   sku: string;
+  category_id?: number | null;
   batches?: Batch[];
 }
 
@@ -82,6 +85,8 @@ export interface ExtendedCartItem extends CartItem {
   isService?: boolean; // NEW: Flag to identify service items
   serviceId?: number; // NEW: Service ID if it's a service
   serviceCategory?: string; // NEW: Service category
+  categoryId?: number | null;
+  campaignDiscount?: boolean;
 }
 
 export default function POSPage() {
@@ -131,6 +136,13 @@ export default function POSPage() {
 
   // Cart
   const [cart, setCart] = useState<ExtendedCartItem[]>([]);
+  const [automaticPromotions, setAutomaticPromotions] = useState<Campaign[]>([]);
+
+  useEffect(() => {
+    campaignService.getCampaigns({ is_automatic: true, valid_only: true, per_page: 100 })
+      .then((response: any) => setAutomaticPromotions(response?.data?.data ?? response?.data ?? []))
+      .catch(() => setAutomaticPromotions([]));
+  }, []);
 
   // Fast lookup for scanned barcodes currently in cart (prevents duplicate scans)
   const scannedBarcodes = useMemo(() => {
@@ -437,6 +449,13 @@ export default function POSPage() {
     }
     if (b) scannedBarcodesRef.current.add(b);
 
+    const automatic = automaticPercentageDiscount(automaticPromotions, {
+      productId: scannedProduct.productId,
+      categoryId: scannedProduct.categoryId,
+      quantity: 1,
+      unitPrice: scannedProduct.price,
+    });
+    const campaignDiscount = automatic?.amount || 0;
     const newItem: ExtendedCartItem = {
       id: Date.now() + Math.random(),
       productId: scannedProduct.productId,
@@ -445,10 +464,12 @@ export default function POSPage() {
       batchNumber: scannedProduct.batchNumber,
       qty: 1,
       price: scannedProduct.price,
-      discount: 0,
-      amount: scannedProduct.price,
+      discount: campaignDiscount,
+      amount: scannedProduct.price - campaignDiscount,
       availableQty: scannedProduct.availableQty,
       barcode: scannedProduct.barcode,
+      categoryId: scannedProduct.categoryId,
+      campaignDiscount: campaignDiscount > 0,
     };
 
     setCart((prev) => [...prev, newItem]);
@@ -475,8 +496,14 @@ export default function POSPage() {
     }
 
     const baseAmount = sellingPrice * quantity;
-    const discountValue =
+    const manualDiscountValue =
       discountPercent > 0 ? (baseAmount * discountPercent) / 100 : discountAmount;
+    const categoryId = selectedBatch.product?.category_id ?? products.find((p) => String(p.id) === String(product))?.category_id ?? null;
+    const automatic = automaticPercentageDiscount(automaticPromotions, {
+      productId: selectedBatch.product.id, categoryId, quantity, unitPrice: sellingPrice,
+    });
+    const automaticDiscountValue = automatic?.amount || 0;
+    const discountValue = Math.max(manualDiscountValue, automaticDiscountValue);
 
     const selectedProductName = selectedBatch.product?.name || products.find((p) => String(p.id) === String(product))?.name || product;
 
@@ -492,6 +519,8 @@ export default function POSPage() {
       amount: baseAmount - discountValue,
       availableQty: selectedBatch.quantity,
       barcode: undefined,
+      categoryId,
+      campaignDiscount: automaticDiscountValue >= manualDiscountValue && automaticDiscountValue > 0,
     };
 
     setCart((prev) => [...prev, newItem]);
@@ -529,10 +558,11 @@ export default function POSPage() {
           // Allow quantity edits when there are multiple used/defective units being sold together.
           if (newQty <= item.availableQty || item.isDefective) {
             const baseAmount = item.price * newQty;
-            const discountValue =
-              item.discount > 0
-                ? baseAmount * (item.discount / (item.price * item.qty))
-                : 0;
+            const discountValue = item.campaignDiscount
+              ? (automaticPercentageDiscount(automaticPromotions, {
+                  productId: item.productId, categoryId: item.categoryId, quantity: newQty, unitPrice: item.price,
+                })?.amount || 0)
+              : (item.discount > 0 ? baseAmount * (item.discount / (item.price * item.qty)) : 0);
 
             return {
               ...item,
@@ -561,6 +591,7 @@ export default function POSPage() {
             ...item,
             discount: newDiscount,
             amount: baseAmount - newDiscount,
+            campaignDiscount: false,
           };
         }
         return item;
@@ -616,11 +647,16 @@ export default function POSPage() {
 
   const subtotal = cart.reduce((sum, item) => sum + item.amount, 0);
   const grossSubtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0);
+  const promotionItems = cart.filter(item => !item.isService && !item.isDefective).map(item => ({
+    productId: item.productId, categoryId: item.categoryId, quantity: item.qty, unitPrice: item.price, lineDiscountAmount: item.discount,
+  }));
+  const productSubtotalAfterLineDiscounts = cart.filter(item => !item.isService && !item.isDefective).reduce((sum, item) => sum + item.amount, 0);
+  const automaticOrderDiscount = automaticFixedDiscount(automaticPromotions, promotionItems, productSubtotalAfterLineDiscounts)?.amount || 0;
+  const totalDiscount = cart.reduce((sum, item) => sum + item.discount, 0) + automaticOrderDiscount;
   const loyalty = (customerLookup.customer as any)?.loyalty;
   const loyaltyPointsBalance = Number(loyalty?.points_balance || 0);
   const loyaltyTakaPerPoint = Number(loyalty?.taka_per_point || 0);
-  const payableBeforeLoyalty = Math.max(0, subtotal + transportCost);
+  const payableBeforeLoyalty = Math.max(0, subtotal - automaticOrderDiscount + transportCost);
   const loyaltyRedemption = calculateLoyaltyRedemption({
     enabled: useLoyaltyPoints,
     requestedPoints: Number(loyaltyPointsRequested || 0),
@@ -850,9 +886,8 @@ export default function POSPage() {
             category: item.serviceCategory,
           })),
 
-        // ✅ FIXED: Global discount_amount should be 0 because item discounts are already sent in the items array.
-        // If a global discount field is added to the UI later, it should be sent here.
-        discount_amount: 0,
+        // Automatic fixed campaigns are order-level and are snapshotted on creation.
+        discount_amount: automaticOrderDiscount,
         shipping_amount: transportCost,
 
         // ✅ FIXED: start_date should be undefined instead of null

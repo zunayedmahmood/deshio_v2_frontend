@@ -4,6 +4,7 @@ export interface Product {
   id: number;
   name: string;
   sku?: string;
+  category_id?: number | null;
   primary_image?: {
     url: string;
   };

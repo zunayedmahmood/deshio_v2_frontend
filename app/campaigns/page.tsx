@@ -263,6 +263,7 @@ export default function CampaignsPage() {
   const handleSave = async () => {
     if (!formData.name.trim()) { setFormError('Campaign name is required'); return; }
     if (!formData.discount_value || formData.discount_value <= 0) { setFormError('Discount value must be greater than 0'); return; }
+    if (!formData.is_automatic && !formData.code?.trim()) { setFormError('Coupon code is required for a manual campaign'); return; }
     setIsSaving(true); setFormError(null);
     try {
       if (editingCampaign) await campaignService.updateCampaign(editingCampaign.id, formData);

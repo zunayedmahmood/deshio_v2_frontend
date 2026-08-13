@@ -10,10 +10,11 @@ export interface Campaign {
   id: number;
   name: string;
   description?: string;
-  code: string;
+  code?: string;
   type: 'percentage' | 'fixed';
   discount_value: number;
-  maximum_discount?: number;
+  minimum_purchase?: number | null;
+  maximum_discount?: number | null;
   start_date: string;
   end_date: string | null;
   applicable_products: number[] | null;
@@ -46,6 +47,8 @@ export interface PublicPromotion {
   id: number;
   name: string;
   description?: string;
+  code?: string;
+  is_automatic: boolean;
   type: 'percentage' | 'fixed' | 'buy_x_get_y' | 'free_shipping';
   discount_value: number;
   minimum_purchase?: number | null;
@@ -67,7 +70,8 @@ export type CouponErrorCode =
   | 'CUSTOMER_NOT_ELIGIBLE'
   | 'MINIMUM_NOT_MET'
   | 'NO_ELIGIBLE_ITEMS'
-  | 'LOGIN_REQUIRED';
+  | 'LOGIN_REQUIRED'
+  | 'AUTOMATIC_PROMOTION';
 
 export interface CouponCartItem {
   product_id: number;
@@ -140,7 +144,11 @@ const campaignService = {
   async getCampaigns(params?: {
     is_automatic?: boolean;
     is_active?: boolean;
+    is_public?: boolean;
+    type?: 'percentage' | 'fixed';
     valid_only?: boolean;
+    search?: string;
+    per_page?: number;
   }) {
     const response = await axiosInstance.get('/promotions', { params });
     return response.data;

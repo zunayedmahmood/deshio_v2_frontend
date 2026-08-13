@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTheme } from "@/contexts/ThemeContext";
 import { useSearchParams } from 'next/navigation';
 import { Filter, RefreshCw, Search } from 'lucide-react';
@@ -30,24 +30,6 @@ const EVENT_OPTIONS = [
   { value: 'invoice_printed', label: 'Invoice printed' },
 ];
 
-function toYmd(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function activityDateYmd(entry: ActivityLogEntry): string | null {
-  const raw = entry.when?.timestamp || entry.when?.formatted || '';
-  if (!raw) return null;
-
-  const isoDate = String(raw).match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
-  if (isoDate) return isoDate;
-
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? null : toYmd(parsed);
-}
-
 export default function ActivityLogsClient() {
   const searchParams = useSearchParams();
 
@@ -64,6 +46,11 @@ export default function ActivityLogsClient() {
   const [dateFrom, setDateFrom] = useState<string>(searchParams.get('date_from') || '');
   const [dateTo, setDateTo] = useState<string>(searchParams.get('date_to') || '');
   const [perPage, setPerPage] = useState<number>(50);
+  const [debouncedQ, setDebouncedQ] = useState<string>(q);
+  const [page, setPage] = useState<number>(1);
+  const [meta, setMeta] = useState<{ current_page: number; per_page: number; total: number; last_page: number }>({
+    current_page: 1, per_page: 50, total: 0, last_page: 1,
+  });
 
   // Data
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
@@ -94,7 +81,12 @@ export default function ActivityLogsClient() {
     })();
   }, [dateFrom, dateTo]);
 
-  const loadLogs = async () => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQ(q), 300);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+
+  const loadLogs = async (targetPage = page) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -103,52 +95,39 @@ export default function ActivityLogsClient() {
         date_from: dateFrom,
         date_to: dateTo,
         event: event || undefined,
+        causer_id: employeeId ? Number(employeeId) : undefined,
+        q: debouncedQ || undefined,
         per_page: perPage,
-        fetch_all: true,
+        page: targetPage,
       });
       setEntries(res.data || []);
+      setMeta({
+        current_page: Number(res.meta?.current_page || targetPage),
+        per_page: Number(res.meta?.per_page || perPage),
+        total: Number(res.meta?.total || 0),
+        last_page: Math.max(1, Number(res.meta?.last_page || 1)),
+      });
+      setPage(targetPage);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to load history');
       setEntries([]);
+      setMeta({ current_page: 1, per_page: perPage, total: 0, last_page: 1 });
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadLogs();
+    setPage(1);
+    void loadLogs(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, event, dateFrom, dateTo, perPage]);
+  }, [category, event, employeeId, dateFrom, dateTo, perPage, debouncedQ]);
 
-  const filtered = useMemo(() => {
-    const empIdNum = employeeId ? Number(employeeId) : null;
-    const needle = q.trim().toLowerCase();
-
-    return (entries || []).filter((e) => {
-      if (dateFrom || dateTo) {
-        const activityDate = activityDateYmd(e);
-        if (!activityDate) return false;
-        if (dateFrom && activityDate < dateFrom) return false;
-        if (dateTo && activityDate > dateTo) return false;
-      }
-
-      if (empIdNum && Number(e.who?.id) !== empIdNum) return false;
-      if (!needle) return true;
-
-      const hay = [
-        e.what?.description,
-        e.what?.action,
-        e.subject?.type,
-        e.category,
-        e.who?.name,
-        e.who?.email,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(needle);
-    });
-  }, [entries, employeeId, q, dateFrom, dateTo]);
+  const goToPage = (targetPage: number) => {
+    const next = Math.max(1, Math.min(meta.last_page, targetPage));
+    if (next === page || isLoading) return;
+    void loadLogs(next);
+  };
 
   return (
   <div className={darkMode ? 'dark' : ''}>
@@ -258,7 +237,7 @@ export default function ActivityLogsClient() {
 
                 <div className="flex items-center gap-3 mt-4">
                   <button
-                    onClick={loadLogs}
+                    onClick={() => void loadLogs(page)}
                     className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
                     disabled={isLoading}
                   >
@@ -267,8 +246,7 @@ export default function ActivityLogsClient() {
                   </button>
 
                   <div className="text-xs text-gray-600 dark:text-gray-400">
-                    Showing <span className="font-medium">{filtered.length}</span> activities
-                    {category === 'all' && <span className="ml-1">(combined)</span>}
+                    Showing <span className="font-medium">{entries.length}</span> of <span className="font-medium">{meta.total}</span> activities
                   </div>
                 </div>
               </div>
@@ -279,7 +257,7 @@ export default function ActivityLogsClient() {
                   <div className="p-6 text-sm text-red-600 dark:text-red-400">{error}</div>
                 ) : (
                   <ActivityLogTable
-                    entries={filtered}
+                    entries={entries}
                     isLoading={isLoading}
                     onCopy={(text) => {
                       navigator.clipboard.writeText(text);
@@ -288,6 +266,40 @@ export default function ActivityLogsClient() {
                   />
                 )}
               </div>
+
+              {!error && meta.total > 0 && (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <div className="flex items-center gap-2">
+                    <span>Rows per page</span>
+                    <select
+                      value={perPage}
+                      onChange={(e) => setPerPage(Number(e.target.value))}
+                      className="h-9 rounded-lg border border-gray-200 bg-white px-2 dark:border-gray-700 dark:bg-gray-900"
+                    >
+                      {[25, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span>Page {meta.current_page} of {meta.last_page}</span>
+                    <button
+                      type="button"
+                      onClick={() => goToPage(page - 1)}
+                      disabled={isLoading || page <= 1}
+                      className="h-9 rounded-lg border border-gray-200 px-3 disabled:opacity-50 dark:border-gray-700"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => goToPage(page + 1)}
+                      disabled={isLoading || page >= meta.last_page}
+                      className="h-9 rounded-lg border border-gray-200 px-3 disabled:opacity-50 dark:border-gray-700"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
