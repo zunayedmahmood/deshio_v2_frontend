@@ -258,7 +258,6 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     setError(null);
     setReturnedItems(prev => [...prev, buildReturnedItem(orderItem, matchedBarcode)]);
     setForceLegacyCandidateCode(null);
-    setForceLegacyEnabled(false);
     setForceLegacyOrderItemId(null);
     setBarcodeInput('');
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
@@ -285,7 +284,6 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     setError(null);
     setReturnedItems(prev => [...prev, buildReturnedItem(orderItem, { code }, true)]);
     setForceLegacyCandidateCode(null);
-    setForceLegacyEnabled(false);
     setForceLegacyOrderItemId(null);
     setBarcodeInput('');
     window.setTimeout(() => barcodeInputRef.current?.focus(), 0);
@@ -311,7 +309,6 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
 
       setError(null);
       setForceLegacyCandidateCode(null);
-      setForceLegacyEnabled(false);
       setForceLegacyOrderItemId(null);
 
       if (returnedItems.some(item => normalizeBarcode(item.barcode) === normalizeBarcode(code))) {
@@ -333,7 +330,6 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     } catch (err: any) {
       if (allowForceLegacyBarcode && Number(err?.response?.status) === 404) {
         setForceLegacyCandidateCode(code);
-        setForceLegacyEnabled(false);
         setForceLegacyOrderItemId(forceLegacyOrderItems.length === 1 ? Number(forceLegacyOrderItems[0].id) : null);
         setError(null);
       } else {
@@ -413,13 +409,23 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
       return;
     }
 
+    if (forceLegacyEnabled && returnedItems.length !== 1) {
+      setError('Force Return must be processed one physical barcode at a time. Keep only the barcode that failed normal return validation.');
+      return;
+    }
+
+    setError(null);
     setIsProcessing(true);
     try {
       await onReturn({
         returnReason,
         returnType,
         receivedAtStoreId,
-        selectedProducts: returnedItems,
+        selectedProducts: returnedItems.map(item => forceLegacyEnabled ? {
+          ...item,
+          force_legacy_barcode: true,
+          legacy_barcode: item.barcode,
+        } : item),
         refundMethods: {
           cash: effectiveRefundCash,
           card: refundDetails.card,
@@ -556,26 +562,36 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                   />
                 </form>
 
+                {allowForceLegacyBarcode && (
+                  <div className={`mb-5 p-4 rounded-2xl border-2 transition-colors ${forceLegacyEnabled ? 'border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/20' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900'}`}>
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={forceLegacyEnabled}
+                        onChange={(e) => setForceLegacyEnabled(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-black"
+                      />
+                      <span>
+                        <span className="block text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Force Return</span>
+                        <span className="block mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                          Leave this off for the normal attempt. If Deshio rejects the selected barcode, keep this modal open, tick Force Return, and submit the same barcode again. Force Return is limited to one physical barcode per submit and never rewrites the old order item.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 {allowForceLegacyBarcode && forceLegacyCandidateCode && (
                   <div className="mb-5 p-4 rounded-2xl border-2 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                       <div className="flex-1 space-y-3">
                         <div>
-                          <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Unknown legacy barcode</p>
+                          <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Barcode is not currently known to Deshio</p>
                           <p className="text-sm font-mono font-black text-gray-900 dark:text-white mt-1">{forceLegacyCandidateCode}</p>
-                          <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">Force Return creates this barcode only when the return is submitted successfully. It does not rewrite the old sale history.</p>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">If this is the physical barcode from the old order, tick Force Return above, select the exact original order item, and add it. No barcode or batch is created until the return transaction succeeds.</p>
                         </div>
-                        <label className="flex items-center gap-3 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={forceLegacyEnabled}
-                            onChange={(e) => setForceLegacyEnabled(e.target.checked)}
-                            className="w-4 h-4 accent-black"
-                          />
-                          <span className="text-xs font-black text-gray-900 dark:text-white">Force Return</span>
-                        </label>
-                        {forceLegacyEnabled && (
+                        {forceLegacyEnabled ? (
                           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
                             <select
                               value={forceLegacyOrderItemId ?? ''}
@@ -598,6 +614,8 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                               Add Forced Return
                             </button>
                           </div>
+                        ) : (
+                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Tick Force Return above to use this unknown physical barcode.</p>
                         )}
                       </div>
                     </div>
@@ -773,7 +791,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                     ) : (
                       <>
                         <RotateCcw className="w-6 h-6" />
-                        COMPLETE RETURN
+                        {forceLegacyEnabled ? 'COMPLETE FORCE RETURN' : 'COMPLETE RETURN'}
                       </>
                     )}
                   </button>

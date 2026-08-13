@@ -2010,41 +2010,51 @@ export default function LookupPage() {
       const res = await productReturnService.quickComplete(returnRequest);
       const returnId = res.data.id;
 
-      // Handle refund if needed
+      // Refund settlement is a separate workflow from the physical return. If it
+      // fails after quickComplete committed, do not make the modal retry the return
+      // and accidentally attempt to restore the same barcode twice.
+      let refundWarning: string | null = null;
       if (returnData.refundMethods && returnData.refundMethods.total > 0) {
-        const activeRefundTenders = [
-          returnData.refundMethods.cash,
-          returnData.refundMethods.card,
-          returnData.refundMethods.bkash,
-          returnData.refundMethods.nagad,
-        ].filter((amount: number) => Number(amount) > 0).length;
-        const refundMethod: CreateRefundRequest['refund_method'] = activeRefundTenders > 1
-          ? 'other'
-          : returnData.refundMethods.card > 0
-            ? 'card_refund'
-            : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0 ? 'digital_wallet' : 'cash');
-        const refundRequest: CreateRefundRequest = {
-          return_id: returnId,
-          refund_type: 'partial_amount',
-          refund_amount: returnData.refundMethods.total,
-          refund_method: refundMethod,
-          refund_method_details: {
-            cash: returnData.refundMethods.cash,
-            card: returnData.refundMethods.card,
-            bkash: returnData.refundMethods.bkash,
-            nagad: returnData.refundMethods.nagad,
-          },
-          internal_notes: 'Refund processed via lookup page',
-        };
+        try {
+          const activeRefundTenders = [
+            returnData.refundMethods.cash,
+            returnData.refundMethods.card,
+            returnData.refundMethods.bkash,
+            returnData.refundMethods.nagad,
+          ].filter((amount: number) => Number(amount) > 0).length;
+          const refundMethod: CreateRefundRequest['refund_method'] = activeRefundTenders > 1
+            ? 'other'
+            : returnData.refundMethods.card > 0
+              ? 'card_refund'
+              : (returnData.refundMethods.bkash > 0 || returnData.refundMethods.nagad > 0 ? 'digital_wallet' : 'cash');
+          const refundRequest: CreateRefundRequest = {
+            return_id: returnId,
+            refund_type: 'partial_amount',
+            refund_amount: returnData.refundMethods.total,
+            refund_method: refundMethod,
+            refund_method_details: {
+              cash: returnData.refundMethods.cash,
+              card: returnData.refundMethods.card,
+              bkash: returnData.refundMethods.bkash,
+              nagad: returnData.refundMethods.nagad,
+            },
+            internal_notes: 'Refund processed via lookup page',
+          };
 
-        const refundRes = await refundService.create(refundRequest);
-        await refundService.process(refundRes.data.id);
-        await refundService.complete(refundRes.data.id, {
-          transaction_reference: `LOOKUP-REFUND-${Date.now()}`,
-        });
+          const refundRes = await refundService.create(refundRequest);
+          await refundService.process(refundRes.data.id);
+          await refundService.complete(refundRes.data.id, {
+            transaction_reference: `LOOKUP-REFUND-${Date.now()}`,
+          });
+        } catch (refundError: any) {
+          console.error('⚠️ Return succeeded but immediate refund settlement failed:', refundError);
+          refundWarning = refundError.response?.data?.message || refundError.message || 'Immediate refund could not be completed';
+        }
       }
 
-      alert('✅ Return processed successfully!');
+      alert(refundWarning
+        ? `✅ Return completed. Refund is still pending and can be completed from Returns. ${refundWarning}`
+        : '✅ Return processed successfully!');
       setShowReturnModal(false);
       // Refresh search to show updated status/quantities
       if (activeTab === 'order' && orderNumber) {
@@ -2052,7 +2062,10 @@ export default function LookupPage() {
       }
     } catch (error: any) {
       console.error('❌ Return processing failed:', error);
-      alert(`Error: ${error.response?.data?.message || error.message || 'Failed to process return'}`);
+      // Re-throw so ReturnProductModal keeps all selections open and displays the
+      // backend rejection. The user can then tick Force Return and retry the same
+      // physical barcode without rescanning or rebuilding the return.
+      throw error;
     }
   };
 
@@ -2078,7 +2091,7 @@ export default function LookupPage() {
             unit_price: unitPrice,
             total_price: Number(item.total_price ?? unitPrice * quantity),
             product_barcode_id: item.product_barcode_id,
-            barcode_id: item.product_barcode_id, // Compatibility with controller
+            barcode_id: item.product_barcode_id, // Preserve exact selected identity on Force retry; unknown legacy entries remain undefined.
             return_reason: 'other', // Default reason
             quality_check_passed: true, // Defaulting for quick exchange
             ...(item.force_legacy_barcode ? { force_legacy_barcode: true, legacy_barcode: item.legacy_barcode || item.barcode } : {}),
@@ -2134,8 +2147,9 @@ export default function LookupPage() {
 
     } catch (error: any) {
       console.error('❌ Consolidated exchange processing failed:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to process exchange';
-      alert(`Error: ${errorMessage}`);
+      // Re-throw so ExchangeProductModal stays open with the selected return and
+      // replacement barcodes. A Force Return retry can then be submitted in-place.
+      throw error;
     }
   };
 
