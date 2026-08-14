@@ -3,8 +3,6 @@ import { X, Search, ArrowRightLeft, Calculator, Barcode, Trash2, CheckCircle2, A
 import axiosInstance from '@/lib/axios';
 import storeService, { type Store } from '@/services/storeService';
 import productReturnService from '@/services/productReturnService';
-import campaignService, { Campaign } from '@/services/campaignService';
-import { automaticFixedDiscount, automaticPercentageDiscount } from '@/lib/promotionPricing';
 
 interface ExchangeProductModalProps {
   order: any;
@@ -20,7 +18,9 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
   const [removedItems, setRemovedItems] = useState<any[]>([]);
   const [replacementItems, setReplacementItems] = useState<any[]>([]);
-  const [automaticPromotions, setAutomaticPromotions] = useState<Campaign[]>([]);
+  const [exchangeQuote, setExchangeQuote] = useState<any | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -38,6 +38,8 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
   const replacementInputRef = useRef<HTMLInputElement>(null);
   const returnScanTimerRef = useRef<number | null>(null);
   const replacementScanTimerRef = useRef<number | null>(null);
+  const quoteTimerRef = useRef<number | null>(null);
+  const quoteRequestRef = useRef(0);
   const returnScanInFlightRef = useRef(false);
   const replacementScanInFlightRef = useRef(false);
 
@@ -64,9 +66,6 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     productReturnService.getPartialRefundSetting()
       .then((res: any) => setAllowPartialRefunds(Boolean(res?.data?.enabled)))
       .catch(() => setAllowPartialRefunds(false));
-    campaignService.getCampaigns({ is_automatic: true, valid_only: true, per_page: 100 })
-      .then((response: any) => setAutomaticPromotions(response?.data?.data ?? response?.data ?? []))
-      .catch(() => setAutomaticPromotions([]));
     if (!deferReturnReceipt && returnInputRef.current) returnInputRef.current.focus();
     if (deferReturnReceipt && replacementInputRef.current) replacementInputRef.current.focus();
   }, []);
@@ -438,10 +437,6 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       const unitPrice = parseFloat(batch.sell_price || batch.selling_price || batch.sale_price || '0');
       const productId = productData.id || barcodeData.product_id || lookupData.product_id;
       const categoryId = productData.category_id ?? productData.category?.id ?? lookupData.category_id ?? null;
-      const automatic = automaticPercentageDiscount(automaticPromotions, {
-        productId: Number(productId), categoryId, quantity: 1, unitPrice,
-      });
-      const campaignDiscount = automatic?.amount || 0;
       const newItem = {
         product_id: productId,
         batch_id: batch.id || barcodeData.batch_id,
@@ -450,8 +445,8 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
         barcode_id: barcodeData.id || lookupData.barcode_id || lookupData.product_barcode_id || lookupData.id,
         unit_price: unitPrice,
         quantity: 1,
-        total_price: Math.max(0, unitPrice - campaignDiscount),
-        discount_amount: campaignDiscount,
+        total_price: unitPrice,
+        discount_amount: 0,
         category_id: categoryId,
       };
 
@@ -502,30 +497,70 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     setReplacementItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const replacementCampaignItems = replacementItems.map(item => ({
-    productId: Number(item.product_id),
-    categoryId: item.category_id ?? null,
-    quantity: Number(item.quantity) || 1,
-    unitPrice: Number(item.unit_price) || 0,
-    lineDiscountAmount: Number(item.discount_amount) || 0,
-  }));
-  const replacementSubtotalAfterLines = replacementItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
-  const replacementOrderDiscount = automaticFixedDiscount(automaticPromotions, replacementCampaignItems, replacementSubtotalAfterLines)?.amount || 0;
+  const buildQuotePayload = () => ({
+    order_id: order.id,
+    removedProducts: removedItems.map(item => ({
+      order_item_id: item.order_item_id,
+      product_id: item.product_id,
+      quantity: Number(item.quantity) || 1,
+      unit_price: Number(item.unit_price) || 0,
+      manual_sold_at_price: Number(item.manual_sold_at_price ?? item.unit_price) || 0,
+    })),
+    replacementProducts: replacementItems.map(item => ({
+      product_id: item.product_id,
+      batch_id: item.batch_id,
+      quantity: Number(item.quantity) || 1,
+      unit_price: Number(item.unit_price) || 0,
+      // Exchange UI has no manual replacement discount field. Campaign pricing is
+      // authoritative on the backend so a stale client cannot preserve an expired campaign.
+      discount_amount: 0,
+    })),
+    replacement_order_discount_amount: 0,
+  });
 
-  const calculateTotals = () => {
-    const returnTotal = removedItems.reduce((sum, item) => sum + item.total_price, 0);
-    const replacementTotal = Math.max(0, replacementSubtotalAfterLines - replacementOrderDiscount);
-    const difference = Math.round((replacementTotal - returnTotal) * 100) / 100;
+  useEffect(() => {
+    if (quoteTimerRef.current) window.clearTimeout(quoteTimerRef.current);
+    const requestId = ++quoteRequestRef.current;
+    setExchangeQuote(null);
+    setQuoteError(null);
 
-    return {
-      returnTotal,
-      replacementTotal,
-      difference
+    if (!order?.id || removedItems.length === 0 || replacementItems.length === 0) {
+      setIsQuoteLoading(false);
+      return;
+    }
+
+    setIsQuoteLoading(true);
+    quoteTimerRef.current = window.setTimeout(async () => {
+      try {
+        const response = await axiosInstance.post('/exchange/quote', buildQuotePayload());
+        if (requestId !== quoteRequestRef.current) return;
+        setExchangeQuote(response.data?.data || null);
+      } catch (err: any) {
+        if (requestId !== quoteRequestRef.current) return;
+        setQuoteError(err?.response?.data?.message || 'Unable to calculate exchange settlement');
+      } finally {
+        if (requestId === quoteRequestRef.current) setIsQuoteLoading(false);
+      }
+    }, 120);
+
+    return () => {
+      if (quoteTimerRef.current) window.clearTimeout(quoteTimerRef.current);
     };
-  };
+  }, [order?.id, removedItems, replacementItems]);
 
-  const totals = calculateTotals();
-  const isEvenExchange = Math.abs(totals.difference) < 0.01;
+  const localReturnTotal = removedItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
+  const localReplacementTotal = replacementItems.reduce((sum, item) => sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 1), 0);
+  const quotedSurplus = Number(exchangeQuote?.surplus_due || 0);
+  const quotedRefund = Number(exchangeQuote?.refund_due || 0);
+  const totals = {
+    returnTotal: Number(exchangeQuote?.merchandise_return_value ?? localReturnTotal),
+    exchangeCredit: Number(exchangeQuote?.collected_return_entitlement ?? localReturnTotal),
+    replacementTotal: Number(exchangeQuote?.replacement_total ?? localReplacementTotal),
+    difference: exchangeQuote
+      ? (quotedSurplus > 0.009 ? quotedSurplus : (quotedRefund > 0.009 ? -quotedRefund : 0))
+      : Math.round((localReplacementTotal - localReturnTotal) * 100) / 100,
+  };
+  const isEvenExchange = Boolean(exchangeQuote) && exchangeQuote?.settlement_type === 'even';
 
   // Payment/refund inputs are irrelevant for an even exchange. Clear any values
   // left from an earlier replacement selection so they cannot reappear if the
@@ -589,6 +624,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       return;
     }
 
+    if (!exchangeQuote || isQuoteLoading) {
+      setError(quoteError || 'Wait for Deshio to calculate the authoritative exchange settlement.');
+      return;
+    }
+
     setError(null);
     setIsProcessing(true);
     try {
@@ -596,8 +636,12 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
         orderId: order.id,
         exchangeAtStoreId: exchangeAtStoreId,
         removedProducts: removedItems,
-        replacementProducts: replacementItems,
-        replacement_order_discount_amount: replacementOrderDiscount,
+        replacementProducts: replacementItems.map(item => ({
+          ...item,
+          discount_amount: 0,
+          total_price: (Number(item.unit_price) || 0) * (Number(item.quantity) || 1),
+        })),
+        replacement_order_discount_amount: 0,
         paymentRefund: isEvenExchange
           ? {
               type: 'none',
@@ -972,7 +1016,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                         </div>
                       </div>
                       <div className="flex items-center gap-6">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">৳{item.total_price.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">৳{Number(exchangeQuote?.replacement_items?.[index]?.total_amount ?? item.total_price).toLocaleString()}</p>
                         <button onClick={() => removeReplacementItem(index)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -997,13 +1041,22 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                 </h3>
                 <div className="space-y-6">
                   <div className="flex justify-between items-center group/summary">
-                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Returns</span>
+                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Return merchandise</span>
                     <span className="font-black text-red-500 text-lg group-hover/summary:scale-110 transition-transform">-৳{totals.returnTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center group/summary">
+                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Exchange credit</span>
+                    <span className="font-black text-blue-500 text-lg group-hover/summary:scale-110 transition-transform">৳{totals.exchangeCredit.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center group/summary">
                     <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Replacements</span>
                     <span className="font-black text-green-500 text-lg group-hover/summary:scale-110 transition-transform">+৳{totals.replacementTotal.toLocaleString()}</span>
                   </div>
+                  {(isQuoteLoading || quoteError) && (
+                    <div className={`rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest ${quoteError ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' : 'bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400'}`}>
+                      {quoteError || 'Calculating settlement from server…'}
+                    </div>
+                  )}
                   <div className="pt-6 border-t-4 border-gray-50 dark:border-gray-900">
                     <div className="flex justify-between items-end mb-1">
                       <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Net Difference</span>
@@ -1095,7 +1148,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
                   <button
                     onClick={handleProcessExchange}
-                    disabled={isProcessing || removedItems.length === 0 || replacementItems.length === 0 || (totals.difference > 0 && remainingDue > 0) || refundOverpaid || refundBlocking}
+                    disabled={isProcessing || isQuoteLoading || !exchangeQuote || Boolean(quoteError) || removedItems.length === 0 || replacementItems.length === 0 || (totals.difference > 0 && remainingDue > 0) || refundOverpaid || refundBlocking}
                     className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center justify-center gap-4 mt-8"
                   >
                     {isProcessing ? (
