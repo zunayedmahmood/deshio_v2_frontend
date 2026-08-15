@@ -15,7 +15,7 @@ interface ReturnProductModalProps {
   allowForceLegacyBarcode?: boolean;
 }
 
-export default function ReturnProductModal({ order, onClose, onReturn, allowForceLegacyBarcode = false }: ReturnProductModalProps) {
+export default function ReturnProductModal({ order, onClose, onReturn, enableMobileScan = false, allowForceLegacyBarcode = false }: ReturnProductModalProps) {
   const [returnedItems, setReturnedItems] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -458,6 +458,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
   const totals = calculateTotals();
 
   const cashFromNotesCents = Object.entries(notes).reduce((sum, [val, count]) => sum + (Number(val) * Number(count) * 100), 0);
+  const cashFromNotes = centsToMoney(cashFromNotesCents);
   const effectiveRefundCashCents = cashFromNotesCents > 0 ? cashFromNotesCents : moneyCents(refundDetails.cash);
   const totalRefundProcessedCents = effectiveRefundCashCents + moneyCents(refundDetails.card) + moneyCents(refundDetails.bkash) + moneyCents(refundDetails.nagad);
   const remainingRefundCents = totals.refundToCustomerCents - totalRefundProcessedCents;
@@ -832,15 +833,19 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                               <input type="number" min="0" value={notes[val as unknown as keyof typeof notes]} onChange={(e) => setNotes(prev => ({ ...prev, [val]: parseInt(e.target.value) || 0 }))} className="w-16 px-2 py-1 bg-white dark:bg-black border border-gray-100 dark:border-gray-800 rounded-lg text-xs font-black text-center" />
                             </div>
                           ))}
+                          <div className="col-span-2 pt-3 mt-1 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Cash Total:</span>
+                            <span className="text-xs font-black text-green-600">৳{formatMoney(cashFromNotes)}</span>
+                          </div>
                         </div>
                       )}
 
                       <div className="space-y-4">
                         {[
-                          { id: 'cash', label: 'CASH', val: effectiveRefundCash, readOnly: cashFromNotes > 0 },
-                          { id: 'card', label: 'CARD', val: refundDetails.card },
-                          { id: 'bkash', label: 'BKASH', val: refundDetails.bkash },
-                          { id: 'nagad', label: 'NAGAD', val: refundDetails.nagad }
+                          { id: 'cash', label: 'CASH', val: cashFromNotesCents > 0 ? formatMoney(cashFromNotes) : refundDetails.cash, readOnly: cashFromNotesCents > 0 },
+                          { id: 'card', label: 'CARD', val: refundDetails.card, readOnly: false },
+                          { id: 'bkash', label: 'BKASH', val: refundDetails.bkash, readOnly: false },
+                          { id: 'nagad', label: 'NAGAD', val: refundDetails.nagad, readOnly: false }
                         ].map((m) => (
                           <div key={m.id} className="relative group">
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-green-500 transition-colors">
@@ -849,7 +854,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                             <input
                               type="text"
                               inputMode="decimal"
-                              value={m.readOnly ? formatMoney(m.val) : String(m.val ?? '')}
+                              value={String(m.val ?? '')}
                               readOnly={m.readOnly}
                               onChange={(e) => {
                                 if (!isMoneyInput(e.target.value)) return;

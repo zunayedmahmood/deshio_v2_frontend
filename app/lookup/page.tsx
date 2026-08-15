@@ -700,7 +700,7 @@ export default function LookupPage() {
     };
   };
 
-  const formatCurrency = (amount: string | number) => {
+  const formatCurrency = (amount: string | number | undefined | null) => {
     const numAmount = safeNum(amount);
     return new Intl.NumberFormat('en-BD', {
       style: 'currency',
@@ -2922,7 +2922,7 @@ export default function LookupPage() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                           <div>
                             <p className="text-[9px] text-gray-500 uppercase font-medium">Order Discount</p>
-                            <p className="text-sm text-black dark:text-white">{formatCurrency(singleOrder.discount_amount || 0)}</p>
+                            <p className="text-sm text-black dark:text-white">{formatCurrency((singleOrder as any).discount_amount || (singleOrder as any).amounts?.discount || 0)}</p>
                           </div>
                           <div>
                             <p className="text-[9px] text-gray-500 uppercase font-medium">Sold From</p>
