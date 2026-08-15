@@ -286,19 +286,7 @@ export default function AccountingSystem() {
   const handleExport = (type: 'journal' | 'trial-balance' | 'transactions' | 'ledger') => {
     try {
       if (type === 'journal') {
-        // Convert journal entries to flat format for CSV
-        const flatData = journalEntries.flatMap(entry =>
-          entry.lines.map(line => ({
-            date: entry.date,
-            reference: `${entry.reference_type}-${entry.reference_id}`,
-            description: entry.description,
-            account_code: line.account.account_code,
-            account_name: line.account.name,
-            debit: line.debit,
-            credit: line.credit
-          }))
-        );
-        accountingService.reports.exportTransactionsCSV(flatData as any, 'journal-entries');
+        accountingService.reports.exportJournalCSV(journalEntries, 'journal-entries');
       } else if (type === 'trial-balance' && trialBalance) {
         accountingService.reports.exportTrialBalanceCSV(
           trialBalance.accounts,

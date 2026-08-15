@@ -1001,6 +1001,47 @@ class FinancialReportsService {
   }
 
   /**
+   * Export grouped journal entries to CSV
+   */
+  exportJournalCSV(data: JournalEntry[], filename: string = 'journal-entries') {
+    const escapeCSV = (value: unknown): string => {
+      const text = value === null || value === undefined ? '' : String(value);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+
+    const headers = [
+      'Date',
+      'Reference',
+      'Description',
+      'Account Code',
+      'Account Name',
+      'Debit',
+      'Credit',
+      'Balanced'
+    ];
+
+    const rows = data.flatMap(entry =>
+      entry.lines.map(line => [
+        entry.date,
+        entry.reference_label || entry.reference_type || '',
+        entry.description || '',
+        line.account?.account_code || '',
+        line.account?.name || '',
+        toNumber(line.debit, 0).toFixed(2),
+        toNumber(line.credit, 0).toFixed(2),
+        entry.balanced ? 'Yes' : 'No'
+      ])
+    );
+
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    this.downloadCSV(csvContent, `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  }
+
+  /**
    * Export trial balance to CSV
    */
   exportTrialBalanceCSV(data: TrialBalanceAccount[], filename: string = 'trial-balance') {
