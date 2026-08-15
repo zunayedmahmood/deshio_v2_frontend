@@ -903,7 +903,7 @@ export default function ProductDetailPage() {
             <div className="flex items-center gap-2 text-[10px] font-bold tracking-[0.15em] text-gray-400 uppercase">
               <button onClick={() => router.push('/e-commerce')} className="hover:text-gray-900 transition-colors">HOME</button>
               <span className="text-gray-200">/</span>
-              <button onClick={() => router.push('/e-commerce/search')} className="hover:text-gray-900 transition-colors">SHOP ALL PRODUCTS</button>
+              <button onClick={() => router.push('/e-commerce/products')} className="hover:text-gray-900 transition-colors">SHOP ALL PRODUCTS</button>
               <span className="text-gray-200 lg:inline hidden">/</span>
               <span className="text-gray-900 lg:inline hidden truncate max-w-[200px]">{baseName}</span>
             </div>
@@ -912,7 +912,7 @@ export default function ProductDetailPage() {
               <button onClick={() => router.back()} className="hover:text-gray-900 transition-colors flex items-center gap-1">
                 <ChevronLeft size={16} />
               </button>
-              <button onClick={() => router.push('/e-commerce/search')} className="hover:text-gray-900 transition-colors">
+              <button onClick={() => router.push('/e-commerce/products')} className="hover:text-gray-900 transition-colors">
                 <Grid size={16} />
               </button>
               <button className="hover:text-gray-900 transition-colors opacity-30 cursor-not-allowed">

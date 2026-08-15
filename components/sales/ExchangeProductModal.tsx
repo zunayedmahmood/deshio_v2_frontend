@@ -49,12 +49,24 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
   // Payment/Refund states
   const [paymentDetails, setPaymentDetails] = useState({
-    cash: 0,
-    card: 0,
-    bkash: 0,
-    nagad: 0,
-    transactionFee: 0
+    cash: '',
+    card: '',
+    bkash: '',
+    nagad: '',
   });
+
+  const isMoneyInput = (value: string) => /^\d*(?:\.\d{0,2})?$/.test(value);
+  const moneyCents = (value: unknown) => Math.round((Number(value) || 0) * 100);
+  const centsToMoney = (value: number) => Math.max(0, value) / 100;
+  const formatMoney = (value: unknown) => centsToMoney(moneyCents(value)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const setTenderInput = (field: 'cash' | 'card' | 'bkash' | 'nagad', value: string) => {
+    // Keep monetary input as text while typing so 0.04 / .04 remain valid
+    // intermediate values. Convert to integer poisha only for calculations.
+    if (isMoneyInput(value)) {
+      setPaymentDetails(prev => ({ ...prev, [field]: value }));
+    }
+  };
 
   const [showNoteCounter, setShowNoteCounter] = useState(false);
   const [notes, setNotes] = useState({
@@ -125,6 +137,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     (Array.isArray(item?.product_barcodes) ? item.product_barcodes : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
     pushBarcode(item?.barcode, fallbackId);
     pushBarcode(item?.barcode_number, fallbackId);
+    pushBarcode(item?.sold_barcode, fallbackId);
     pushBarcode(item?.product_barcode, fallbackId);
     pushBarcode(item?.productBarcode, fallbackId);
     pushBarcode(item?.scanned_barcode, fallbackId);
@@ -223,19 +236,29 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
   };
 
   const updateRemovedItemSoldAtPrice = (index: number, value: string) => {
-    const manualPrice = Math.max(0, asNumber(value, 0));
+    if (!isMoneyInput(value)) return;
+    const manualPriceCents = moneyCents(value);
+    const manualPrice = centsToMoney(manualPriceCents);
     setRemovedItems(prev => prev.map((item, i) => i === index ? {
       ...item,
+      manual_sold_at_input: value,
       manual_sold_at_price: manualPrice,
       unit_price: manualPrice,
-      total_price: manualPrice * item.quantity,
+      total_price: centsToMoney(manualPriceCents * Number(item.quantity || 1)),
+    } : item));
+  };
+
+  const normalizeRemovedItemSoldAtPrice = (index: number) => {
+    setRemovedItems(prev => prev.map((item, i) => i === index ? {
+      ...item,
+      manual_sold_at_input: formatMoney(item.manual_sold_at_price),
     } : item));
   };
 
   const buildReturnItem = (orderItem: any, matchedBarcode: { code: string; id?: number }, forceLegacy = false) => {
     const listedUnitPrice = getItemListedUnitPrice(orderItem);
     const soldAtUnitPrice = getItemSoldAtUnitPrice(orderItem);
-    const productBarcodeId = forceLegacy ? undefined : (matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id);
+    const productBarcodeId = matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id;
 
     return {
       order_item_id: orderItem.id,
@@ -247,6 +270,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       barcode_id: productBarcodeId,
       listed_unit_price: listedUnitPrice,
       sold_at_unit_price: soldAtUnitPrice,
+      manual_sold_at_input: formatMoney(soldAtUnitPrice),
       manual_sold_at_price: soldAtUnitPrice,
       unit_price: soldAtUnitPrice,
       item_discount_amount: asNumber(orderItem.discount_amount, 0),
@@ -271,7 +295,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     }
 
     setError(null);
-    setRemovedItems(prev => [...prev, buildReturnItem(orderItem, matchedBarcode)]);
+    setRemovedItems(prev => [...prev, buildReturnItem(orderItem, matchedBarcode, forceLegacyEnabled)]);
     setForceLegacyCandidateCode(null);
     setForceLegacyOrderItemId(null);
     setBarcodeInput('');
@@ -374,6 +398,10 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       addReturnItem(orderItem, matchedBarcode);
     } catch (err: any) {
       if (allowForceLegacyBarcode && Number(err?.response?.status) === 404) {
+        // Normal lookup can miss an inactive/reset-retired identity or a barcode row
+        // that was accidentally deleted. Keep only the scanned literal client-side;
+        // the backend must prove that this exact order item sold it before it may
+        // recover/recreate the identity. Random/unknown values are rejected.
         setForceLegacyCandidateCode(code);
         setForceLegacyOrderItemId(forceLegacyOrderItems.length === 1 ? Number(forceLegacyOrderItems[0].id) : null);
         setError(null);
@@ -532,7 +560,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
     setIsQuoteLoading(true);
     quoteTimerRef.current = window.setTimeout(async () => {
       try {
-        const response = await axiosInstance.post('/exchange/quote', buildQuotePayload());
+        const quotePayload = buildQuotePayload();
+        // Use the long-lived process route for read-only quoting as well. This avoids
+        // deployment failures when Laravel still has an older route cache that does not
+        // contain the newer /exchange/quote route. quote_only returns before mutation.
+        const response = await axiosInstance.post('/exchange/process', { ...quotePayload, quote_only: true });
         if (requestId !== quoteRequestRef.current) return;
         setExchangeQuote(response.data?.data || null);
       } catch (err: any) {
@@ -550,43 +582,47 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
   const localReturnTotal = removedItems.reduce((sum, item) => sum + Number(item.total_price || 0), 0);
   const localReplacementTotal = replacementItems.reduce((sum, item) => sum + (Number(item.unit_price) || 0) * (Number(item.quantity) || 1), 0);
-  const quotedSurplus = Number(exchangeQuote?.surplus_due || 0);
-  const quotedRefund = Number(exchangeQuote?.refund_due || 0);
+  const quotedSurplus = Number(exchangeQuote?.amount_to_collect ?? exchangeQuote?.surplus_due ?? 0);
+  const quotedRefund = Number(exchangeQuote?.amount_to_refund ?? exchangeQuote?.refund_due ?? 0);
   const totals = {
     returnTotal: Number(exchangeQuote?.merchandise_return_value ?? localReturnTotal),
-    exchangeCredit: Number(exchangeQuote?.collected_return_entitlement ?? localReturnTotal),
     replacementTotal: Number(exchangeQuote?.replacement_total ?? localReplacementTotal),
     difference: exchangeQuote
-      ? (quotedSurplus > 0.009 ? quotedSurplus : (quotedRefund > 0.009 ? -quotedRefund : 0))
+      ? (moneyCents(quotedSurplus) > 0 ? quotedSurplus : (moneyCents(quotedRefund) > 0 ? -quotedRefund : 0))
       : Math.round((localReplacementTotal - localReturnTotal) * 100) / 100,
   };
   const isEvenExchange = Boolean(exchangeQuote) && exchangeQuote?.settlement_type === 'even';
 
-  // Payment/refund inputs are irrelevant for an even exchange. Clear any values
-  // left from an earlier replacement selection so they cannot reappear if the
-  // exchange moves away from and back to an even settlement.
+  // Tender values belong to one settlement direction only. Clear them when an
+  // edited Sold At price/replacement changes collect <-> refund <-> even so stale
+  // money never leaks into the next authoritative quote.
   useEffect(() => {
-    if (!isEvenExchange) return;
-
-    setPaymentDetails({ cash: 0, card: 0, bkash: 0, nagad: 0, transactionFee: 0 });
+    setPaymentDetails({ cash: '', card: '', bkash: '', nagad: '' });
     setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 });
     setShowNoteCounter(false);
-  }, [isEvenExchange]);
+  }, [exchangeQuote?.settlement_type]);
 
   const cashFromNotes = Object.entries(notes).reduce((sum, [val, count]) => sum + (Number(val) * Number(count)), 0);
-  const effectiveCash = cashFromNotes > 0 ? cashFromNotes : paymentDetails.cash;
-  const totalPaid = effectiveCash + paymentDetails.card + paymentDetails.bkash + paymentDetails.nagad;
-  
-  const remainingDue = totals.difference > 0 
-    ? Math.max(0, totals.difference - totalPaid + paymentDetails.transactionFee)
+  const tenderAmounts = {
+    cash: cashFromNotes > 0 ? cashFromNotes : Number(paymentDetails.cash || 0),
+    card: Number(paymentDetails.card || 0),
+    bkash: Number(paymentDetails.bkash || 0),
+    nagad: Number(paymentDetails.nagad || 0),
+  };
+  const totalPaidCents = moneyCents(tenderAmounts.cash) + moneyCents(tenderAmounts.card) + moneyCents(tenderAmounts.bkash) + moneyCents(tenderAmounts.nagad);
+  const differenceCents = moneyCents(Math.abs(totals.difference));
+  const totalPaid = centsToMoney(totalPaidCents);
+
+  const remainingDue = totals.difference > 0
+    ? centsToMoney(Math.max(0, differenceCents - totalPaidCents))
     : 0;
 
-  const refundDue = totals.difference < 0 
-    ? Math.max(0, Math.abs(totals.difference) - totalPaid)
+  const refundDue = totals.difference < 0
+    ? centsToMoney(Math.max(0, differenceCents - totalPaidCents))
     : 0;
-  const immediateRefundEntered = totals.difference < 0 ? Math.min(totalPaid, Math.abs(totals.difference)) : 0;
-  const refundOverpaid = totals.difference < 0 && totalPaid - Math.abs(totals.difference) > 0.01;
-  const refundBlocking = !allowPartialRefunds && totals.difference < 0 && refundDue > 0.01;
+  const immediateRefundEntered = totals.difference < 0 ? centsToMoney(Math.min(totalPaidCents, differenceCents)) : 0;
+  const refundOverpaid = totals.difference < 0 && totalPaidCents > differenceCents;
+  const refundBlocking = !allowPartialRefunds && totals.difference < 0 && refundDue > 0;
 
   const handleProcessExchange = async () => {
     if (!exchangeAtStoreId) {
@@ -604,8 +640,8 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
       return;
     }
 
-    if (totals.difference > 0 && remainingDue > 0) {
-      setError(`Please collect the remaining ৳${remainingDue.toLocaleString()} before submitting this exchange`);
+    if (totals.difference > 0 && moneyCents(remainingDue) > 0) {
+      setError(`Please collect the remaining ৳${formatMoney(remainingDue)} before submitting this exchange`);
       return;
     }
 
@@ -649,13 +685,14 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
               card: 0,
               bkash: 0,
               nagad: 0,
-              transactionFee: 0,
               total: 0,
             }
           : {
               type: totals.difference > 0 ? 'payment' : 'refund',
-              ...paymentDetails,
-              cash: effectiveCash,
+              cash: tenderAmounts.cash,
+              card: tenderAmounts.card,
+              bkash: tenderAmounts.bkash,
+              nagad: tenderAmounts.nagad,
               total: totalPaid
             },
         isOnlineExchange,
@@ -743,7 +780,21 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                   <input
                     type="checkbox"
                     checked={deferReturnReceipt}
-                    onChange={(e) => setDeferReturnReceipt(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setDeferReturnReceipt(checked);
+                      if (checked) {
+                        const hadForcedRows = removedItems.some((item) => item.force_legacy_barcode);
+                        if (hadForcedRows) {
+                          setRemovedItems((current) => current.filter((item) => !item.force_legacy_barcode));
+                          setError('Forced barcode rows were cleared. With Receive Original Later, Force Return is done when the physical item is scanned back.');
+                        }
+                        setForceLegacyEnabled(false);
+                        setForceLegacyCandidateCode(null);
+                        setForceLegacyOrderItemId(null);
+                        setBarcodeInput('');
+                      }
+                    }}
                     className="mt-1 w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
                   />
                   <span>
@@ -810,7 +861,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                           <span>
                             <span className="block text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Force Return</span>
                             <span className="block mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                              Leave this off for the normal exchange attempt. If Deshio rejects the selected return barcode, keep this modal open, tick Force Return, and submit the same barcode again. Each forced row represents one physical barcode; multiple failed legacy barcodes can be added to the same exchange.
+                              Leave this off while adding normal return barcodes. Turn it on before adding an exact legacy barcode that belongs to this order; only that row is forced, so normal + forced return identities can be mixed in the same exchange. If the barcode row was accidentally deleted, it can be recreated only when this order proves that exact sold barcode.
                             </span>
                             {deferReturnReceipt && <span className="block mt-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Unavailable while the original item is still with the customer/courier.</span>}
                           </span>
@@ -826,7 +877,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                             <div>
                               <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Barcode is not currently known to Deshio</p>
                               <p className="text-sm font-mono font-black text-gray-900 dark:text-white mt-1">{forceLegacyCandidateCode}</p>
-                              <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">If this is the physical barcode from the old order, tick Force Return above, select the exact original order item, and add it. The identity is staged only inside a successful exchange transaction.</p>
+                              <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">Normal lookup did not find this code. Force Return will check the selected order item. If the order retains this exact sold barcode, Deshio can recreate the missing barcode row and restock it; otherwise the request is rejected. Random codes are never created.</p>
                             </div>
                             {forceLegacyEnabled ? (
                               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
@@ -852,7 +903,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                                 </button>
                               </div>
                             ) : (
-                              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Tick Force Return above to use this unknown physical barcode.</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Tick Force Return only when this physical code was sold on the selected original order item. A deleted row can be recreated only from exact order proof; wrong-order/random codes are rejected.</p>
                             )}
                           </div>
                         </div>
@@ -940,15 +991,15 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                         <div className="md:col-span-2">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Manual Sold At Price</label>
                           <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.manual_sold_at_price}
+                            type="text"
+                            inputMode="decimal"
+                            value={item.manual_sold_at_input ?? String(item.manual_sold_at_price ?? '')}
                             onChange={(e) => updateRemovedItemSoldAtPrice(index, e.target.value)}
+                            onBlur={() => normalizeRemovedItemSoldAtPrice(index)}
                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:border-red-500 outline-none text-sm font-black"
                           />
                         </div>
-                        <p className="text-right text-sm font-black text-gray-900 dark:text-white">Return Value: ৳{Number(item.total_price || 0).toLocaleString()}</p>
+                        <p className="text-right text-sm font-black text-gray-900 dark:text-white">Return Value: ৳{formatMoney(item.total_price)}</p>
                       </div>
                     </div>
                   ))}
@@ -1042,30 +1093,35 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                 <div className="space-y-6">
                   <div className="flex justify-between items-center group/summary">
                     <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Return merchandise</span>
-                    <span className="font-black text-red-500 text-lg group-hover/summary:scale-110 transition-transform">-৳{totals.returnTotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center group/summary">
-                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Exchange credit</span>
-                    <span className="font-black text-blue-500 text-lg group-hover/summary:scale-110 transition-transform">৳{totals.exchangeCredit.toLocaleString()}</span>
+                    <span className="font-black text-red-500 text-lg group-hover/summary:scale-110 transition-transform">-৳{formatMoney(totals.returnTotal)}</span>
                   </div>
                   <div className="flex justify-between items-center group/summary">
                     <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Replacements</span>
-                    <span className="font-black text-green-500 text-lg group-hover/summary:scale-110 transition-transform">+৳{totals.replacementTotal.toLocaleString()}</span>
+                    <span className="font-black text-green-500 text-lg group-hover/summary:scale-110 transition-transform">+৳{formatMoney(totals.replacementTotal)}</span>
                   </div>
                   {(isQuoteLoading || quoteError) && (
                     <div className={`rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest ${quoteError ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' : 'bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400'}`}>
                       {quoteError || 'Calculating settlement from server…'}
                     </div>
                   )}
+                  {exchangeQuote && (
+                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 p-4 space-y-2 text-[10px] font-black uppercase tracking-widest">
+                      <div className="flex justify-between text-gray-500"><span>Original order payable</span><span>৳{formatMoney(exchangeQuote.source_order_total)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Payments recorded</span><span>৳{formatMoney(exchangeQuote.source_order_paid)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Previously refunded</span><span>৳{formatMoney(exchangeQuote.source_order_refunded)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Current outstanding</span><span>৳{formatMoney(exchangeQuote.source_order_outstanding)}</span></div>
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-between text-blue-600 dark:text-blue-400"><span>Paid amount applicable to this return</span><span>৳{formatMoney(exchangeQuote.return_payment_available ?? exchangeQuote.collected_return_entitlement)}</span></div>
+                    </div>
+                  )}
                   <div className="pt-6 border-t-4 border-gray-50 dark:border-gray-900">
                     <div className="flex justify-between items-end mb-1">
-                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Net Difference</span>
+                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{totals.difference > 0 ? 'Amount to collect' : totals.difference < 0 ? 'Amount to refund' : 'Money movement'}</span>
                       <span className={`text-3xl font-black tracking-tighter ${totals.difference > 0 ? 'text-orange-500' : totals.difference < 0 ? 'text-green-500' : 'text-gray-900 dark:text-white'}`}>
-                        {totals.difference > 0 ? '+' : ''}৳{Math.abs(totals.difference).toLocaleString()}
+                        {totals.difference > 0 ? '+' : ''}৳{formatMoney(Math.abs(totals.difference))}
                       </span>
                     </div>
                     <div className={`text-[9px] font-black uppercase tracking-[0.2em] px-3 py-1 rounded-full inline-block ${totals.difference > 0 ? 'bg-orange-100 text-orange-600' : totals.difference < 0 ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
-                      {totals.difference > 0 ? 'Collect Surplus' : totals.difference < 0 ? 'Process Refund' : 'Even Swap'}
+                      {totals.difference > 0 ? 'Collect Exact Difference' : totals.difference < 0 ? 'Refund Exact Difference' : 'Even Swap — No Payment / Refund'}
                     </div>
                   </div>
 
@@ -1104,7 +1160,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                           </p>
                         )}
                         {[
-                          { id: 'cash', label: 'CASH', val: effectiveCash, readOnly: cashFromNotes > 0 },
+                          { id: 'cash', label: 'CASH', val: cashFromNotes > 0 ? String(cashFromNotes) : paymentDetails.cash, readOnly: cashFromNotes > 0 },
                           { id: 'card', label: 'CARD', val: paymentDetails.card },
                           { id: 'bkash', label: 'BKASH', val: paymentDetails.bkash },
                           { id: 'nagad', label: 'NAGAD', val: paymentDetails.nagad }
@@ -1113,14 +1169,25 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors">
                               <span className="text-[9px] font-black uppercase tracking-tighter">{m.label}</span>
                             </div>
-                            <input type="number" value={m.val === 0 ? '' : m.val} readOnly={m.readOnly} onChange={(e) => { setPaymentDetails(prev => ({ ...prev, [m.id]: parseFloat(e.target.value) || 0 })); if (m.id === 'cash') setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 }); }} className={`w-full pl-16 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-sm font-black text-right ${m.readOnly ? 'bg-blue-50/50' : ''}`} placeholder="0.00" />
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={m.val}
+                              readOnly={m.readOnly}
+                              onChange={(e) => {
+                                setTenderInput(m.id as 'cash' | 'card' | 'bkash' | 'nagad', e.target.value);
+                                if (m.id === 'cash') setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 });
+                              }}
+                              className={`w-full pl-16 pr-4 py-3 bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-blue-500 rounded-2xl outline-none transition-all text-sm font-black text-right ${m.readOnly ? 'bg-blue-50/50' : ''}`}
+                              placeholder="0.00"
+                            />
                           </div>
                         ))}
                       </div>
                       {totals.difference > 0 && (
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-orange-500">
                           <span>Remaining to collect</span>
-                          <span>৳{remainingDue.toLocaleString()}</span>
+                          <span>৳{formatMoney(remainingDue)}</span>
                         </div>
                       )}
                       {totals.difference < 0 && (
@@ -1128,11 +1195,11 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
                           <div className="space-y-2 text-[10px] font-black uppercase tracking-widest">
                             <div className="flex justify-between text-green-600">
                               <span>Immediate refund</span>
-                              <span>৳{immediateRefundEntered.toLocaleString()}</span>
+                              <span>৳{formatMoney(immediateRefundEntered)}</span>
                             </div>
                             <div className="flex justify-between text-blue-600">
                               <span>Remaining refund due</span>
-                              <span>৳{refundDue.toLocaleString()}</span>
+                              <span>৳{formatMoney(refundDue)}</span>
                             </div>
                           </div>
                           {refundOverpaid && (
@@ -1148,7 +1215,7 @@ export default function ExchangeProductModal({ order, onClose, onExchange, allow
 
                   <button
                     onClick={handleProcessExchange}
-                    disabled={isProcessing || isQuoteLoading || !exchangeQuote || Boolean(quoteError) || removedItems.length === 0 || replacementItems.length === 0 || (totals.difference > 0 && remainingDue > 0) || refundOverpaid || refundBlocking}
+                    disabled={isProcessing || isQuoteLoading || !exchangeQuote || Boolean(quoteError) || removedItems.length === 0 || replacementItems.length === 0 || (totals.difference > 0 && moneyCents(remainingDue) > 0) || refundOverpaid || refundBlocking}
                     className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center justify-center gap-4 mt-8"
                   >
                     {isProcessing ? (

@@ -40,7 +40,6 @@ export interface ProductReturn {
   approvedBy?: any;
   rejectedBy?: any;
   refunds?: any[];
-  exchange_credit_applied_amount?: number;
   refund_entitlement_amount?: number;
   completed_refund_amount?: number;
   reserved_refund_amount?: number;
@@ -97,6 +96,9 @@ export interface CreateReturnRequest {
     order_item_id: number;
     quantity: number;
     product_barcode_id?: number; // Support barcode ID in return items
+    barcode_id?: number;
+    force_legacy_barcode?: boolean;
+    legacy_barcode?: string;
     unit_price?: number;
     manual_sold_at_price?: number;
     total_price?: number;
@@ -186,6 +188,11 @@ class ProductReturnService {
    */
   async quickComplete(data: CreateReturnRequest) {
     const response = await axiosInstance.post(`${this.basePath}/quick-complete`, data);
+    return response.data;
+  }
+
+  async quoteQuickComplete(data: CreateReturnRequest) {
+    const response = await axiosInstance.post(`${this.basePath}/quick-complete`, { ...data, quote_only: true });
     return response.data;
   }
 

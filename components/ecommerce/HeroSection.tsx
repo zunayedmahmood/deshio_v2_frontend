@@ -143,8 +143,6 @@ export default function HeroSection({
               className="object-cover object-center"
               priority={idx === 0}
             />
-            {/* Dark overlay */}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.4), rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.4))' }} />
           </div>
         ))}
       </div>
@@ -320,32 +318,6 @@ export default function HeroSection({
               }}
             >
               Shop Now
-            </Link>
-            <Link href="/e-commerce/products?category=all" style={{
-              padding: '12px 36px',
-              background: 'rgba(255,255,255,0.1)',
-              backdropFilter: 'blur(12px)',
-              color: '#ffffff',
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 800,
-              fontFamily: "var(--font-poppins), sans-serif",
-              textTransform: 'uppercase',
-              letterSpacing: '0.15em',
-              textDecoration: 'none',
-              border: '1px solid rgba(255,255,255,0.3)',
-              transition: 'all 0.3s ease'
-            }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.2)';
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)';
-                (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
-              }}
-            >
-              Collections
             </Link>
           </div>
         </div>

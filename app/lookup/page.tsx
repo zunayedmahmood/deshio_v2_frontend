@@ -2106,19 +2106,23 @@ export default function LookupPage() {
           barcode: p.barcode,
           barcode_id: p.barcode_id,
         })),
-        paymentRefund: {
-          type: exchangeData.paymentRefund?.type === 'payment' ? 'surplus' : (exchangeData.paymentRefund?.type === 'refund' ? 'refund' : 'even'),
-          amount: exchangeData.paymentRefund?.total || 0,
-          method: exchangeData.paymentRefund?.card > 0 ? 'card' :
-            (exchangeData.paymentRefund?.bkash > 0 ? 'bkash' :
-              (exchangeData.paymentRefund?.nagad > 0 ? 'nagad' : 'cash')),
-          details: {
-            cash: exchangeData.paymentRefund?.cash || 0,
-            card: exchangeData.paymentRefund?.card || 0,
-            bkash: exchangeData.paymentRefund?.bkash || 0,
-            nagad: exchangeData.paymentRefund?.nagad || 0,
+        ...(exchangeData.paymentRefund?.type && exchangeData.paymentRefund.type !== 'none' ? {
+          paymentRefund: {
+            // Backend derives collect/refund direction from the authoritative quote.
+            // This value is kept only for older compatible servers.
+            type: exchangeData.paymentRefund.type === 'payment' ? 'surplus' : 'refund',
+            amount: exchangeData.paymentRefund.total || 0,
+            method: exchangeData.paymentRefund.card > 0 ? 'card' :
+              (exchangeData.paymentRefund.bkash > 0 ? 'bkash' :
+                (exchangeData.paymentRefund.nagad > 0 ? 'nagad' : 'cash')),
+            details: {
+              cash: exchangeData.paymentRefund.cash || 0,
+              card: exchangeData.paymentRefund.card || 0,
+              bkash: exchangeData.paymentRefund.bkash || 0,
+              nagad: exchangeData.paymentRefund.nagad || 0,
+            }
           }
-        },
+        } : {}),
         defer_return_receipt: Boolean(exchangeData.defer_return_receipt || exchangeData.pending_return_receipt),
         pending_return_receipt: Boolean(exchangeData.defer_return_receipt || exchangeData.pending_return_receipt),
         isOnlineExchange: Boolean(exchangeData.isOnlineExchange),

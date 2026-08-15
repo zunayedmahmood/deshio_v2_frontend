@@ -17,7 +17,9 @@ import {
   Building2,
   ShieldCheck,
   TrendingUp,
-  Eye
+  Eye,
+  KeyRound,
+  X
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from "@/contexts/ThemeContext";
@@ -71,7 +73,14 @@ export default function EmployeeManagement() {
   // Modals
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<Employee | null>(null);
+  const [currentAdminPassword, setCurrentAdminPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   useEffect(() => {
     if (isAuthorized) {
@@ -289,6 +298,72 @@ export default function EmployeeManagement() {
   const handleEditEmployee = (employee: Employee) => {
     setSelectedEmployee(employee);
     setShowEditModal(true);
+  };
+
+  const handleOpenPasswordModal = (employee: Employee) => {
+    setPasswordTarget(employee);
+    setCurrentAdminPassword('');
+    setNewPassword('');
+    setNewPasswordConfirmation('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
+
+  const handleClosePasswordModal = () => {
+    setShowPasswordModal(false);
+    setPasswordTarget(null);
+    setCurrentAdminPassword('');
+    setNewPassword('');
+    setNewPasswordConfirmation('');
+    setPasswordError('');
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordTarget) return;
+
+    if (!currentAdminPassword || !newPassword || !newPasswordConfirmation) {
+      setPasswordError('Please fill in all password fields.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters.');
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirmation) {
+      setPasswordError('New password and confirmation do not match.');
+      return;
+    }
+
+    try {
+      setPasswordSubmitting(true);
+      setPasswordError('');
+      const response = await employeeService.changePassword(
+        passwordTarget.id,
+        currentAdminPassword,
+        newPassword,
+        newPasswordConfirmation
+      );
+
+      if (!response.success) {
+        setPasswordError(response.message || 'Failed to change password.');
+        return;
+      }
+
+      handleClosePasswordModal();
+      alert(`Password changed successfully for ${passwordTarget.name}.`);
+    } catch (error: any) {
+      console.error('Failed to change employee password:', error);
+      setPasswordError(
+        error.response?.data?.message ||
+        error.response?.data?.errors?.current_password?.[0] ||
+        error.response?.data?.errors?.new_password?.[0] ||
+        'Failed to change password.'
+      );
+    } finally {
+      setPasswordSubmitting(false);
+    }
   };
 
   return (
@@ -615,6 +690,15 @@ export default function EmployeeManagement() {
                         >
                           <Edit className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         </button>
+                        {isGlobal && (
+                          <button
+                            onClick={() => handleOpenPasswordModal(employee)}
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                            title="Change Password"
+                          >
+                            <KeyRound className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          </button>
+                        )}
                         {employee.is_active ? (
                           <button
                             onClick={() => handleDeactivateEmployee(employee.id)}
@@ -704,6 +788,110 @@ export default function EmployeeManagement() {
         }}
         employee={selectedEmployee}
       />
+
+      {showPasswordModal && passwordTarget && isGlobal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Change Password
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {passwordTarget.name} ({passwordTarget.email})
+                </p>
+              </div>
+              <button
+                onClick={handleClosePasswordModal}
+                disabled={passwordSubmitting}
+                className="rounded p-1 hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-700"
+                aria-label="Close password modal"
+              >
+                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Your Current Password
+                </label>
+                <input
+                  type="password"
+                  value={currentAdminPassword}
+                  onChange={(event) => setCurrentAdminPassword(event.target.value)}
+                  disabled={passwordSubmitting}
+                  autoComplete="current-password"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter your current password"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  disabled={passwordSubmitting}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  placeholder="Minimum 8 characters"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPasswordConfirmation}
+                  onChange={(event) => setNewPasswordConfirmation(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !passwordSubmitting) {
+                      handleChangePassword();
+                    }
+                  }}
+                  disabled={passwordSubmitting}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  placeholder="Re-enter the new password"
+                />
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                The employee's existing password is not required. Your current admin password is required to authorize this change.
+              </p>
+
+              {passwordError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                  {passwordError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+              <button
+                onClick={handleClosePasswordModal}
+                disabled={passwordSubmitting}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={passwordSubmitting}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {passwordSubmitting ? 'Changing...' : 'Change Password'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

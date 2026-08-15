@@ -28,6 +28,11 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const barcodeScanTimerRef = useRef<number | null>(null);
   const barcodeScanInFlightRef = useRef(false);
+  const returnQuoteTimerRef = useRef<number | null>(null);
+  const returnQuoteRequestRef = useRef(0);
+  const [returnQuote, setReturnQuote] = useState<any | null>(null);
+  const [isReturnQuoteLoading, setIsReturnQuoteLoading] = useState(false);
+  const [returnQuoteError, setReturnQuoteError] = useState<string | null>(null);
 
   // Return info
   const [returnReason, setReturnReason] = useState<ReturnReason>('other');
@@ -40,10 +45,10 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
 
   // Refund states
   const [refundDetails, setRefundDetails] = useState({
-    cash: 0,
-    card: 0,
-    bkash: 0,
-    nagad: 0
+    cash: '',
+    card: '',
+    bkash: '',
+    nagad: ''
   });
 
   const [showNoteCounter, setShowNoteCounter] = useState(false);
@@ -114,6 +119,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     (Array.isArray(item?.product_barcodes) ? item.product_barcodes : []).forEach((barcode: any) => pushBarcode(barcode, fallbackId));
     pushBarcode(item?.barcode, fallbackId);
     pushBarcode(item?.barcode_number, fallbackId);
+    pushBarcode(item?.sold_barcode, fallbackId);
     pushBarcode(item?.product_barcode, fallbackId);
     pushBarcode(item?.productBarcode, fallbackId);
     pushBarcode(item?.scanned_barcode, fallbackId);
@@ -202,6 +208,11 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
+  const isMoneyInput = (value: string) => /^\d*(?:\.\d{0,2})?$/.test(value);
+  const moneyCents = (value: unknown) => Math.round((Number(value) || 0) * 100);
+  const centsToMoney = (value: number) => Math.max(0, value) / 100;
+  const formatMoney = (value: unknown) => centsToMoney(moneyCents(value)).toFixed(2);
+
   const getItemListedUnitPrice = (item: any) => asNumber(item?.listed_unit_price ?? item?.unit_price ?? item?.price ?? item?.sale_price, 0);
   const getItemSoldAtUnitPrice = (item: any) => {
     const quantity = Math.max(1, asNumber(item?.quantity, 1));
@@ -212,19 +223,29 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
   };
 
   const updateReturnedItemSoldAtPrice = (index: number, value: string) => {
-    const manualPrice = Math.max(0, asNumber(value, 0));
+    if (!isMoneyInput(value)) return;
+    const manualPriceCents = moneyCents(value);
+    const manualPrice = centsToMoney(manualPriceCents);
     setReturnedItems(prev => prev.map((item, i) => i === index ? {
       ...item,
+      manual_sold_at_input: value,
       manual_sold_at_price: manualPrice,
       unit_price: manualPrice,
-      total_price: manualPrice * item.quantity,
+      total_price: centsToMoney(manualPriceCents * Number(item.quantity || 1)),
+    } : item));
+  };
+
+  const normalizeReturnedItemSoldAtPrice = (index: number) => {
+    setReturnedItems(prev => prev.map((item, i) => i === index ? {
+      ...item,
+      manual_sold_at_input: formatMoney(item.manual_sold_at_price),
     } : item));
   };
 
   const buildReturnedItem = (orderItem: any, matchedBarcode: { code: string; id?: number }, forceLegacy = false) => {
     const listedUnitPrice = getItemListedUnitPrice(orderItem);
     const soldAtUnitPrice = getItemSoldAtUnitPrice(orderItem);
-    const productBarcodeId = forceLegacy ? undefined : (matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id);
+    const productBarcodeId = matchedBarcode.id || orderItem.product_barcode_id || orderItem.barcode_id || orderItem.product_barcode?.id || orderItem.barcode?.id;
 
     return {
       order_item_id: orderItem.id,
@@ -236,12 +257,13 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
       barcode_id: productBarcodeId,
       listed_unit_price: listedUnitPrice,
       sold_at_unit_price: soldAtUnitPrice,
-      manual_sold_at_price: soldAtUnitPrice,
-      unit_price: soldAtUnitPrice,
+      manual_sold_at_price: centsToMoney(moneyCents(soldAtUnitPrice)),
+      manual_sold_at_input: formatMoney(soldAtUnitPrice),
+      unit_price: centsToMoney(moneyCents(soldAtUnitPrice)),
       item_discount_amount: asNumber(orderItem.discount_amount, 0),
       order_discount_amount: asNumber(order.discount_amount || order.amounts?.discount, 0),
       quantity: 1,
-      total_price: soldAtUnitPrice,
+      total_price: centsToMoney(moneyCents(soldAtUnitPrice)),
       force_legacy_barcode: forceLegacy,
       legacy_barcode: forceLegacy ? matchedBarcode.code : undefined,
     };
@@ -256,7 +278,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
       return false;
     }
     setError(null);
-    setReturnedItems(prev => [...prev, buildReturnedItem(orderItem, matchedBarcode)]);
+    setReturnedItems(prev => [...prev, buildReturnedItem(orderItem, matchedBarcode, forceLegacyEnabled)]);
     setForceLegacyCandidateCode(null);
     setForceLegacyOrderItemId(null);
     setBarcodeInput('');
@@ -329,6 +351,10 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
       addReturnedItem(orderItem, matchedBarcode);
     } catch (err: any) {
       if (allowForceLegacyBarcode && Number(err?.response?.status) === 404) {
+        // Normal lookup can miss an inactive/reset-retired identity or a barcode row
+        // that was accidentally deleted. Keep only the scanned literal client-side;
+        // the backend must prove that this exact order item sold it before it may
+        // recover/recreate the identity. Random/unknown values are rejected.
         setForceLegacyCandidateCode(code);
         setForceLegacyOrderItemId(forceLegacyOrderItems.length === 1 ? Number(forceLegacyOrderItems[0].id) : null);
         setError(null);
@@ -359,34 +385,88 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
     setReturnedItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const calculateTotals = () => {
-    const returnAmount = returnedItems.reduce((sum, item) => sum + item.total_price, 0);
-    const totalPaid = parseFloat(order.paid_amount || order.payments?.totalPaid || '0');
-    const currentOutstanding = parseFloat(String(order.outstanding_amount ?? order.payments?.remainingAmount ?? '0'));
+  useEffect(() => {
+    if (returnQuoteTimerRef.current) window.clearTimeout(returnQuoteTimerRef.current);
+    const requestId = ++returnQuoteRequestRef.current;
+    setReturnQuote(null);
+    setReturnQuoteError(null);
 
-    // A return first cancels any amount the customer still owes. Only the portion
-    // above the current outstanding balance is cash/value that must go back now/later.
-    // This remains correct after earlier partial returns because outstanding_amount is
-    // recalculated by the backend when each accepted return completes.
-    const refundToCustomer = Math.max(0, returnAmount - currentOutstanding);
+    if (!order?.id || returnedItems.length === 0) {
+      setIsReturnQuoteLoading(false);
+      return;
+    }
+
+    setIsReturnQuoteLoading(true);
+    returnQuoteTimerRef.current = window.setTimeout(async () => {
+      try {
+        const response = await productReturnService.quoteQuickComplete({
+          order_id: Number(order.id),
+          return_reason: returnReason,
+          return_type: returnType,
+          received_at_store_id: receivedAtStoreId || undefined,
+          items: returnedItems.map((item) => ({
+            order_item_id: Number(item.order_item_id),
+            quantity: Number(item.quantity || 1),
+            product_barcode_id: item.product_barcode_id || undefined,
+            unit_price: centsToMoney(moneyCents(item.manual_sold_at_price ?? item.unit_price ?? 0)),
+            manual_sold_at_price: centsToMoney(moneyCents(item.manual_sold_at_price ?? item.unit_price ?? 0)),
+            total_price: centsToMoney(moneyCents(item.total_price ?? 0)),
+            ...(item.force_legacy_barcode ? { force_legacy_barcode: true, legacy_barcode: item.legacy_barcode || item.barcode } : {}),
+          })),
+        });
+        if (requestId !== returnQuoteRequestRef.current) return;
+        setReturnQuote(response?.data || null);
+      } catch (err: any) {
+        if (requestId !== returnQuoteRequestRef.current) return;
+        setReturnQuoteError(err?.response?.data?.message || 'Unable to calculate the authoritative refund amount');
+      } finally {
+        if (requestId === returnQuoteRequestRef.current) setIsReturnQuoteLoading(false);
+      }
+    }, 120);
+
+    return () => {
+      if (returnQuoteTimerRef.current) window.clearTimeout(returnQuoteTimerRef.current);
+    };
+  }, [order?.id, returnedItems, returnReason, returnType, receivedAtStoreId]);
+
+  const calculateTotals = () => {
+    const localReturnAmountCents = returnedItems.reduce((sum, item) => sum + moneyCents(item.total_price), 0);
+    const localTotalPaidCents = moneyCents(order.paid_amount || order.payments?.totalPaid || 0);
+    const localOutstandingCents = moneyCents(order.outstanding_amount ?? order.payments?.remainingAmount ?? 0);
+    const returnAmountCents = returnQuote ? moneyCents(returnQuote.merchandise_return_value) : localReturnAmountCents;
+    const totalPaidCents = returnQuote ? moneyCents(returnQuote.source_order_paid) : localTotalPaidCents;
+    const currentOutstandingCents = returnQuote ? moneyCents(returnQuote.source_order_outstanding) : localOutstandingCents;
+
+    // While the server quote is loading, retain the old local estimate only for display.
+    // Submission is blocked until the authoritative backend refund amount is available.
+    const refundToCustomerCents = returnQuote
+      ? moneyCents(returnQuote.amount_to_refund ?? returnQuote.refund_due ?? 0)
+      : Math.max(0, returnAmountCents - currentOutstandingCents);
 
     return {
-      returnAmount,
-      totalPaid,
-      currentOutstanding,
-      refundToCustomer
+      returnAmountCents,
+      totalPaidCents,
+      currentOutstandingCents,
+      refundToCustomerCents,
+      returnAmount: centsToMoney(returnAmountCents),
+      totalPaid: centsToMoney(totalPaidCents),
+      currentOutstanding: centsToMoney(currentOutstandingCents),
+      refundToCustomer: centsToMoney(refundToCustomerCents),
     };
   };
 
   const totals = calculateTotals();
 
-  const cashFromNotes = Object.entries(notes).reduce((sum, [val, count]) => sum + (Number(val) * Number(count)), 0);
-  const effectiveRefundCash = cashFromNotes > 0 ? cashFromNotes : refundDetails.cash;
-  const totalRefundProcessed = effectiveRefundCash + refundDetails.card + refundDetails.bkash + refundDetails.nagad;
-  const remainingRefund = totals.refundToCustomer - totalRefundProcessed;
-  const refundOverpaid = totalRefundProcessed - totals.refundToCustomer > 0.01;
-  const refundUnderpaid = totals.refundToCustomer > 0.01 && remainingRefund > 0.01;
+  const cashFromNotesCents = Object.entries(notes).reduce((sum, [val, count]) => sum + (Number(val) * Number(count) * 100), 0);
+  const effectiveRefundCashCents = cashFromNotesCents > 0 ? cashFromNotesCents : moneyCents(refundDetails.cash);
+  const totalRefundProcessedCents = effectiveRefundCashCents + moneyCents(refundDetails.card) + moneyCents(refundDetails.bkash) + moneyCents(refundDetails.nagad);
+  const remainingRefundCents = totals.refundToCustomerCents - totalRefundProcessedCents;
+  const refundOverpaid = totalRefundProcessedCents > totals.refundToCustomerCents;
+  const refundUnderpaid = totals.refundToCustomerCents > 0 && remainingRefundCents > 0;
   const refundBlocking = !allowPartialRefunds && refundUnderpaid;
+  const effectiveRefundCash = centsToMoney(effectiveRefundCashCents);
+  const totalRefundProcessed = centsToMoney(totalRefundProcessedCents);
+  const remainingRefund = centsToMoney(Math.abs(remainingRefundCents));
 
   const handleProcessReturn = async () => {
     if (returnedItems.length === 0) {
@@ -396,6 +476,11 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
 
     if (!receivedAtStoreId) {
       setError('Please select the store receiving this return');
+      return;
+    }
+
+    if (!returnQuote || isReturnQuoteLoading) {
+      setError(returnQuoteError || 'Wait for Deshio to calculate the authoritative refund amount.');
       return;
     }
 
@@ -419,9 +504,9 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
         selectedProducts: returnedItems,
         refundMethods: {
           cash: effectiveRefundCash,
-          card: refundDetails.card,
-          bkash: refundDetails.bkash,
-          nagad: refundDetails.nagad,
+          card: centsToMoney(moneyCents(refundDetails.card)),
+          bkash: centsToMoney(moneyCents(refundDetails.bkash)),
+          nagad: centsToMoney(moneyCents(refundDetails.nagad)),
           total: totalRefundProcessed
         },
         customerNotes: customerNotes.trim() || undefined
@@ -565,7 +650,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                       <span>
                         <span className="block text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Force Return</span>
                         <span className="block mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                          Leave this off for the normal attempt. If Deshio rejects the selected barcode, keep this modal open, tick Force Return, and submit the same barcode again. Each forced row represents one physical barcode; you can add multiple failed legacy barcodes before submitting. Force Return never rewrites the old order item.
+                          Leave this off while adding normal barcodes. Turn it on before adding an exact legacy barcode that belongs to this order; that row is marked for Force Return while previously added normal rows stay normal. Multiple normal + forced barcodes can be submitted together. If the barcode row was accidentally deleted, Deshio may recreate that exact physical identity only when this order still proves that exact barcode was sold here.
                         </span>
                       </span>
                     </label>
@@ -580,7 +665,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                         <div>
                           <p className="text-xs font-black text-amber-900 dark:text-amber-200 uppercase tracking-widest">Barcode is not currently known to Deshio</p>
                           <p className="text-sm font-mono font-black text-gray-900 dark:text-white mt-1">{forceLegacyCandidateCode}</p>
-                          <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">If this is the physical barcode from the old order, tick Force Return above, select the exact original order item, and add it. No barcode or batch is created until the return transaction succeeds.</p>
+                          <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2">Normal lookup did not find this code. Force Return will check the selected order item. If the order retains this exact sold barcode, Deshio can recreate the missing barcode row and restock it; otherwise the request is rejected. Random codes are never created.</p>
                         </div>
                         {forceLegacyEnabled ? (
                           <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
@@ -606,7 +691,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                             </button>
                           </div>
                         ) : (
-                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Tick Force Return above to use this unknown physical barcode.</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Tick Force Return only when this physical code was sold on the selected original order item. A deleted row can be recreated only from exact order proof; wrong-order/random codes are rejected.</p>
                         )}
                       </div>
                     </div>
@@ -664,15 +749,15 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                         <div className="md:col-span-2">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Manual Sold At Price</label>
                           <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.manual_sold_at_price}
+                            type="text"
+                            inputMode="decimal"
+                            value={item.manual_sold_at_input ?? formatMoney(item.manual_sold_at_price)}
                             onChange={(e) => updateReturnedItemSoldAtPrice(index, e.target.value)}
+                            onBlur={() => normalizeReturnedItemSoldAtPrice(index)}
                             className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 rounded-xl focus:border-red-500 outline-none text-sm font-black"
                           />
                         </div>
-                        <p className="text-right text-sm font-black text-gray-900 dark:text-white">Refund Source: ৳{Number(item.total_price || 0).toLocaleString()}</p>
+                        <p className="text-right text-sm font-black text-gray-900 dark:text-white">Return Value: ৳{formatMoney(item.total_price)}</p>
                       </div>
                     </div>
                   ))}
@@ -693,20 +778,35 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                     <div className="space-y-4">
                       <div className="flex justify-between items-center text-[10px] font-black text-gray-400 uppercase tracking-widest">
                         <span>Scanned Value</span>
-                        <span className="text-gray-900 dark:text-white">৳{totals.returnAmount.toLocaleString()}</span>
+                        <span className="text-gray-900 dark:text-white">৳{formatMoney(totals.returnAmount)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-black text-gray-400 uppercase tracking-widest">
                         <span>Customer Paid</span>
-                        <span className="text-blue-500">৳{totals.totalPaid.toLocaleString()}</span>
+                        <span className="text-blue-500">৳{formatMoney(totals.totalPaid)}</span>
                       </div>
                     </div>
                   </div>
                   
+                  {(isReturnQuoteLoading || returnQuoteError) && (
+                    <div className={`rounded-2xl p-3 text-[10px] font-black uppercase tracking-widest ${returnQuoteError ? 'bg-red-50 text-red-600 dark:bg-red-900/10 dark:text-red-400' : 'bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400'}`}>
+                      {returnQuoteError || 'Calculating refund from server…'}
+                    </div>
+                  )}
+
+                  {returnQuote && (
+                    <div className="rounded-2xl bg-gray-50 dark:bg-gray-900 p-4 space-y-2 text-[10px] font-black uppercase tracking-widest">
+                      <div className="flex justify-between text-gray-500"><span>Original order payable</span><span>৳{formatMoney(returnQuote.source_order_total)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Money currently paid</span><span>৳{formatMoney(returnQuote.source_order_paid)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Previously refunded</span><span>৳{formatMoney(returnQuote.source_order_refunded)}</span></div>
+                      <div className="flex justify-between text-gray-500"><span>Current outstanding</span><span>৳{formatMoney(returnQuote.source_order_outstanding)}</span></div>
+                    </div>
+                  )}
+
                   <div className="pt-6 border-t-4 border-gray-50 dark:border-gray-900">
                     <div className="flex justify-between items-end mb-1">
                       <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Refund Due</span>
                       <span className={`text-3xl font-black tracking-tighter ${totals.refundToCustomer > 0 ? 'text-green-500' : 'text-gray-900 dark:text-white'}`}>
-                        ৳{totals.refundToCustomer.toLocaleString()}
+                        ৳{formatMoney(totals.refundToCustomer)}
                       </span>
                     </div>
                   </div>
@@ -746,7 +846,19 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-green-500 transition-colors">
                               <span className="text-[9px] font-black uppercase tracking-tighter">{m.label}</span>
                             </div>
-                            <input type="number" value={m.val === 0 ? '' : m.val} readOnly={m.readOnly} onChange={(e) => { setRefundDetails(prev => ({ ...prev, [m.id]: parseFloat(e.target.value) || 0 })); if (m.id === 'cash') setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 }); }} className={`w-full pl-16 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none transition-all text-sm font-black text-right ${m.readOnly ? 'bg-green-50/50' : ''}`} placeholder="0.00" />
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={m.readOnly ? formatMoney(m.val) : String(m.val ?? '')}
+                              readOnly={m.readOnly}
+                              onChange={(e) => {
+                                if (!isMoneyInput(e.target.value)) return;
+                                setRefundDetails(prev => ({ ...prev, [m.id]: e.target.value }));
+                                if (m.id === 'cash') setNotes({ 1000: 0, 500: 0, 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 });
+                              }}
+                              className={`w-full pl-16 pr-4 py-4 bg-gray-50 dark:bg-gray-900 border-2 border-transparent focus:border-green-500 rounded-2xl outline-none transition-all text-sm font-black text-right ${m.readOnly ? 'bg-green-50/50' : ''}`}
+                              placeholder="0.00"
+                            />
                           </div>
                         ))}
                       </div>
@@ -754,12 +866,12 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
                       <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
                         <div className="flex justify-between items-center text-[10px] font-black text-gray-400 uppercase tracking-widest">
                           <span>Processed</span>
-                          <span className="text-gray-900 dark:text-white">৳{totalRefundProcessed.toLocaleString()}</span>
+                          <span className="text-gray-900 dark:text-white">৳{formatMoney(totalRefundProcessed)}</span>
                         </div>
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Remaining</span>
                           <span className={`text-xl font-black tracking-tighter ${remainingRefund > 0 ? 'text-orange-500' : 'text-green-500'}`}>
-                            ৳{Math.abs(remainingRefund).toLocaleString()}
+                            ৳{formatMoney(remainingRefund)}
                           </span>
                         </div>
                         {refundOverpaid && (
@@ -774,7 +886,7 @@ export default function ReturnProductModal({ order, onClose, onReturn, allowForc
 
                   <button
                     onClick={handleProcessReturn}
-                    disabled={isProcessing || returnedItems.length === 0 || refundOverpaid || refundBlocking}
+                    disabled={isProcessing || isReturnQuoteLoading || !returnQuote || Boolean(returnQuoteError) || returnedItems.length === 0 || refundOverpaid || refundBlocking}
                     className="w-full py-5 bg-black dark:bg-white text-white dark:text-black rounded-3xl font-black text-xl shadow-2xl shadow-black/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center justify-center gap-4 mt-8"
                   >
                     {isProcessing ? (

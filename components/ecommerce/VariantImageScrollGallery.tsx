@@ -113,10 +113,12 @@ const VariantImageScrollGallery: React.FC<VariantImageScrollGalleryProps> = memo
   const [activeIndex, setActiveIndex] = useState(firstSelectedImageIndex);
   const totalImages = imageItems.length;
   const lastSelectedVariantIdRef = useRef(selectedVariant.id);
+  const isSyncingSelectedVariantRef = useRef(false);
 
   useEffect(() => {
     if (lastSelectedVariantIdRef.current === selectedVariant.id) return;
     lastSelectedVariantIdRef.current = selectedVariant.id;
+    isSyncingSelectedVariantRef.current = true;
     setActiveIndex(firstSelectedImageIndex);
   }, [firstSelectedImageIndex, selectedVariant.id]);
 
@@ -127,6 +129,11 @@ const VariantImageScrollGallery: React.FC<VariantImageScrollGalleryProps> = memo
   }, [activeIndex, totalImages]);
 
   useEffect(() => {
+    if (isSyncingSelectedVariantRef.current) {
+      isSyncingSelectedVariantRef.current = false;
+      return;
+    }
+
     const activeItem = imageItems[activeIndex];
     if (!activeItem || activeItem.variant.id === selectedVariant.id) return;
     onVariantChange(activeItem.variant);

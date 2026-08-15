@@ -538,11 +538,11 @@ export default function PurchaseHistoryPage() {
       if (settlement.surplus_paid > 0) {
         successMessage += `Customer paid additional: ৳${Number(settlement.surplus_paid).toLocaleString()}\n`;
       }
-      if (settlement.refund_paid > 0) {
-        successMessage += `Refund paid now: ৳${Number(settlement.refund_paid).toLocaleString()}\n`;
+      if (settlement.amount_refunded_now > 0) {
+        successMessage += `Refund paid now: ৳${Number(settlement.amount_refunded_now).toLocaleString()}\n`;
       }
-      if (settlement.remaining_refund_due > 0) {
-        successMessage += `Remaining refund due: ৳${Number(settlement.remaining_refund_due).toLocaleString()}\n`;
+      if (settlement.refund_remaining > 0) {
+        successMessage += `Remaining refund due: ৳${Number(settlement.refund_remaining).toLocaleString()}\n`;
       }
 
       alert(successMessage);

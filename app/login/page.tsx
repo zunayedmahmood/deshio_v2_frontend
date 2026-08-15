@@ -120,20 +120,12 @@ export default function LoginPage() {
 
             {/* Password */}
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-semibold text-gray-700"
-                >
-                  Password
-                </label>
-                <a
-                  href="#"
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
-                >
-                  Forgot?
-                </a>
-              </div>
+              <label
+                htmlFor="password"
+                className="block mb-2 text-sm font-semibold text-gray-700"
+              >
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
@@ -189,17 +181,6 @@ export default function LoginPage() {
               )}
             </button>
           </div>
-
-          {/* Footer */}
-          <p className="text-center text-gray-600 text-sm mt-6 pt-4 border-t border-gray-200">
-            Don't have an account?{" "}
-            <a
-              href="#"
-              className="text-gray-900 hover:text-gray-700 font-semibold hover:underline"
-            >
-              Create Account
-            </a>
-          </p>
         </div>
       </div>
     </div>
