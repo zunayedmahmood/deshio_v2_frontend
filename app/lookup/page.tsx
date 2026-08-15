@@ -1025,6 +1025,8 @@ export default function LookupPage() {
     const cleanOrderNumber = rawOrderNumber.trim().replace(/^#/, '');
     const cleanKey = normalizeOrderNumberKey(cleanOrderNumber);
 
+    // Search/Enter is an exact lookup. Partial matching belongs only to the
+    // autocomplete list; never auto-open an arbitrary fuzzy match.
     const exactResponse: any = await orderService.getAll({
       order_number: cleanOrderNumber,
       per_page: 10,
@@ -1032,24 +1034,7 @@ export default function LookupPage() {
     } as any);
 
     const exactList = Array.isArray(exactResponse?.data) ? exactResponse.data : [];
-    const exactMatch = exactList.find((o: any) => normalizeOrderNumberKey(o?.order_number) === cleanKey);
-    if (exactMatch?.id) return exactMatch;
-
-    const searchResponse: any = await orderService.getAll({
-      search: cleanOrderNumber,
-      per_page: 100,
-      page: 1,
-      skipStoreScope: true,
-    });
-
-    const list = Array.isArray(searchResponse?.data) ? searchResponse.data : [];
-    return (
-      list.find((o: any) => normalizeOrderNumberKey(o?.order_number) === cleanKey) ||
-      list.find((o: any) => normalizeOrderNumberKey(o?.order_number).startsWith(cleanKey)) ||
-      list.find((o: any) => normalizeOrderNumberKey(o?.order_number).includes(cleanKey)) ||
-      list[0] ||
-      null
-    );
+    return exactList.find((o: any) => normalizeOrderNumberKey(o?.order_number) === cleanKey) || null;
   };
 
   // -----------------------
@@ -1332,8 +1317,7 @@ export default function LookupPage() {
 
       const matching = searchResults.data.filter((c) => {
         const cPhone = formatPhoneNumber(c.phone || '');
-        const cNameDigits = formatPhoneNumber(c.name || '');
-        return cPhone.startsWith(formattedSearch) || cNameDigits.startsWith(formattedSearch);
+        return cPhone.startsWith(formattedSearch);
       });
 
       setSuggestions(matching);
@@ -1594,17 +1578,14 @@ export default function LookupPage() {
     try {
       const formattedPhone = formatPhoneNumber(phoneNumber);
 
-      const searchResults = await customerService.search({
-        phone: formattedPhone,
-        per_page: 10,
-      });
+      // Search/Enter must resolve the complete phone number. Fuzzy phone
+      // matching is reserved for the autocomplete suggestions above.
+      const exact = await customerService.findByPhone(formattedPhone);
 
-      if (!searchResults.data || searchResults.data.length === 0) {
+      if (!exact) {
         setError('No customer found with this phone number');
         return;
       }
-
-      const exact = searchResults.data.find((c) => customerPhoneMatches(c, formattedPhone)) || searchResults.data[0];
 
       setCustomer(exact);
 

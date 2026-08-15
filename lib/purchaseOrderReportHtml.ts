@@ -1,4 +1,5 @@
 import { PurchaseOrder } from '@/services/purchase-order.service';
+import { jsPDF } from 'jspdf';
 
 const esc = (value: any): string => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -261,145 +262,328 @@ export function buildPurchaseOrderSummaryPrintHtml(purchaseOrders: any[], filter
 </html>`;
 }
 
-type PdfLine = { text: string; size?: number; bold?: boolean; gapAfter?: boolean };
+type PdfDoc = InstanceType<typeof jsPDF>;
 
-const pdfText = (value: any): string => String(value ?? '')
-  .replace(/[৳]/g, 'BDT ')
-  .replace(/[—–]/g, '-')
-  .replace(/[“”]/g, '"')
-  .replace(/[‘’]/g, "'")
-  .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '?');
+const pdfMoney = (value: any): string => `BDT ${money(value)}`;
 
-const escapePdfString = (value: any): string => pdfText(value)
-  .replace(/\\/g, '\\\\')
-  .replace(/\(/g, '\\(')
-  .replace(/\)/g, '\\)');
-
-const wrapPdfLine = (value: any, maxChars = 102): string[] => {
-  const text = pdfText(value).replace(/\s+/g, ' ').trim();
-  if (!text) return [''];
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let current = '';
-  words.forEach((word) => {
-    if ((current ? current.length + 1 : 0) + word.length <= maxChars) {
-      current = current ? `${current} ${word}` : word;
-    } else {
-      if (current) lines.push(current);
-      if (word.length > maxChars) {
-        for (let i = 0; i < word.length; i += maxChars) lines.push(word.slice(i, i + maxChars));
-        current = '';
-      } else {
-        current = word;
-      }
-    }
-  });
-  if (current) lines.push(current);
-  return lines;
+const setPdfFont = (doc: PdfDoc, size: number, bold = false, gray = 17): void => {
+  doc.setFont('helvetica', bold ? 'bold' : 'normal');
+  doc.setFontSize(size);
+  doc.setTextColor(gray, gray, gray);
 };
 
-const buildPdfBlobFromLines = (title: string, rawLines: PdfLine[]): Blob => {
-  const pageWidth = 595.28;
-  const pageHeight = 841.89;
-  const marginX = 38;
-  const topY = 805;
-  const bottomY = 42;
-  const lineGap = 14;
-  const pages: PdfLine[][] = [[]];
-  let y = topY;
+const drawPdfFooter = (doc: PdfDoc, label: string): void => {
+  const pages = doc.getNumberOfPages();
+  for (let page = 1; page <= pages; page += 1) {
+    doc.setPage(page);
+    const width = doc.internal.pageSize.getWidth();
+    const height = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(229, 231, 235);
+    doc.line(10, height - 9, width - 10, height - 9);
+    setPdfFont(doc, 7.5, false, 107);
+    doc.text(label, 10, height - 4.5);
+    doc.text(`Page ${page} of ${pages}`, width - 10, height - 4.5, { align: 'right' });
+  }
+};
 
-  const addLine = (line: PdfLine) => {
-    const size = line.size || 10;
-    const needed = (size >= 14 ? 18 : lineGap) + (line.gapAfter ? 8 : 0);
-    if (y - needed < bottomY && pages[pages.length - 1].length > 0) {
-      pages.push([]);
-      y = topY;
-    }
-    pages[pages.length - 1].push(line);
-    y -= needed;
-  };
-
-  rawLines.forEach((line) => {
-    const maxChars = line.size && line.size >= 14 ? 72 : 108;
-    wrapPdfLine(line.text, maxChars).forEach((part, index, arr) => {
-      addLine({ ...line, text: part, gapAfter: index === arr.length - 1 ? line.gapAfter : false });
+const drawPdfTableHeader = (
+  doc: PdfDoc,
+  y: number,
+  columns: Array<{ label: string; width: number; align?: 'left' | 'right' | 'center' }>,
+  startX = 10,
+): number => {
+  const height = 9;
+  let x = startX;
+  doc.setFillColor(31, 41, 55);
+  doc.rect(startX, y, columns.reduce((sum, column) => sum + column.width, 0), height, 'F');
+  setPdfFont(doc, 7.4, true, 255);
+  columns.forEach((column) => {
+    const textX = column.align === 'right'
+      ? x + column.width - 2
+      : column.align === 'center'
+        ? x + (column.width / 2)
+        : x + 2;
+    doc.text(column.label, textX, y + 5.8, {
+      align: column.align === 'right' ? 'right' : column.align === 'center' ? 'center' : 'left',
     });
+    x += column.width;
   });
-
-  const fontId = 3 + pages.length * 2;
-  const objects: string[] = [];
-  objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-  const pageIds = pages.map((_, index) => 3 + index * 2);
-  objects[2] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pages.length} >>`;
-
-  pages.forEach((pageLines, index) => {
-    const pageId = 3 + index * 2;
-    const contentId = pageId + 1;
-    let cursorY = topY;
-    const stream = pageLines.map((line) => {
-      const size = line.size || 10;
-      const text = escapePdfString(line.text);
-      const command = `BT /F1 ${size} Tf ${marginX.toFixed(2)} ${cursorY.toFixed(2)} Td (${text}) Tj ET`;
-      cursorY -= (size >= 14 ? 18 : lineGap) + (line.gapAfter ? 8 : 0);
-      return command;
-    }).join('\n');
-    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`;
-    objects[contentId] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
-  });
-  objects[fontId] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-
-  const parts: string[] = ['%PDF-1.4\n'];
-  const offsets: number[] = [0];
-  for (let id = 1; id <= fontId; id += 1) {
-    offsets[id] = parts.join('').length;
-    parts.push(`${id} 0 obj\n${objects[id]}\nendobj\n`);
-  }
-  const xrefOffset = parts.join('').length;
-  parts.push(`xref\n0 ${fontId + 1}\n`);
-  parts.push('0000000000 65535 f \n');
-  for (let id = 1; id <= fontId; id += 1) {
-    parts.push(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`);
-  }
-  parts.push(`trailer\n<< /Size ${fontId + 1} /Root 1 0 R /Title (${escapePdfString(title)}) >>\nstartxref\n${xrefOffset}\n%%EOF`);
-
-  return new Blob([parts.join('')], { type: 'application/pdf' });
+  return y + height;
 };
 
-const singlePoPdfLines = (po: any): PdfLine[] => {
-  const items = Array.isArray(po?.items) ? po.items : [];
-  const lines: PdfLine[] = [
-    { text: 'Deshio - Purchase Order Report', size: 16, bold: true },
-    { text: `Generated: ${fmtDate(new Date().toISOString())}`, gapAfter: true },
-    { text: `PO Number: ${po?.po_number || po?.id || '-'}` },
-    { text: `Vendor: ${po?.vendor?.name || '-'}` },
-    { text: `Store / Warehouse: ${po?.store?.name || '-'}` },
-    { text: `Order Date: ${fmtDate(po?.order_date || po?.created_at)} | Expected: ${fmtDate(po?.expected_delivery_date)} | Received: ${fmtDate(po?.received_at)}` },
-    { text: `Status: ${po?.status || '-'} | Payment: ${po?.payment_status || '-'}` },
-    { text: `Created By: ${employeeName(po?.createdBy || po?.created_by)} | Received By: ${employeeName(po?.receivedBy || po?.received_by)}`, gapAfter: true },
-    { text: `Totals: Ordered ${orderedQty(po)} | Received ${receivedQty(po)} | Subtotal ${moneyLabel(poSubtotal(po))} | Total ${moneyLabel(poTotal(po))} | Paid ${moneyLabel(poPaid(po))} | Outstanding ${moneyLabel(poOutstanding(po))}`, gapAfter: true },
-    { text: 'Items', size: 13, bold: true },
-    { text: 'No | Product / SKU | Ordered | Received | Pending | Unit Cost | Sell Price | Batch | Total Cost' },
-    { text: '-'.repeat(116) },
+const drawPdfMetric = (doc: PdfDoc, x: number, y: number, width: number, label: string, value: string): void => {
+  doc.setFillColor(249, 250, 251);
+  doc.setDrawColor(229, 231, 235);
+  doc.roundedRect(x, y, width, 17, 1.5, 1.5, 'FD');
+  setPdfFont(doc, 7, true, 107);
+  doc.text(label.toUpperCase(), x + 3, y + 5);
+  setPdfFont(doc, 11, true, 17);
+  doc.text(value, x + 3, y + 12.3);
+};
+
+const drawSinglePoPageHeading = (doc: PdfDoc, po: any, continuation = false): number => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFillColor(17, 24, 39);
+  doc.rect(0, 0, pageWidth, 24, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('DESHIO', 10, 10.5);
+  doc.setFontSize(12.5);
+  doc.text(continuation ? 'Purchase Order Report - continued' : 'Purchase Order Report', 10, 18);
+  doc.setFontSize(13);
+  doc.text(String(po?.po_number || po?.id || '-'), pageWidth - 10, 11, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Generated ${fmtDate(new Date().toISOString())}`, pageWidth - 10, 18, { align: 'right' });
+  return 30;
+};
+
+const drawSinglePoTableHeader = (doc: PdfDoc, y: number): number => drawPdfTableHeader(doc, y, [
+  { label: '#', width: 8, align: 'center' },
+  { label: 'Product / SKU', width: 70 },
+  { label: 'Ordered', width: 20, align: 'right' },
+  { label: 'Received', width: 20, align: 'right' },
+  { label: 'Pending', width: 20, align: 'right' },
+  { label: 'Unit Cost', width: 26, align: 'right' },
+  { label: 'Sell Price', width: 26, align: 'right' },
+  { label: 'Batch', width: 57 },
+  { label: 'Total Cost', width: 30, align: 'right' },
+]);
+
+export function downloadSinglePurchaseOrderPdf(po: PurchaseOrder | any): void {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 10;
+  let y = drawSinglePoPageHeading(doc, po);
+
+  const infoGap = 5;
+  const infoWidth = (pageWidth - (margin * 2) - infoGap) / 2;
+  const infoHeight = 29;
+  const leftX = margin;
+  const rightX = margin + infoWidth + infoGap;
+
+  doc.setDrawColor(229, 231, 235);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(leftX, y, infoWidth, infoHeight, 2, 2, 'FD');
+  doc.roundedRect(rightX, y, infoWidth, infoHeight, 2, 2, 'FD');
+
+  setPdfFont(doc, 7, true, 107);
+  doc.text('SUPPLIER & DESTINATION', leftX + 4, y + 5);
+  setPdfFont(doc, 11, true, 17);
+  doc.text(String(po?.vendor?.name || '-'), leftX + 4, y + 11);
+  setPdfFont(doc, 8.5, false, 55);
+  doc.text(`Store / Warehouse: ${String(po?.store?.name || '-')}`, leftX + 4, y + 17);
+  doc.text(`Created By: ${employeeName(po?.createdBy || po?.created_by)}`, leftX + 4, y + 22.5);
+  doc.text(`Received By: ${employeeName(po?.receivedBy || po?.received_by)}`, leftX + 4, y + 27.5);
+
+  setPdfFont(doc, 7, true, 107);
+  doc.text('ORDER DETAILS', rightX + 4, y + 5);
+  setPdfFont(doc, 8.5, false, 55);
+  doc.text(`Order Date: ${fmtDate(po?.order_date || po?.created_at)}`, rightX + 4, y + 11);
+  doc.text(`Expected: ${fmtDate(po?.expected_delivery_date)}`, rightX + 4, y + 16.5);
+  doc.text(`Received: ${fmtDate(po?.received_at)}`, rightX + 4, y + 22);
+
+  const statusText = String(po?.status || '-').replace(/_/g, ' ');
+  const paymentText = String(po?.payment_status || '-').replace(/_/g, ' ');
+  const badgeY = y + 25;
+  const badge1Width = Math.max(26, doc.getTextWidth(statusText) + 8);
+  doc.setFillColor(238, 242, 255);
+  doc.roundedRect(rightX + infoWidth - badge1Width - 4, badgeY - 5, badge1Width, 6.5, 3, 3, 'F');
+  doc.setTextColor(55, 48, 163);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.4);
+  doc.text(statusText.toUpperCase(), rightX + infoWidth - 4 - (badge1Width / 2), badgeY - 0.8, { align: 'center' });
+  const badge2Width = Math.max(26, doc.getTextWidth(paymentText) + 8);
+  doc.setFillColor(243, 244, 246);
+  doc.roundedRect(rightX + infoWidth - badge1Width - badge2Width - 7, badgeY - 5, badge2Width, 6.5, 3, 3, 'F');
+  setPdfFont(doc, 7.4, true, 75);
+  doc.text(paymentText.toUpperCase(), rightX + infoWidth - badge1Width - 7 - (badge2Width / 2), badgeY - 0.8, { align: 'center' });
+
+  y += infoHeight + 6;
+  const metricGap = 4;
+  const metricWidth = (pageWidth - (margin * 2) - (metricGap * 4)) / 5;
+  const metrics = [
+    ['Ordered Qty', String(orderedQty(po))],
+    ['Received Qty', String(receivedQty(po))],
+    ['PO Total', pdfMoney(poTotal(po))],
+    ['Paid', pdfMoney(poPaid(po))],
+    ['Outstanding', pdfMoney(poOutstanding(po))],
   ];
+  metrics.forEach(([label, value], index) => drawPdfMetric(doc, margin + index * (metricWidth + metricGap), y, metricWidth, label, value));
+  y += 24;
+
+  setPdfFont(doc, 10.5, true, 17);
+  doc.text('Items', margin, y);
+  y += 3;
+  y = drawSinglePoTableHeader(doc, y);
+
+  const items = Array.isArray(po?.items) ? po.items : [];
+  const widths = [8, 70, 20, 20, 20, 26, 26, 57, 30];
+  const tableWidth = widths.reduce((sum, width) => sum + width, 0);
 
   if (items.length === 0) {
-    lines.push({ text: 'No items found.' });
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(margin, y, tableWidth, 12);
+    setPdfFont(doc, 8.5, false, 107);
+    doc.text('No items found.', margin + (tableWidth / 2), y + 7.5, { align: 'center' });
+    y += 12;
   } else {
     items.forEach((item: any, index: number) => {
       const batch = itemBatch(item);
-      lines.push({
-        text: `${index + 1}. ${itemName(item)}${itemSku(item) ? ` / ${itemSku(item)}` : ''} | Ordered ${itemOrderedQty(item)} | Received ${itemReceivedQty(item)} | Pending ${itemPendingQty(item)} | Cost ${moneyLabel(itemUnitCost(item))} | Sell ${moneyLabel(item?.unit_sell_price)} | Batch ${batch?.batch_number || item?.batch_number || '-'} | Total ${moneyLabel(itemTotalCost(item))}`,
+      const productLines = doc.splitTextToSize(itemName(item), widths[1] - 4) as string[];
+      const sku = itemSku(item);
+      const batchLines = doc.splitTextToSize(String(batch?.batch_number || item?.batch_number || '-'), widths[7] - 4) as string[];
+      const productLineCount = Math.min(productLines.length, 3) + (sku ? 1 : 0);
+      const rowHeight = Math.max(12, 4 + (Math.max(productLineCount, Math.min(batchLines.length, 3), 1) * 4));
+
+      if (y + rowHeight > pageHeight - 20) {
+        doc.addPage('a4', 'landscape');
+        y = drawSinglePoPageHeading(doc, po, true) + 3;
+        y = drawSinglePoTableHeader(doc, y);
+      }
+
+      doc.setDrawColor(229, 231, 235);
+      if (index % 2 === 1) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, y, tableWidth, rowHeight, 'F');
+      }
+      doc.rect(margin, y, tableWidth, rowHeight);
+
+      let x = margin;
+      widths.slice(0, -1).forEach((width) => {
+        x += width;
+        doc.line(x, y, x, y + rowHeight);
       });
+
+      let cellX = margin;
+      setPdfFont(doc, 8, false, 55);
+      doc.text(String(index + 1), cellX + (widths[0] / 2), y + 7, { align: 'center' });
+      cellX += widths[0];
+
+      setPdfFont(doc, 8, true, 17);
+      const visibleProductLines = productLines.slice(0, 3);
+      doc.text(visibleProductLines, cellX + 2, y + 5.2);
+      if (sku) {
+        setPdfFont(doc, 7, false, 107);
+        doc.text(String(sku), cellX + 2, y + 5.2 + (visibleProductLines.length * 4));
+      }
+      cellX += widths[1];
+
+      const numericValues = [
+        itemOrderedQty(item),
+        itemReceivedQty(item),
+        itemPendingQty(item),
+        pdfMoney(itemUnitCost(item)),
+        pdfMoney(item?.unit_sell_price),
+      ];
+      numericValues.forEach((value, valueIndex) => {
+        const width = widths[valueIndex + 2];
+        setPdfFont(doc, 7.7, false, 55);
+        doc.text(String(value), cellX + width - 2, y + 7, { align: 'right' });
+        cellX += width;
+      });
+
+      setPdfFont(doc, 7.2, false, 55);
+      doc.text(batchLines.slice(0, 3), cellX + 2, y + 5.2);
+      cellX += widths[7];
+      setPdfFont(doc, 7.7, true, 17);
+      doc.text(pdfMoney(itemTotalCost(item)), cellX + widths[8] - 2, y + 7, { align: 'right' });
+
+      y += rowHeight;
     });
   }
 
-  lines.push({ text: '', gapAfter: true });
-  lines.push({ text: `Tax: ${moneyLabel(po?.tax_amount)} | Discount: ${moneyLabel(po?.discount_amount)} | Shipping: ${moneyLabel(po?.shipping_cost)}` });
-  if (po?.notes) lines.push({ text: `Notes: ${po.notes}` });
-  return lines;
+  const summaryHeight = 45;
+  if (y + summaryHeight > pageHeight - 18) {
+    doc.addPage('a4', 'landscape');
+    y = drawSinglePoPageHeading(doc, po, true) + 5;
+  } else {
+    y += 6;
+  }
+
+  const totalsWidth = 78;
+  const totalsX = pageWidth - margin - totalsWidth;
+  const summaryRows: Array<[string, string, boolean?]> = [
+    ['Subtotal', pdfMoney(poSubtotal(po))],
+    ['Tax', pdfMoney(po?.tax_amount)],
+    ['Discount', pdfMoney(po?.discount_amount)],
+    ['Shipping', pdfMoney(po?.shipping_cost)],
+    ['Total', pdfMoney(poTotal(po)), true],
+    ['Paid', pdfMoney(poPaid(po))],
+    ['Outstanding', pdfMoney(poOutstanding(po)), true],
+  ];
+  let totalsY = y;
+  summaryRows.forEach(([label, value, strong], index) => {
+    const rowHeight = strong ? 7.5 : 6.2;
+    if (strong) {
+      doc.setFillColor(index === 4 ? 243 : 249, index === 4 ? 244 : 250, index === 4 ? 246 : 251);
+      doc.rect(totalsX, totalsY, totalsWidth, rowHeight, 'F');
+    }
+    doc.setDrawColor(229, 231, 235);
+    doc.line(totalsX, totalsY + rowHeight, totalsX + totalsWidth, totalsY + rowHeight);
+    setPdfFont(doc, strong ? 8.6 : 7.8, Boolean(strong), strong ? 17 : 75);
+    doc.text(label, totalsX + 2, totalsY + rowHeight - 2.2);
+    doc.text(value, totalsX + totalsWidth - 2, totalsY + rowHeight - 2.2, { align: 'right' });
+    totalsY += rowHeight;
+  });
+
+  if (po?.notes) {
+    const notesWidth = totalsX - margin - 7;
+    setPdfFont(doc, 8.5, true, 17);
+    doc.text('Notes', margin, y + 4);
+    setPdfFont(doc, 8, false, 75);
+    const noteLines = doc.splitTextToSize(String(po.notes), notesWidth) as string[];
+    doc.text(noteLines.slice(0, 8), margin, y + 10);
+  }
+
+  drawPdfFooter(doc, `Deshio Purchase Order - ${String(po?.po_number || po?.id || '-')}`);
+  doc.save(`purchase-order-${safeFilePart(po?.po_number || po?.id)}.pdf`);
+}
+
+const drawSummaryHeading = (doc: PdfDoc, filters: Record<string, any>): number => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFillColor(17, 24, 39);
+  doc.rect(0, 0, pageWidth, 24, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('DESHIO', 10, 10.5);
+  doc.setFontSize(12.5);
+  doc.text('Purchase Order Summary Report', 10, 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(`Generated ${fmtDate(new Date().toISOString())}`, pageWidth - 10, 11, { align: 'right' });
+  const filterText = Object.entries(filters)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(' | ') || 'All purchase orders';
+  doc.text(filterText, pageWidth - 10, 18, { align: 'right', maxWidth: 155 });
+  return 31;
 };
 
-const summaryPdfLines = (purchaseOrders: any[], filters: Record<string, any> = {}): PdfLine[] => {
+const summaryColumns = [
+  { label: '#', width: 7, align: 'center' as const },
+  { label: 'PO', width: 30 },
+  { label: 'Vendor', width: 39 },
+  { label: 'Store', width: 24 },
+  { label: 'Date', width: 23 },
+  { label: 'Status', width: 22 },
+  { label: 'Payment', width: 21 },
+  { label: 'Ordered', width: 14, align: 'right' as const },
+  { label: 'Received', width: 15, align: 'right' as const },
+  { label: 'Total', width: 23, align: 'right' as const },
+  { label: 'Paid', width: 22, align: 'right' as const },
+  { label: 'Outstanding', width: 26, align: 'right' as const },
+];
+
+export function downloadPurchaseOrderSummaryPdf(purchaseOrders: any[], filters: Record<string, any> = {}): void {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 10;
+  let y = drawSummaryHeading(doc, filters);
+
   const totals = purchaseOrders.reduce((acc, po) => {
     acc.count += 1;
     acc.ordered += orderedQty(po);
@@ -409,41 +593,85 @@ const summaryPdfLines = (purchaseOrders: any[], filters: Record<string, any> = {
     acc.outstanding += poOutstanding(po);
     return acc;
   }, { count: 0, ordered: 0, received: 0, total: 0, paid: 0, outstanding: 0 });
-  const filterText = Object.entries(filters)
-    .filter(([, value]) => value !== undefined && value !== null && value !== '')
-    .map(([key, value]) => `${key}: ${value}`)
-    .join(' | ') || 'All purchase orders';
-  const lines: PdfLine[] = [
-    { text: 'Deshio - Purchase Order Summary Report', size: 16, bold: true },
-    { text: `Generated: ${fmtDate(new Date().toISOString())}` },
-    { text: `Filters: ${filterText}`, gapAfter: true },
-    { text: `PO Count: ${totals.count} | Ordered Qty: ${totals.ordered} | Received Qty: ${totals.received}` },
-    { text: `Total: ${moneyLabel(totals.total)} | Paid: ${moneyLabel(totals.paid)} | Outstanding: ${moneyLabel(totals.outstanding)}`, gapAfter: true },
-    { text: 'Purchase Orders', size: 13, bold: true },
-    { text: 'No | PO | Vendor | Store | Date | Status | Payment | Ordered | Received | Total | Paid | Outstanding' },
-    { text: '-'.repeat(116) },
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const metricGap = 4;
+  const metricWidth = (pageWidth - (margin * 2) - (metricGap * 5)) / 6;
+  const metrics = [
+    ['PO Count', String(totals.count)],
+    ['Ordered', String(totals.ordered)],
+    ['Received', String(totals.received)],
+    ['Total', pdfMoney(totals.total)],
+    ['Paid', pdfMoney(totals.paid)],
+    ['Outstanding', pdfMoney(totals.outstanding)],
   ];
+  metrics.forEach(([label, value], index) => drawPdfMetric(doc, margin + index * (metricWidth + metricGap), y, metricWidth, label, value));
+  y += 24;
+
+  y = drawPdfTableHeader(doc, y, summaryColumns);
+  const tableWidth = summaryColumns.reduce((sum, column) => sum + column.width, 0);
 
   if (purchaseOrders.length === 0) {
-    lines.push({ text: 'No purchase orders found.' });
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(margin, y, tableWidth, 12);
+    setPdfFont(doc, 8.5, false, 107);
+    doc.text('No purchase orders found.', margin + (tableWidth / 2), y + 7.5, { align: 'center' });
   } else {
     purchaseOrders.forEach((po, index) => {
-      lines.push({
-        text: `${index + 1}. ${po?.po_number || '-'} | ${po?.vendor?.name || '-'} | ${po?.store?.name || '-'} | ${fmtDate(po?.order_date || po?.created_at)} | ${po?.status || '-'} | ${po?.payment_status || '-'} | Ordered ${orderedQty(po)} | Received ${receivedQty(po)} | Total ${moneyLabel(poTotal(po))} | Paid ${moneyLabel(poPaid(po))} | Outstanding ${moneyLabel(poOutstanding(po))}`,
+      const vendorLines = doc.splitTextToSize(String(po?.vendor?.name || '-'), summaryColumns[2].width - 4) as string[];
+      const rowHeight = Math.max(10, 4 + (Math.min(vendorLines.length, 2) * 4));
+      if (y + rowHeight > pageHeight - 18) {
+        doc.addPage('a4', 'landscape');
+        y = drawSummaryHeading(doc, filters) + 2;
+        y = drawPdfTableHeader(doc, y, summaryColumns);
+      }
+
+      if (index % 2 === 1) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, y, tableWidth, rowHeight, 'F');
+      }
+      doc.setDrawColor(229, 231, 235);
+      doc.rect(margin, y, tableWidth, rowHeight);
+      let x = margin;
+      summaryColumns.slice(0, -1).forEach((column) => {
+        x += column.width;
+        doc.line(x, y, x, y + rowHeight);
       });
+
+      const values = [
+        String(index + 1),
+        String(po?.po_number || '-'),
+        vendorLines.slice(0, 2),
+        String(po?.store?.name || '-'),
+        fmtDate(po?.order_date || po?.created_at),
+        String(po?.status || '-').replace(/_/g, ' '),
+        String(po?.payment_status || '-').replace(/_/g, ' '),
+        String(orderedQty(po)),
+        String(receivedQty(po)),
+        pdfMoney(poTotal(po)),
+        pdfMoney(poPaid(po)),
+        pdfMoney(poOutstanding(po)),
+      ];
+
+      x = margin;
+      values.forEach((value, valueIndex) => {
+        const column = summaryColumns[valueIndex];
+        setPdfFont(doc, valueIndex === 1 ? 7.4 : 7, valueIndex === 1, valueIndex === 1 ? 17 : 55);
+        const align = column.align || 'left';
+        const textX = align === 'right'
+          ? x + column.width - 2
+          : align === 'center'
+            ? x + column.width / 2
+            : x + 2;
+        doc.text(value as any, textX, y + 6.3, { align });
+        x += column.width;
+      });
+      y += rowHeight;
     });
   }
-  return lines;
-};
 
-export function downloadSinglePurchaseOrderPdf(po: PurchaseOrder | any): void {
-  const filename = `purchase-order-${safeFilePart(po?.po_number || po?.id)}.pdf`;
-  triggerDownload(buildPdfBlobFromLines(`Purchase Order ${po?.po_number || po?.id || ''}`, singlePoPdfLines(po)), filename);
-}
-
-export function downloadPurchaseOrderSummaryPdf(purchaseOrders: any[], filters: Record<string, any> = {}): void {
-  const filename = `purchase-order-summary-${new Date().toISOString().slice(0, 10)}.pdf`;
-  triggerDownload(buildPdfBlobFromLines('Purchase Order Summary Report', summaryPdfLines(purchaseOrders, filters)), filename);
+  drawPdfFooter(doc, 'Deshio Purchase Order Summary');
+  doc.save(`purchase-order-summary-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 export function downloadSinglePurchaseOrderHtml(po: PurchaseOrder | any): void {

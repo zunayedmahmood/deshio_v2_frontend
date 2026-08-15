@@ -38,6 +38,12 @@ export default function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualE
   const [dragActive, setDragActive] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
 
+  const isOperatingAccount = (account: any) =>
+    account?.type === 'asset' && (
+      String(account.account_code) === '1001' ||
+      /(cash|bank|wallet|bkash|nagad|rocket)/i.test(account.name || '')
+    );
+
   useEffect(() => {
     if (isOpen) {
       loadData();
@@ -70,10 +76,14 @@ export default function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualE
       setAccounts(allAccounts);
       setStores(storesList);
 
-      // Set default primary account (find first cash/asset account)
-      const defaultCash = allAccounts.find((a: any) => a.sub_type === 'cash' || a.type === 'asset');
-      if (defaultCash && !formData.account_id) {
-        setFormData(prev => ({ ...prev, account_id: defaultCash.id.toString() }));
+      // Prefer the real operating cash account used by Deshio accounting.
+      // Falling back keeps legacy/custom charts usable.
+      const defaultCash = allAccounts.find(isOperatingAccount)
+        || allAccounts.find((a: any) => a.type === 'asset');
+      if (defaultCash) {
+        setFormData(prev => prev.account_id
+          ? prev
+          : ({ ...prev, account_id: defaultCash.id.toString() }));
       }
     } catch (error) {
       console.error('Failed to load modal data:', error);
@@ -265,7 +275,10 @@ export default function ManualEntryModal({ isOpen, onClose, onSuccess }: ManualE
                       required
                     >
                       <option value="">Select Account</option>
-                      {accounts.filter(a => a.type === 'asset').map(acc => (
+                      {(accounts.some(isOperatingAccount)
+                        ? accounts.filter(isOperatingAccount)
+                        : accounts.filter(a => a.type === 'asset')
+                      ).map(acc => (
                         <option key={acc.id} value={acc.id}>
                           {acc.name} ({acc.account_code})
                         </option>

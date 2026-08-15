@@ -578,14 +578,16 @@ export default function AccountingSystem() {
                                     {formatDate(entry.date)}
                                   </span>
                                   <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
-                                    {entry.reference_type}
+                                    {entry.reference_label}
                                   </span>
-                                  <Link
-                                    href={`/accounting/transaction/${entry.group_id || entry.id || entry.lines[0]?.id}`}
-                                    className="px-2 py-1 text-[10px] font-bold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-                                  >
-                                    VIEW DETAILS
-                                  </Link>
+                                  {entry.lines[0]?.id && (
+                                    <Link
+                                      href={`/accounting/transaction/${entry.lines[0].id}`}
+                                      className="px-2 py-1 text-[10px] font-bold bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                                    >
+                                      VIEW DETAILS
+                                    </Link>
+                                  )}
                                   {!entry.balanced && (
                                     <span className="px-2 py-1 text-xs font-medium bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded">
                                       ⚠️ Unbalanced

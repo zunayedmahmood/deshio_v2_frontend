@@ -174,17 +174,34 @@ function mapJournalGroupToUI(entries: BackendTransaction[]): Transaction {
   }
 
   const first = entries[0];
+  const firstMetadata = first.metadata || {};
+  const manualOperatingAccountId = Number(firstMetadata.manual_operating_account_id || 0);
+  const manualOperatingRow = first.reference_type === 'manual'
+    ? (manualOperatingAccountId > 0
+      ? entries.find(row => Number(row.account_id) === manualOperatingAccountId)
+      // Legacy manual rows did not store the operating-account id, but the form
+      // always posted one asset side against one non-asset counter side.
+      : entries.find(row => row.account?.type === 'asset'))
+    : undefined;
+
   const cashRows = entries.filter(isCashLike);
   const cashNet = cashRows.reduce((sum, row) => {
     const amount = Number(row.amount) || 0;
     return sum + (row.type === 'debit' ? amount : -amount);
   }, 0);
 
+  // Manual entries explicitly identify the operating money side. Older entries
+  // fall back to cash/bank account detection so existing data keeps working.
+  const manualMovement = first.reference_type === 'manual' && manualOperatingRow
+    ? (manualOperatingRow.type === 'debit' ? Number(manualOperatingRow.amount) || 0 : -(Number(manualOperatingRow.amount) || 0))
+    : null;
+  const movementNet = manualMovement ?? cashNet;
+
   const epsilon = 0.005;
-  const actualType: Transaction['type'] = cashNet > epsilon
-    ? 'income'       // cash in
-    : cashNet < -epsilon
-      ? 'expense'    // cash out
+  const actualType: Transaction['type'] = movementNet > epsilon
+    ? 'income'       // money in
+    : movementNet < -epsilon
+      ? 'expense'    // money out
       : 'adjustment'; // non-cash accounting movement
 
   const totalDebits = entries
@@ -194,7 +211,7 @@ function mapJournalGroupToUI(entries: BackendTransaction[]): Transaction {
     .filter(row => row.type === 'credit')
     .reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
 
-  const representative = cashRows[0] || first;
+  const representative = manualOperatingRow || cashRows[0] || first;
   const metadata = representative.metadata || first.metadata || {};
   const source = normalizeSource(entries);
   const category = actualType === 'adjustment'
@@ -208,7 +225,7 @@ function mapJournalGroupToUI(entries: BackendTransaction[]): Transaction {
     type: actualType,
     amount: actualType === 'adjustment'
       ? Math.max(totalDebits, totalCredits)
-      : Math.abs(cashNet),
+      : Math.abs(movementNet),
     category,
     source: source || 'manual',
     transactionDate: representative.transaction_date || first.transaction_date || representative.created_at || representative.createdAt || new Date().toISOString(),

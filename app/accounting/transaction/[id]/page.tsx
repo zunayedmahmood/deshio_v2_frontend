@@ -37,6 +37,9 @@ export default function TransactionDetailPage({ params }: TransactionPageProps) 
   const [loading, setLoading] = useState(true);
   const [transaction, setTransaction] = useState<any>(null);
   const [relatedTransactions, setRelatedTransactions] = useState<any[]>([]);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [additionalReferences, setAdditionalReferences] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [newReference, setNewReference] = useState({ label: '', url: '' });
   const [showRefForm, setShowRefForm] = useState(false);
@@ -57,11 +60,25 @@ export default function TransactionDetailPage({ params }: TransactionPageProps) 
   }, [id, authLoading, isAuthorized]);
 
   const fetchTransaction = async () => {
+    const transactionId = Number(id);
+    if (!Number.isInteger(transactionId) || transactionId <= 0) {
+      setTransaction(null);
+      setRelatedTransactions([]);
+      setGroupId(null);
+      setAttachments([]);
+      setAdditionalReferences([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await transactionService.getTransaction(parseInt(id));
+      const data = await transactionService.getTransaction(transactionId);
       setTransaction(data.transaction);
       setRelatedTransactions(data.related_transactions || []);
+      setGroupId(data.group_id || null);
+      setAttachments(data.attachments || []);
+      setAdditionalReferences(data.additional_references || []);
     } catch (error) {
       console.error('Error fetching transaction:', error);
     } finally {
@@ -230,9 +247,9 @@ export default function TransactionDetailPage({ params }: TransactionPageProps) 
                         <Layers className="w-5 h-5 text-indigo-500" />
                         <h3 className="font-bold text-lg">Journal Bundle</h3>
                       </div>
-                      {transaction.metadata?.group_id && (
+                      {groupId && (
                         <div className="text-[10px] sm:text-xs font-mono text-gray-400 bg-gray-50 dark:bg-gray-900 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 truncate max-w-[150px] sm:max-w-none">
-                          GROUP: {transaction.metadata.group_id}
+                          GROUP: {groupId}
                         </div>
                       )}
                     </div>
@@ -313,8 +330,8 @@ export default function TransactionDetailPage({ params }: TransactionPageProps) 
                         </div>
                       )}
                       
-                      {transaction.metadata?.attachments?.length > 0 ? (
-                        transaction.metadata.attachments.map((file: any, index: number) => (
+                      {attachments.length > 0 ? (
+                        attachments.map((file: any, index: number) => (
                           <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 group transition-all">
                             <div className="flex items-center gap-3 overflow-hidden">
                               <div className="p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xs">
@@ -389,8 +406,8 @@ export default function TransactionDetailPage({ params }: TransactionPageProps) 
                         </form>
                       )}
 
-                      {transaction.metadata?.additional_references?.length > 0 ? (
-                        transaction.metadata.additional_references.map((ref: any, index: number) => (
+                      {additionalReferences.length > 0 ? (
+                        additionalReferences.map((ref: any, index: number) => (
                           <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-700 group transition-all">
                             <div className="flex items-center gap-3 overflow-hidden">
                               <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800">

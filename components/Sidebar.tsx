@@ -162,6 +162,8 @@ export default function Sidebar({
     { icon: Users, label: 'Customer Rewards', href: '/customer-rewards' },
     { icon: CreditCard, label: 'Installments', href: '/orders?view=installments' },
     { icon: Package, label: 'Online Order Packing', href: '/social-commerce/package' },
+    { icon: Truck, label: 'Pathao Tracking', href: '/pathao-tracking' },
+    { icon: FileText, label: 'Account Checking', href: '/account-checking' },
     { icon: Package, label: 'PreOrders', href: '/preorders' },
     { icon: AlertTriangle, label: 'Extra Panel', href: '/extra' },
     { icon: RotateCcw, label: 'Returns & Exchanges', href: '/returns' },

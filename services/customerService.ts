@@ -212,16 +212,14 @@ const customerService = {
   async getByPhone(phone: string): Promise<Customer | null> {
     try {
       const formattedPhone = phone.replace(/[^0-9+]/g, ''); // Keep leading + for international numbers
-      const response = await axiosInstance.get('/customers/search', {
-        params: { phone: formattedPhone, per_page: 1 }
+      const response = await axiosInstance.get('/customers/by-phone', {
+        params: { phone: formattedPhone }
       });
       const result = response.data;
+      const customer = result?.data ?? result?.customer ?? result;
 
-      if (result.success && result.data && result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
+      if (result?.success === false) return null;
+      return customer?.id ? customer : null;
     } catch (error: any) {
       console.error('Get customer by phone error:', error);
       if (error.response?.status === 404) {

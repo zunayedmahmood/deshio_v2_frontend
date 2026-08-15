@@ -339,6 +339,8 @@ export interface Transaction {
   account_id: number;
   reference_type?: string;
   reference_id?: number;
+  reference_label?: string;
+  display_id?: string;
   description?: string;
   store_id?: number | string;
   created_by?: number;
@@ -457,6 +459,7 @@ export interface JournalEntry {
   group_id?: string;
   date: string;
   reference_type: string;
+  reference_label: string;
   reference_id: number;
   description: string;
   lines: JournalEntryLine[];
@@ -933,6 +936,24 @@ class FinancialReportsService {
           id: key,
           date,
           reference_type: refType,
+          reference_label: txn.reference_label || (() => {
+            const base = String(refType || 'Manual').split('\\').pop() || 'Manual';
+            const labels: Record<string, string> = {
+              Order: 'Store Order',
+              OrderPayment: 'Order Payment',
+              ServiceOrderPayment: 'Order Payment',
+              PurchaseOrder: 'Purchase Order',
+              PurchaseOrderItem: 'Purchase Order Receipt',
+              Refund: 'Refund',
+              ProductReturn: 'Product Return',
+              VendorPayment: 'Vendor Payment',
+              Expense: 'Expense',
+              ExpensePayment: 'Expense Payment',
+              manual: 'Manual Entry',
+              Manual: 'Manual Entry',
+            };
+            return labels[base] || base.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+          })(),
           reference_id: txn.reference_id || 0,
           group_id: txn.group_id,
           description: txn.description || '',
