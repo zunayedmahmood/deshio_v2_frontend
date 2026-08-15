@@ -8,8 +8,8 @@ import axiosInstance from '@/lib/axios';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface TrackingRow {
-  shipment_id: number;
-  shipment_number: string;
+  shipment_id?: number | null;
+  shipment_number?: string | null;
   order_id: number;
   order_number?: string | null;
   order_date?: string | null;
@@ -101,18 +101,18 @@ export default function PathaoTrackingPage() {
       setLoading(false);
     }
   }, [dateFrom, dateTo]);
-  const refreshOne = useCallback(async (shipmentId: number, silent = false) => {
-    setRefreshingIds(prev => new Set(prev).add(shipmentId));
+  const refreshOne = useCallback(async (orderId: number, silent = false) => {
+    setRefreshingIds(prev => new Set(prev).add(orderId));
     if (!silent) {
       setError('');
       setMessage('');
     }
 
     try {
-      const response = await axiosInstance.post(`/shipments/pathao-tracking/${shipmentId}/refresh`);
+      const response = await axiosInstance.post(`/shipments/pathao-tracking/${orderId}/refresh`);
       const updated = response.data?.data as TrackingRow | undefined;
       if (updated) {
-        setRows(prev => prev.map(row => row.shipment_id === shipmentId ? updated : row));
+        setRows(prev => prev.map(row => row.order_id === orderId ? updated : row));
       }
       if (!silent) setMessage('Tracking refreshed from Pathao.');
       return { success: true };
@@ -123,7 +123,7 @@ export default function PathaoTrackingPage() {
     } finally {
       setRefreshingIds(prev => {
         const next = new Set(prev);
-        next.delete(shipmentId);
+        next.delete(orderId);
         return next;
       });
     }
@@ -145,7 +145,7 @@ export default function PathaoTrackingPage() {
       while (queue.length) {
         const row = queue.shift();
         if (!row) return;
-        const result = await refreshOne(row.shipment_id, true);
+        const result = await refreshOne(row.order_id, true);
         if (!result.success) failed += 1;
         setRefreshProgress(prev => ({ ...prev, done: prev.done + 1 }));
       }
@@ -331,9 +331,9 @@ export default function PathaoTrackingPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {rows.map(row => {
-                    const refreshing = refreshingIds.has(row.shipment_id);
+                    const refreshing = refreshingIds.has(row.order_id);
                     return (
-                      <tr key={row.shipment_id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+                      <tr key={row.order_id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
                         <td className="px-4 py-3 align-top">
                           <p className="font-semibold text-gray-900 dark:text-white">{row.order_number || `#${row.order_id}`}</p>
                           <p className="text-xs text-gray-500">{formatDateTime(row.order_date)}</p>
@@ -366,10 +366,10 @@ export default function PathaoTrackingPage() {
                           <div className="flex justify-end gap-2">
                             <button
                               type="button"
-                              onClick={() => refreshOne(row.shipment_id)}
-                              disabled={refreshing || refreshAllRunning || !row.phone}
+                              onClick={() => refreshOne(row.order_id)}
+                              disabled={refreshing || refreshAllRunning}
                               className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                              title={!row.phone ? 'No valid recipient phone available' : 'Refresh from Pathao'}
+                              title="Refresh from Pathao using consignment ID"
                             >
                               {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                               Refresh

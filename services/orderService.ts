@@ -398,10 +398,13 @@ const orderService = {
     }
   },
 
-  /** Cancel order */
-  async cancel(orderId: number, reason?: string): Promise<Order> {
+  /** Cancel order. refundCollected=true atomically refunds retained customer payments first. */
+  async cancel(orderId: number, reason?: string, refundCollected = false): Promise<Order> {
     try {
-      const response = await axiosInstance.patch(`/orders/${orderId}/cancel`, { reason });
+      const response = await axiosInstance.patch(`/orders/${orderId}/cancel`, {
+        reason,
+        refund_collected: refundCollected,
+      });
       const result = response.data;
       
       if (!result.success) {

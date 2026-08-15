@@ -2285,13 +2285,24 @@ When the courier brings back the original product, open this order/lookup and cl
     }
   };
 
-  const handleCancelOrder = async (orderId: number) => {
-    if (!confirm('Are you sure you want to cancel this order?')) return;
+  const handleCancelOrder = async (order: Order) => {
+    const paidAmount = Math.max(0, Number(order.amounts?.paid || 0));
+    const refundCollected = paidAmount > 0.009;
+    const confirmation = refundCollected
+      ? `This order has ৳${paidAmount.toFixed(2)} collected. Refund that amount and cancel the order?`
+      : 'Are you sure you want to cancel this order?';
+
+    if (!confirm(confirmation)) return;
+
     try {
-      await orderService.cancel(orderId, 'Cancelled by user');
+      await orderService.cancel(
+        order.id,
+        refundCollected ? 'Refunded and cancelled by user' : 'Cancelled by user',
+        refundCollected,
+      );
       await loadOrders();
       setActiveMenu(null);
-      alert('Order cancelled successfully!');
+      alert(refundCollected ? 'Payment refunded and order cancelled successfully!' : 'Order cancelled successfully!');
     } catch (error: any) {
       console.error('Error cancelling order:', error);
       alert(`Failed to cancel order: ${error.message}`);
@@ -5570,17 +5581,24 @@ When the courier brings back the original product, open this order/lookup and cl
           })()}
 
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const order = filteredOrders.find((o) => o.id === activeMenu);
-              if (order) handleCancelOrder(order.id);
-            }}
-            className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 rounded-b-lg"
-          >
-            <XCircle className="h-5 w-5 flex-shrink-0" />
-            <span>Cancel Order</span>
-          </button>
+          {(() => {
+            const order = filteredOrders.find((o) => o.id === activeMenu);
+            if (!order) return null;
+            const hasCollectedPayment = Number(order.amounts?.paid || 0) > 0.009;
+
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancelOrder(order);
+                }}
+                className="w-full px-4 py-3 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-3 rounded-b-lg"
+              >
+                <XCircle className="h-5 w-5 flex-shrink-0" />
+                <span>{hasCollectedPayment ? 'Refund & Cancel' : 'Cancel Order'}</span>
+              </button>
+            );
+          })()}
         </div>
       )}
 
